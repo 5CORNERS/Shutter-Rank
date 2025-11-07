@@ -1,5 +1,5 @@
 {
-  "name": "Photo Voting App",
-  "description": "A web app for photo contests with a semi-automated result collection system. Users vote and share their results via Telegram. Photo data is loaded from a local TSV file.",
+  "name": "Shutter Rank",
+  "description": "A web app for photo contests. Find what's cool -- cull the rest.",
   "requestFramePermissions": []
 }

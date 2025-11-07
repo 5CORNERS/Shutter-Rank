@@ -1,8 +1,14 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Shutter-Rank
 Find what's cool -- cull the rest.
 =======
 # Photo Voting App
+=======
+# Shutter Rank
+
+*Find what's cool -- cull the rest.*
+>>>>>>> 2c76312 (Updated files with new application name)
 
 Это веб-приложение для проведения фотоконкурсов со "слепым" голосованием и полуавтоматическим сбором результатов.
 
@@ -60,5 +66,9 @@ Find what's cool -- cull the rest.
 3.  Нажмите **«Шаг 1: Загрузить текущие результаты»**.
 4.  Вставьте JSON от пользователя в поле **«Шаг 2...»**.
 5.  Нажмите **«Шаг 3: Объединить результаты»**.
+<<<<<<< HEAD
 6.  Скопируйте или скачайте обновлённый JSON и замените `results.json` на сервере.
 >>>>>>> 6390061 (Initial commit: 5-star rating app is building and working)
+=======
+6.  Скопируйте или скачайте обновлённый JSON и замените `results.json` на сервере.
+>>>>>>> 2c76312 (Updated files with new application name)
