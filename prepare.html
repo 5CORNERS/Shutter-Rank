@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подготовка photos.json</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans p-8">
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold mb-4">Инструмент подготовки `photos.json`</h1>
+        <p class="mb-6 text-gray-600">Этот инструмент поможет вам быстро создать базовый файл `photos.json` из списка URL-адресов. Вставьте URL-ы, по одному на строку.</p>
+
+        <div class="space-y-6">
+            <div>
+                <label for="urls-input" class="block text-sm font-medium text-gray-700 mb-1">Список URL-адресов фотографий:</label>
+                <textarea id="urls-input" rows="15" class="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 font-mono" placeholder="https://example.com/photo1.jpg
+https://example.com/photo2.jpg"></textarea>
+            </div>
+             <div>
+                <label for="markdown-input" class="block text-sm font-medium text-gray-700 mb-1">Вступительная статья (Markdown, необязательно):</label>
+                <textarea id="markdown-input" rows="8" class="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" placeholder="# Заголовок статьи..."></textarea>
+            </div>
+            <div>
+                 <button id="generate-button" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    Сгенерировать и скачать `photos.json`
+                </button>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/prepare.js"></script>
+</body>
+</html>

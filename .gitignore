@@ -1,0 +1,25 @@
+# Зависимости
+/node_modules
+
+# Результаты сборки
+/dist
+
+# Логи
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Файлы окружения
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Файлы IDE
+.idea/
+.vscode/
+
+# Системные файлы macOS
+.DS_Store

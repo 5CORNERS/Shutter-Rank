@@ -1,0 +1,9 @@
+{
+  "photosPath": "./data/photos.json",
+  "resultsPath": "./data/results.json",
+  "ratedPhotoLimit": 15,
+  "totalStarsLimit": 25,
+  "defaultLayoutDesktop": "grid",
+  "defaultLayoutMobile": "original",
+  "defaultGridAspectRatio": "4/3"
+}
