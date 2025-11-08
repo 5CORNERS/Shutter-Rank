@@ -13,6 +13,10 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
   const [hoverRating, setHoverRating] = useState(0);
   const isTouchDevice = 'ontouchstart' in window;
 
+  if (disabled) {
+    return null;
+  }
+
   const handleRate = (rating: number) => {
     const newRating = photo.userRating === rating ? 0 : rating;
     onRate(photo.id, newRating);
@@ -23,17 +27,16 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
   const buttonPadding = size === 'large' ? 'p-2' : 'p-1.5';
 
   return (
-    <div className={`flex items-center flex-shrink-0 ${disabled ? 'opacity-50' : ''}`} onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
+    <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
       {[1, 2, 3, 4, 5].map((star) => {
         const isFilled = (photo.userRating || 0) >= star;
         const isHighlighted = !isTouchDevice && hoverRating >= star;
         return (
           <button
             key={star}
-            onClick={() => !disabled && handleRate(star)}
-            onMouseEnter={() => !isTouchDevice && !disabled && setHoverRating(star)}
-            disabled={disabled}
-            className={`${buttonPadding} rounded-full transition-all transform ${disabled ? 'cursor-not-allowed' : 'hover:scale-125'}`}
+            onClick={() => handleRate(star)}
+            onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
+            className={`${buttonPadding} rounded-full transition-all transform hover:scale-125`}
             aria-label={`Оценить в ${star} звезд`}
           >
             <Star
@@ -47,9 +50,8 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
        {(photo.userRating || 0) > 0 && (
          <div className='flex items-center justify-center transition-opacity' style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
             <button
-            onClick={() => !disabled && onRate(photo.id, 0)}
-            disabled={disabled}
-            className={`${buttonPadding} rounded-full text-red-500/70 ${disabled ? 'cursor-not-allowed' : 'hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125'}`}
+            onClick={() => onRate(photo.id, 0)}
+            className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`}
             aria-label="Сбросить оценку"
             >
             <XCircle className={xCircleSizeClass} />

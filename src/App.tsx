@@ -7,7 +7,7 @@ import { ImmersiveView } from './components/ImmersiveView';
 import { SettingsModal } from './components/SettingsModal';
 import { ArticleModal } from './components/IntroModal';
 import { useDeviceType } from './hooks/useDeviceType';
-import { Eye, EyeOff, Send, Loader, AlertTriangle, Copy, Trash2, Settings as SettingsIcon, FlagOff } from 'lucide-react';
+import { Eye, EyeOff, Send, Loader, AlertTriangle, Copy, Trash2, Settings as SettingsIcon, Flag, FlagOff } from 'lucide-react';
 
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
@@ -78,17 +78,17 @@ const App: React.FC = () => {
                 if (savedSettingsRaw) {
                     setSettings(JSON.parse(savedSettingsRaw) as Settings);
                 } else {
+                    const currentIsDesktop = window.innerWidth >= 768;
                     setSettings({
-                        layout: isDesktop ? loadedConfig.defaultLayoutDesktop : loadedConfig.defaultLayoutMobile,
+                        layout: currentIsDesktop ? loadedConfig.defaultLayoutDesktop : loadedConfig.defaultLayoutMobile,
                         gridAspectRatio: loadedConfig.defaultGridAspectRatio || '4/3'
                     });
                 }
 
                 const photosFile = (await photosFileResponse.json()) as PhotoFile;
-                if (photosFile.introArticleMarkdown && !sessionStorage.getItem('introShown')) {
+                if (photosFile.introArticleMarkdown) {
                     setIntroArticle(photosFile.introArticleMarkdown);
                     setIsArticleModalOpen(true);
-                    sessionStorage.setItem('introShown', 'true');
                 }
 
                 const initialResults = resultsResponse.status === 404 ? {} : await resultsResponse.json();
@@ -133,7 +133,7 @@ const App: React.FC = () => {
             }
         };
         void loadAllData();
-    }, [isDesktop]);
+    }, []);
 
     useEffect(() => {
         if (status !== 'success') return;
@@ -307,9 +307,15 @@ const App: React.FC = () => {
     }, [selectedPhoto]);
 
     const handleCloseImmersive = useCallback((lastViewedPhotoId?: number) => {
+        const finalPhotoId = lastViewedPhotoId ?? immersivePhotoId;
         setImmersivePhotoId(null);
-        scrollToPhoto(lastViewedPhotoId ?? immersivePhotoId);
-    }, [immersivePhotoId]);
+
+        if (isDesktop && finalPhotoId !== null) {
+            setSelectedPhotoId(finalPhotoId);
+        } else {
+            scrollToPhoto(finalPhotoId);
+        }
+    }, [isDesktop, immersivePhotoId]);
 
     const handleNextImmersive = useCallback(() => {
         if (immersivePhotoIndex > -1 && immersivePhotoIndex < sortedPhotos.length - 1) {
@@ -444,10 +450,10 @@ const App: React.FC = () => {
                             <button
                                 onClick={() => setFilterFlags(f => !f)}
                                 className={`inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${filterFlags ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
-                                title="Показать только отмеченные фото"
+                                title={filterFlags ? "Показать все фотографии" : "Показать только отмеченные фото"}
                             >
-                                <FlagOff className="w-4 h-4" />
-                                <span>Скрыть неотмеченные</span>
+                                {filterFlags ? <Flag className="w-4 h-4" /> : <FlagOff className="w-4 h-4" />}
+                                <span>{filterFlags ? 'Показать все' : 'Скрыть неотмеченные'}</span>
                             </button>
                             <div className="flex space-x-2">
                                 <span className="text-gray-400 text-sm self-center">Сортировать:</span>

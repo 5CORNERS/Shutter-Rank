@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let photosData = [];
     let introArticleMarkdown = "";
     let draggedElement = null;
+    let currentConfig = null;
 
     const loadData = async () => {
         try {
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(`Не удалось загрузить config.json: ${configResponse.statusText}`);
             }
             const config = await configResponse.json();
+            currentConfig = config;
 
             if (!config.photosPath) {
                 throw new Error('В файле config.json не найден путь к файлу фотографий (photosPath).');
@@ -81,30 +83,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const saveAndRerender = () => {
+    const updateDataFromDOM = () => {
         const newPhotosData = [];
-        const currentPhotoElements = Array.from(photoContainer.children);
+        const currentPhotoElements = Array.from(photoContainer.querySelectorAll('[data-id]'));
 
-        for (const element of currentPhotoElements) {
-            if (!element.dataset.id) continue;
-            const photoId = parseInt(element.dataset.id, 10);
-            const originalPhoto = photosData.find(p => p.id === photoId);
+        currentPhotoElements.forEach(element => {
+            const id = parseInt(element.dataset.id, 10);
+            const originalPhoto = photosData.find(p => p.id === id);
             if (originalPhoto) {
-                const textarea = element.querySelector(`#caption-${photoId}`);
-                originalPhoto.caption = textarea ? textarea.value : originalPhoto.caption;
+                const updatedPhoto = { ...originalPhoto };
+                const textarea = element.querySelector(`textarea`);
+                updatedPhoto.caption = textarea ? textarea.value : originalPhoto.caption;
 
-                const isFlaggedCheckbox = element.querySelector(`#flagged-${photoId}`);
-                originalPhoto.isFlagged = isFlaggedCheckbox ? isFlaggedCheckbox.checked : true;
+                const isFlaggedCheckbox = element.querySelector(`input[id^="flagged-"]`);
+                updatedPhoto.isFlagged = isFlaggedCheckbox ? isFlaggedCheckbox.checked : true;
 
-                const isOutOfCompetitionCheckbox = element.querySelector(`#outofcomp-${photoId}`);
-                originalPhoto.isOutOfCompetition = isOutOfCompetitionCheckbox ? isOutOfCompetitionCheckbox.checked : false;
+                const isOutOfCompetitionCheckbox = element.querySelector(`input[id^="outofcomp-"]`);
+                updatedPhoto.isOutOfCompetition = isOutOfCompetitionCheckbox ? isOutOfCompetitionCheckbox.checked : false;
 
-                newPhotosData.push(originalPhoto);
+                newPhotosData.push(updatedPhoto);
             }
-        }
+        });
+
         photosData = newPhotosData;
+    };
+
+    const reassignIdsAndRerender = () => {
+        updateDataFromDOM();
+        photosData.forEach((photo, index) => {
+            photo.id = index + 1;
+        });
         renderPhotos();
     };
+
 
     photoContainer.addEventListener('dragstart', (e) => {
         if (e.target.matches('[draggable="true"]')) {
@@ -116,12 +127,17 @@ document.addEventListener('DOMContentLoaded', () => {
     photoContainer.addEventListener('dragend', () => {
         if (draggedElement) {
             draggedElement.classList.remove('dragging');
-            draggedElement = null;
 
             const placeholder = photoContainer.querySelector('.drag-over-placeholder');
-            if (placeholder) placeholder.remove();
+            if (placeholder) {
+                // This is the key: update the position of the dragged element in the DOM
+                // before updating the data array.
+                placeholder.parentNode.insertBefore(draggedElement, placeholder);
+                placeholder.remove();
+            }
 
-            saveAndRerender();
+            draggedElement = null;
+            reassignIdsAndRerender();
         }
     });
 
@@ -135,11 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
             photoContainer.appendChild(placeholder);
         } else {
             photoContainer.insertBefore(placeholder, afterElement);
-        }
-
-        const draggingElement = photoContainer.querySelector('.dragging');
-        if (draggingElement) {
-            photoContainer.insertBefore(draggingElement, placeholder);
         }
     });
 
@@ -180,34 +191,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     downloadButton.addEventListener('click', () => {
-        const currentPhotoElements = Array.from(photoContainer.children);
-        const updatedPhotos = currentPhotoElements.map(element => {
-            if (!element.dataset.id) return null;
-            const photoId = parseInt(element.dataset.id, 10);
-            const originalPhotoData = photosData.find(p => p.id === photoId);
-            const textarea = element.querySelector(`#caption-${photoId}`);
-            const newCaption = textarea ? textarea.value.trim() : originalPhotoData.caption;
+        updateDataFromDOM(); // This ensures photosData is in the correct order with updated captions
 
-            const isFlaggedCheckbox = element.querySelector(`#flagged-${photoId}`);
-            const isFlagged = isFlaggedCheckbox ? isFlaggedCheckbox.checked : true;
-
-            const isOutOfCompetitionCheckbox = element.querySelector(`#outofcomp-${photoId}`);
-            const isOutOfCompetition = isOutOfCompetitionCheckbox ? isOutOfCompetitionCheckbox.checked : false;
-
-            return { ...originalPhotoData, caption: newCaption, isFlagged, isOutOfCompetition };
-        }).filter(Boolean);
-
+        // This is the critical fix: re-assign IDs based on the new order.
+        const finalPhotos = photosData.map((photo, index) => ({
+            ...photo,
+            id: index + 1
+        }));
 
         const finalJson = {
             introArticleMarkdown: markdownEditor.value.trim(),
-            photos: updatedPhotos
+            photos: finalPhotos
         };
 
         const blob = new Blob([JSON.stringify(finalJson, null, 2)], { type: 'application/json;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'photos.json';
+        const filename = currentConfig && currentConfig.photosPath
+            ? currentConfig.photosPath.split('/').pop()
+            : 'photos.json';
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
