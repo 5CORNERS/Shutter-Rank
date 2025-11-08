@@ -1,13 +1,13 @@
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { Photo, PhotoFile, Config, Settings} from './types';
+import { Photo, PhotoFile, Settings, Config as AppConfig } from './types';
 import { PhotoCard } from './components/PhotoCard';
 import { Modal } from './components/Modal';
 import { ImmersiveView } from './components/ImmersiveView';
 import { SettingsModal } from './components/SettingsModal';
 import { ArticleModal } from './components/IntroModal';
 import { useDeviceType } from './hooks/useDeviceType';
-import { Eye, EyeOff, Send, Loader, AlertTriangle, Copy, Trash2, Settings as SettingsIcon } from 'lucide-react';
+import { Eye, EyeOff, Send, Loader, AlertTriangle, Copy, Trash2, Settings as SettingsIcon, FlagOff } from 'lucide-react';
 
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
@@ -15,7 +15,7 @@ type LoadingStatus = 'loading' | 'success' | 'error';
 
 const App: React.FC = () => {
     const [photos, setPhotos] = useState<Photo[]>([]);
-    const [config, setConfig] = useState<Config | null>(null);
+    const [config, setConfig] = useState<AppConfig | null>(null);
     const [settings, setSettings] = useState<Settings | null>(null);
     const [introArticle, setIntroArticle] = useState<string | null>(null);
 
@@ -29,6 +29,7 @@ const App: React.FC = () => {
     const [scrollToId, setScrollToId] = useState<number | null>(null);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
+    const [filterFlags, setFilterFlags] = useState(false);
 
     const { isDesktop } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
@@ -58,9 +59,9 @@ const App: React.FC = () => {
     useEffect(() => {
         const loadAllData = async () => {
             try {
-                const configResponse = await fetch('/config.json?cache-bust=' + new Date().getTime());
+                const configResponse = await fetch('./config.json?cache-bust=' + new Date().getTime());
                 if (!configResponse.ok) throw new Error('Не удалось загрузить config.json');
-                const loadedConfig = (await configResponse.json()) as Config;
+                const loadedConfig = (await configResponse.json()) as AppConfig;
                 setConfig(loadedConfig);
 
                 const [photosFileResponse, resultsResponse] = await Promise.all([
@@ -68,9 +69,9 @@ const App: React.FC = () => {
                     fetch(loadedConfig.resultsPath + '?cache-bust=' + new Date().getTime())
                 ]);
 
-                if (!photosFileResponse.ok) throw new Error('Не удалось загрузить photos.json');
+                if (!photosFileResponse.ok) throw new Error(`Не удалось загрузить photos.json из ${loadedConfig.photosPath}`);
                 if (!resultsResponse.ok && resultsResponse.status !== 404) {
-                    throw new Error('Не удалось загрузить results.json');
+                    throw new Error(`Не удалось загрузить results.json из ${loadedConfig.resultsPath}`);
                 }
 
                 const savedSettingsRaw = localStorage.getItem('userSettings');
@@ -100,25 +101,30 @@ const App: React.FC = () => {
 
                 const photoListSignature = loadedPhotos.map(p => p.url).join(';');
                 const savedSignature = localStorage.getItem('photoListSignature');
-                const savedRatingsRaw = localStorage.getItem('userRatings');
 
+                const savedRatingsRaw = localStorage.getItem('userRatings');
                 let userRatings: Record<string, number> = {};
                 if (savedRatingsRaw) {
                     if (savedSignature && savedSignature !== photoListSignature) {
-                        if (window.confirm('Состав фотографий изменился. Сбросить ваши старые оценки?')) {
+                        if (window.confirm('Состав фотографий изменился. Сбросить ваши старые оценки и отметки?')) {
                             localStorage.removeItem('userRatings');
+                            localStorage.removeItem('userFlags');
                         } else {
-                            userRatings = JSON.parse(savedRatingsRaw) as Record<string, number>;
+                            userRatings = JSON.parse(savedRatingsRaw);
                         }
                     } else {
-                        userRatings = JSON.parse(savedRatingsRaw) as Record<string, number>;
+                        userRatings = JSON.parse(savedRatingsRaw);
                     }
                 }
                 localStorage.setItem('photoListSignature', photoListSignature);
 
+                const savedFlagsRaw = localStorage.getItem('userFlags');
+                const userFlags: Record<string, boolean> = savedFlagsRaw ? JSON.parse(savedFlagsRaw) : {};
+
                 setPhotos(loadedPhotos.map(p => ({
                     ...p,
-                    userRating: userRatings[p.id] || undefined
+                    userRating: userRatings[p.id],
+                    isFlagged: userFlags[p.id] === undefined ? true : userFlags[p.id]
                 })));
                 setStatus('success');
             } catch (error) {
@@ -132,18 +138,21 @@ const App: React.FC = () => {
     useEffect(() => {
         if (status !== 'success') return;
         const userRatings: { [key: number]: number } = {};
+        const userFlags: { [key: number]: boolean } = {};
         photos.forEach(p => {
             if (p.userRating) {
                 userRatings[p.id] = p.userRating;
             }
+            userFlags[p.id] = p.isFlagged !== false;
         });
         localStorage.setItem('userRatings', JSON.stringify(userRatings));
+        localStorage.setItem('userFlags', JSON.stringify(userFlags));
     }, [photos, status]);
 
     useEffect(() => {
         if (scrollToId === null) return;
 
-        const element = document.querySelector(`[data-photo-id='${scrollToId}']`);
+        const element = document.getElementById(`photo-card-${scrollToId}`);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -158,7 +167,13 @@ const App: React.FC = () => {
         setPhotos(prevPhotos =>
             prevPhotos.map(photo => {
                 if (photo.id === photoId) {
+                    if (photo.isOutOfCompetition) return photo;
+
                     const currentRating = photo.userRating || 0;
+                    if (rating === currentRating) {
+                        return { ...photo, userRating: 0 };
+                    }
+
                     const isNewRating = currentRating === 0 && rating > 0;
 
                     if (isNewRating && ratedPhotosCount >= config.ratedPhotoLimit) {
@@ -179,10 +194,20 @@ const App: React.FC = () => {
         );
     }, [ratedPhotosCount, starsUsed, config]);
 
+    const handleToggleFlag = useCallback((photoId: number) => {
+        setPhotos(prevPhotos =>
+            prevPhotos.map(photo =>
+                photo.id === photoId && !photo.isOutOfCompetition
+                    ? { ...photo, isFlagged: !(photo.isFlagged !== false) }
+                    : photo
+            )
+        );
+    }, []);
+
     const handleResetVotes = useCallback(() => {
-        if (window.confirm('Вы уверены, что хотите сбросить все ваши оценки? Это действие нельзя отменить.')) {
+        if (window.confirm('Вы уверены, что хотите сбросить все ваши оценки и отметки? Это действие нельзя отменить.')) {
             setPhotos(prevPhotos =>
-                prevPhotos.map(p => ({...p, userRating: undefined}))
+                prevPhotos.map(p => ({...p, userRating: undefined, isFlagged: true }))
             );
         }
     }, []);
@@ -215,7 +240,10 @@ const App: React.FC = () => {
     }, [getUserVotesJSON]);
 
     const sortedPhotos = useMemo(() => {
-        const photosCopy = [...photos];
+        let photosCopy = [...photos];
+        if (filterFlags) {
+            photosCopy = photosCopy.filter(p => p.isFlagged !== false);
+        }
         if (sortBy === 'score') {
             photosCopy.sort((a, b) => {
                 const getScore = (p: Photo) => {
@@ -233,7 +261,7 @@ const App: React.FC = () => {
             photosCopy.sort((a, b) => a.id - b.id);
         }
         return photosCopy;
-    }, [photos, sortBy, votingPhase]);
+    }, [photos, sortBy, votingPhase, filterFlags]);
 
     const scrollToPhoto = (photoId: number | null) => {
         if (photoId !== null) {
@@ -339,7 +367,7 @@ const App: React.FC = () => {
             <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center text-white p-4 text-center">
                 <AlertTriangle className="w-12 h-12 text-red-500" />
                 <h2 className="mt-4 text-2xl font-bold">Ошибка загрузки</h2>
-                <p className="mt-2 text-gray-400 max-w-md">Не удалось загрузить данные для голосования. Убедитесь, что файлы <code className="bg-gray-700 p-1 rounded text-sm">photos.json</code> и <code className="bg-gray-700 p-1 rounded text-sm">config.json</code> находятся в папке <code className="bg-gray-700 p-1 rounded text-sm">data</code> на сервере.</p>
+                <p className="mt-2 text-gray-400 max-w-md">Не удалось загрузить данные для голосования. Проверьте URL-адреса в <code className="bg-gray-700 p-1 rounded text-sm">config.json</code> и убедитесь, что файлы доступны.</p>
             </div>
         );
     }
@@ -413,6 +441,14 @@ const App: React.FC = () => {
                                 {votingPhase === 'voting' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                 <span>{votingPhase === 'voting' ? 'Показать общие' : 'Скрыть общие'}</span>
                             </button>
+                            <button
+                                onClick={() => setFilterFlags(f => !f)}
+                                className={`inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${filterFlags ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                                title="Показать только отмеченные фото"
+                            >
+                                <FlagOff className="w-4 h-4" />
+                                <span>Скрыть неотмеченные</span>
+                            </button>
                             <div className="flex space-x-2">
                                 <span className="text-gray-400 text-sm self-center">Сортировать:</span>
                                 <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>По рейтингу</button>
@@ -435,6 +471,7 @@ const App: React.FC = () => {
                                 displayVotes={votingPhase === 'results'}
                                 layoutMode={settings.layout}
                                 gridAspectRatio={settings.gridAspectRatio}
+                                onToggleFlag={handleToggleFlag}
                             />
                         </div>
                     ))}
@@ -447,6 +484,7 @@ const App: React.FC = () => {
                     onClose={handleCloseModal}
                     displayVotes={votingPhase === 'results'}
                     onRate={handleRate}
+                    onToggleFlag={handleToggleFlag}
                     onNext={handleNextPhoto}
                     onPrev={handlePrevPhoto}
                     onEnterImmersive={handleEnterImmersive}
@@ -466,6 +504,7 @@ const App: React.FC = () => {
                     onNext={handleNextImmersive}
                     onPrev={handlePrevImmersive}
                     onRate={handleRate}
+                    onToggleFlag={handleToggleFlag}
                     displayVotes={votingPhase === 'results'}
                     ratedPhotosCount={ratedPhotosCount}
                     starsUsed={starsUsed}

@@ -8,9 +8,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // https://vite.js.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [react()],
   publicDir: 'public',
-  base: './',
   build: {
     rollupOptions: {
       input: {

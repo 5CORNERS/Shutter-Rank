@@ -3,12 +3,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadConfigBtn = document.getElementById('load-config');
     const saveConfigBtn = document.getElementById('save-config');
     const configLoadStatus = document.getElementById('config-load-status');
+    const photosPathInput = document.getElementById('photos-path');
+    const resultsPathInput = document.getElementById('results-path');
     const ratedPhotoLimitInput = document.getElementById('rated-photo-limit');
     const totalStarsLimitInput = document.getElementById('total-stars-limit');
     const layoutDesktopSelect = document.getElementById('layout-desktop');
     const layoutMobileSelect = document.getElementById('layout-mobile');
     const gridAspectRatioSelect = document.getElementById('grid-aspect-ratio');
-    const CONFIG_PATH = '/config.json';
+    const CONFIG_PATH = './config.json';
 
     const loadConfig = async () => {
         configLoadStatus.textContent = `Загрузка из ${CONFIG_PATH}...`;
@@ -20,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const data = await response.json();
 
+            photosPathInput.value = data.photosPath;
+            resultsPathInput.value = data.resultsPath;
             ratedPhotoLimitInput.value = data.ratedPhotoLimit;
             totalStarsLimitInput.value = data.totalStarsLimit;
             layoutDesktopSelect.value = data.defaultLayoutDesktop;
@@ -37,13 +41,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveConfigBtn.addEventListener('click', () => {
         const configData = {
-            photosPath: "./data/photos.json",
-            resultsPath: "./data/results.json",
+            photosPath: photosPathInput.value,
+            resultsPath: resultsPathInput.value,
+            ratedPhotoLimit: parseInt(ratedPhotoLimitInput.value, 10),
+            totalStarsLimit: parseInt(totalStarsLimitInput.value, 10),
             defaultLayoutDesktop: layoutDesktopSelect.value,
             defaultLayoutMobile: layoutMobileSelect.value,
             defaultGridAspectRatio: gridAspectRatioSelect.value,
-            ratedPhotoLimit: parseInt(ratedPhotoLimitInput.value, 10),
-            totalStarsLimit: parseInt(totalStarsLimitInput.value, 10),
         };
 
         if (isNaN(configData.ratedPhotoLimit) || isNaN(configData.totalStarsLimit)) {
@@ -100,7 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadStatus.classList.add('text-red-500');
             return;
         }
-        const RESULTS_PATH = currentConfig.resultsPath.replace('./', '/');
+        const RESULTS_PATH = currentConfig.resultsPath;
         loadStatus.textContent = `Загрузка из ${RESULTS_PATH}...`;
         loadStatus.classList.remove('text-red-500', 'text-green-500', 'text-yellow-500');
         try {

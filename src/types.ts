@@ -5,6 +5,7 @@ export interface Photo {
   caption: string;
   userRating?: number;
   isOutOfCompetition?: boolean;
+  isFlagged?: boolean;
 }
 
 export interface PhotoFile {

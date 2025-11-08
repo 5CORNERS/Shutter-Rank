@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import { Photo } from '../types';
-import { ChevronLeft, ChevronRight, X, Star, XCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag } from 'lucide-react';
 
 interface ImmersiveViewProps {
     allPhotos: Photo[];
@@ -9,6 +9,7 @@ interface ImmersiveViewProps {
     onNext: () => void;
     onPrev: () => void;
     onRate: (photoId: number, rating: number) => void;
+    onToggleFlag: (photoId: number) => void;
     displayVotes: boolean;
     ratedPhotosCount: number;
     starsUsed: number;
@@ -49,6 +50,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     onNext,
     onPrev,
     onRate,
+    onToggleFlag,
     displayVotes,
     ratedPhotosCount,
     starsUsed,
@@ -142,23 +144,17 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             } else if (e.key === ' ' && !isTouchDevice) {
                 e.preventDefault();
                 setControlsVisible(v => !v);
-            } else if (e.ctrlKey && e.key === 'ArrowUp') {
+            } else if (e.key.toLowerCase() === 'f' || (e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) {
                 e.preventDefault();
-                const currentRating = photo?.userRating || 0;
-                if (currentRating < 5) {
-                    onRate(photo.id, currentRating + 1);
-                }
-            } else if (e.ctrlKey && e.key === 'ArrowDown') {
+                if (!photo.isOutOfCompetition) onToggleFlag(photo.id);
+            } else if (!e.ctrlKey && !e.metaKey && /^[0-5]$/.test(e.key)) {
                 e.preventDefault();
-                const currentRating = photo?.userRating || 0;
-                if (currentRating > 0) {
-                    onRate(photo.id, currentRating - 1);
-                }
+                if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(e.key, 10));
             }
         }
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [handleClose, onNext, onPrev, nextPhoto, prevPhoto, isTouchDevice, photo, onRate]);
+    }, [handleClose, onNext, onPrev, nextPhoto, prevPhoto, isTouchDevice, photo, onRate, onToggleFlag]);
 
     useEffect(() => {
         if (showHint) {
@@ -312,6 +308,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         touchOriginIsControl.current = true;
     };
 
+    const isOutOfComp = !!photo.isOutOfCompetition;
+
     return (
         <div
             ref={containerRef}
@@ -353,8 +351,19 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     onClick={handleControlInteraction}
                     onTouchStart={handleControlTouchStart}
                 >
-                    <div className="absolute top-4 left-4 bg-black/50 text-white text-sm font-mono px-2 py-1 rounded">
-                        {photo.id}
+                    <div className="absolute top-4 left-4 flex items-center gap-2">
+                        <div className="bg-black/50 text-white text-sm font-mono px-2 py-1 rounded">
+                            {photo.id}
+                        </div>
+                        {isTouchDevice && !isOutOfComp && (
+                             <button
+                                onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
+                                className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
+                                aria-label="Отметить фото"
+                            >
+                                <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                            </button>
+                        )}
                     </div>
                     <div className="flex-grow"></div>
                     <div className="flex items-center gap-4">
@@ -379,18 +388,27 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                         onTouchStart={handleControlTouchStart}
                         onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
                     >
-                        <div className='flex items-center flex-shrink-0'>
+                        <div className={`flex items-center flex-shrink-0 ${isOutOfComp ? 'opacity-50' : ''}`}>
+                             {!isTouchDevice && !isOutOfComp && (
+                                <button
+                                    onClick={() => onToggleFlag(photo.id)}
+                                    className="p-2 mr-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+                                    title="Отметить (F)"
+                                >
+                                    <Flag className="w-7 h-7" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                                </button>
+                            )}
                             {[1, 2, 3, 4, 5].map((star) => {
                                 const isFilled = (photo.userRating || 0) >= star;
                                 const isHighlighted = !isTouchDevice && (hoverRating || 0) >= star;
                                 return (
-                                    <button key={star} onClick={() => handleRate(star)} onMouseEnter={() => !isTouchDevice && setHoverRating(star)} className="p-2 rounded-full transition-all transform hover:scale-125" aria-label={`Оценить в ${star} звезд`}>
+                                    <button key={star} onClick={() => !isOutOfComp && handleRate(star)} onMouseEnter={() => !isTouchDevice && !isOutOfComp && setHoverRating(star)} disabled={isOutOfComp} className={`p-2 rounded-full transition-all transform ${isOutOfComp ? 'cursor-not-allowed' : 'hover:scale-125'}`} aria-label={`Оценить в ${star} звезд`}>
                                         <Star className={`w-7 h-7 transition-colors ${ isHighlighted || isFilled ? 'text-yellow-400' : 'text-gray-500' }`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}/>
                                     </button>
                                 )
                             })}
                             <div className='w-[44px] h-[44px] flex items-center justify-center transition-opacity' style={{opacity: photo.userRating && photo.userRating > 0 ? 1 : 0}}>
-                                <button onClick={() => handleRate(0)} className={`p-2 rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`} aria-label="Сбросить оценку">
+                                <button onClick={() => !isOutOfComp && handleRate(0)} disabled={isOutOfComp} className={`p-2 rounded-full text-red-500/70 ${isOutOfComp ? 'cursor-not-allowed' : 'hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125'}`} aria-label="Сбросить оценку">
                                     <XCircle className="w-6 h-6" />
                                 </button>
                             </div>

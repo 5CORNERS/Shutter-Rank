@@ -9,18 +9,27 @@ document.addEventListener('DOMContentLoaded', () => {
     let photosData = [];
     let introArticleMarkdown = "";
     let draggedElement = null;
-    const PHOTOS_PATH = '/data/photos.json';
 
     const loadData = async () => {
         try {
             loader.style.display = 'block';
             editorContainer.classList.add('hidden');
 
-            const response = await fetch(`${PHOTOS_PATH}?cache-bust=${new Date().getTime()}`);
-            if (!response.ok) {
-                throw new Error(`Не удалось загрузить файл: ${response.statusText}`);
+            const configResponse = await fetch(`./config.json?cache-bust=${new Date().getTime()}`);
+            if (!configResponse.ok) {
+                throw new Error(`Не удалось загрузить config.json: ${configResponse.statusText}`);
             }
-            const jsonData = await response.json();
+            const config = await configResponse.json();
+
+            if (!config.photosPath) {
+                throw new Error('В файле config.json не найден путь к файлу фотографий (photosPath).');
+            }
+
+            const photosResponse = await fetch(`${config.photosPath}?cache-bust=${new Date().getTime()}`);
+            if (!photosResponse.ok) {
+                throw new Error(`Не удалось загрузить файл фотографий из ${config.photosPath}: ${photosResponse.statusText}`);
+            }
+            const jsonData = await photosResponse.json();
 
             introArticleMarkdown = jsonData.introArticleMarkdown || "";
             photosData = jsonData.photos || [];
@@ -42,12 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
         photoContainer.innerHTML = '';
         photosData.forEach((photo) => {
             const photoElement = document.createElement('div');
-            photoElement.className = 'flex items-center gap-4 p-4 bg-gray-900 rounded-lg border border-gray-700 transition-opacity duration-300';
+            photoElement.className = 'flex items-start gap-4 p-4 bg-gray-900 rounded-lg border border-gray-700 transition-opacity duration-300';
             photoElement.dataset.id = photo.id;
             photoElement.draggable = true;
 
             photoElement.innerHTML = `
-                <div class="drag-handle text-gray-500 cursor-grab self-center" title="Перетащить для изменения порядка">
+                <div class="drag-handle text-gray-500 cursor-grab self-center pt-8" title="Перетащить для изменения порядка">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M9 18v-6l-2 2M9 6v6l2-2m6-2v6l2-2m-2-4v-6l-2 2"/></svg>
                 </div>
                 <div class="w-24 h-24 md:w-48 md:h-48 flex-shrink-0">
@@ -56,6 +65,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="w-full">
                     <label for="caption-${photo.id}" class="block text-sm font-medium text-gray-400 mb-1">Описание для фото №${photo.id}:</label>
                     <textarea id="caption-${photo.id}" rows="4" class="w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:ring-indigo-500 focus:border-indigo-500">${photo.caption}</textarea>
+                    <div class="mt-2 space-y-1">
+                        <label class="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                            <input type="checkbox" id="flagged-${photo.id}" class="h-4 w-4 rounded border-gray-500 bg-gray-600 text-indigo-600 focus:ring-indigo-500" ${photo.isFlagged !== false ? "checked" : ""}>
+                            <span>Flagged</span>
+                        </label>
+                        <label class="flex items-center space-x-2 text-sm text-gray-300 cursor-pointer">
+                            <input type="checkbox" id="outofcomp-${photo.id}" class="h-4 w-4 rounded border-gray-500 bg-gray-600 text-indigo-600 focus:ring-indigo-500" ${photo.isOutOfCompetition ? "checked" : ""}>
+                            <span>Out of Competition</span>
+                        </label>
+                    </div>
                 </div>
             `;
             photoContainer.appendChild(photoElement);
@@ -73,6 +92,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (originalPhoto) {
                 const textarea = element.querySelector(`#caption-${photoId}`);
                 originalPhoto.caption = textarea ? textarea.value : originalPhoto.caption;
+
+                const isFlaggedCheckbox = element.querySelector(`#flagged-${photoId}`);
+                originalPhoto.isFlagged = isFlaggedCheckbox ? isFlaggedCheckbox.checked : true;
+
+                const isOutOfCompetitionCheckbox = element.querySelector(`#outofcomp-${photoId}`);
+                originalPhoto.isOutOfCompetition = isOutOfCompetitionCheckbox ? isOutOfCompetitionCheckbox.checked : false;
+
                 newPhotosData.push(originalPhoto);
             }
         }
@@ -158,11 +184,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const updatedPhotos = currentPhotoElements.map(element => {
             if (!element.dataset.id) return null;
             const photoId = parseInt(element.dataset.id, 10);
-            // Find the original photo data based on ID, regardless of its current position in photosData
             const originalPhotoData = photosData.find(p => p.id === photoId);
             const textarea = element.querySelector(`#caption-${photoId}`);
             const newCaption = textarea ? textarea.value.trim() : originalPhotoData.caption;
-            return { ...originalPhotoData, caption: newCaption };
+
+            const isFlaggedCheckbox = element.querySelector(`#flagged-${photoId}`);
+            const isFlagged = isFlaggedCheckbox ? isFlaggedCheckbox.checked : true;
+
+            const isOutOfCompetitionCheckbox = element.querySelector(`#outofcomp-${photoId}`);
+            const isOutOfCompetition = isOutOfCompetitionCheckbox ? isOutOfCompetitionCheckbox.checked : false;
+
+            return { ...originalPhotoData, caption: newCaption, isFlagged, isOutOfCompetition };
         }).filter(Boolean);
 
 

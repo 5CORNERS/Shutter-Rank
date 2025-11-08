@@ -1,9 +1,9 @@
 {
-  "photosPath": "./data/photos.json",
-  "resultsPath": "./data/results.json",
+  "photosPath": "https://files.le-francais.ru/photos/la-france/voting/photos-Saint-Geneviève-des-Bois.json",
+  "resultsPath": "https://files.le-francais.ru/photos/la-france/voting/results-Saint-Geneviève-des-Bois.json",
   "ratedPhotoLimit": 15,
   "totalStarsLimit": 25,
   "defaultLayoutDesktop": "grid",
   "defaultLayoutMobile": "original",
-  "defaultGridAspectRatio": "4/3"
+  "defaultGridAspectRatio": "3/2"
 }
