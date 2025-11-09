@@ -2,17 +2,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const sessionIdInput = document.getElementById('session-id');
     const configFile_input = document.getElementById('config-file');
     const photosFile_input = document.getElementById('photos-file');
+    const resultsFile_input = document.getElementById('results-file');
     const generateButton = document.getElementById('generate-button');
     const resultContainer = document.getElementById('result-container');
     const jsonOutput = document.getElementById('json-output');
 
     let configData = null;
     let photosData = null;
+    let resultsData = null;
 
     const readFile = (file) => {
         return new Promise((resolve, reject) => {
             if (!file) {
-                return reject(new Error('Файл не выбран.'));
+                // For optional files like results.json
+                return resolve(null);
             }
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -46,12 +49,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    generateButton.addEventListener('click', () => {
-        const sessionId = sessionIdInput.value.trim();
-        if (!sessionId) {
-            alert('Пожалуйста, введите ID сессии.');
-            return;
+    resultsFile_input.addEventListener('change', async (e) => {
+        try {
+            resultsData = await readFile(e.target.files[0]);
+        } catch (err) {
+            alert(err.message);
+            resultsData = null;
         }
+    });
+
+
+    generateButton.addEventListener('click', () => {
         if (!configData) {
             alert('Пожалуйста, загрузите файл config.json.');
             return;
@@ -65,14 +73,19 @@ document.addEventListener('DOMContentLoaded', () => {
         delete configData.photosPath;
         delete configData.resultsPath;
 
-        // Initialize votes
-        const votes = {};
-        if (photosData.photos && Array.isArray(photosData.photos)) {
-            photosData.photos.forEach(photo => {
-                votes[photo.id] = 0;
-            });
+        let votes = {};
+        if (resultsData) {
+            // Use existing results if provided
+            votes = resultsData;
+        } else {
+            // Initialize votes with 0 if no results file
+            if (photosData.photos && Array.isArray(photosData.photos)) {
+                photosData.photos.forEach(photo => {
+                    votes[photo.id] = 0;
+                });
+            }
         }
-        
+
         // Clean up photos data (remove votes property from each photo)
         const cleanedPhotos = photosData.photos.map(({ votes, ...rest }) => rest);
         const finalPhotosData = {
@@ -80,13 +93,13 @@ document.addEventListener('DOMContentLoaded', () => {
             photos: cleanedPhotos
         };
 
-        const finalJson = {
+        const sessionObject = {
             config: configData,
             photos: finalPhotosData,
             votes: votes,
         };
 
-        jsonOutput.value = JSON.stringify(finalJson, null, 2);
+        jsonOutput.value = JSON.stringify(sessionObject, null, 2);
         resultContainer.classList.remove('hidden');
     });
 });

@@ -39,15 +39,16 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
         ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-yellow-400/80'
         : '';
 
-    const competitionClass = isOutOfComp ? 'border-2 border-dashed border-gray-500' : 'border border-gray-700/50 hover:border-indigo-500/50';
+    const competitionClass = isOutOfComp ? 'saturate-[.8] border-gray-600' : 'border-gray-700/50 hover:border-indigo-500/50';
 
-    const aspectRatioClass = {
+    const aspectRatioMap: Record<GridAspectRatio, string> = {
         '1/1': 'aspect-square',
         '4/3': 'aspect-[4/3]',
         '3/2': 'aspect-[3/2]',
-    }[gridAspectRatio];
+    };
+    const aspectRatioClass = aspectRatioMap[gridAspectRatio];
 
-    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 hover:shadow-indigo-500/30 ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''}`;
+    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 border transition-all duration-300 hover:shadow-indigo-500/30 ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''}`;
 
     return (
         <div id={`photo-card-${photo.id}`} className={containerClasses}>

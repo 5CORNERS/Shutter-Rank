@@ -7,41 +7,45 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-800 text-gray-200 font-sans p-8">
-    <div class="max-w-4xl mx-auto bg-gray-900 p-6 rounded-lg shadow-lg border border-gray-700">
-        <h1 class="text-2xl font-bold mb-2 text-indigo-400">Инструмент миграции данных для Firebase</h1>
-        <p class="mb-6 text-gray-400">Этот инструмент поможет вам создать JSON-структуру для одной сессии голосования, которую можно импортировать в Firebase.</p>
+<div class="max-w-4xl mx-auto bg-gray-900 p-6 rounded-lg shadow-lg border border-gray-700">
+    <h1 class="text-2xl font-bold mb-2 text-indigo-400">Инструмент миграции данных для Firebase</h1>
+    <p class="mb-6 text-gray-400">Этот инструмент поможет вам создать JSON-структуру для одной сессии голосования, которую можно импортировать в Firebase.</p>
 
-        <div class="space-y-6">
+    <div class="space-y-6">
+        <div>
+            <label for="session-id" class="block text-sm font-medium text-gray-300 mb-1">1. ID Сессии</label>
+            <input type="text" id="session-id" class="w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="Например: fontainebleau">
+            <p class="text-xs text-gray-500 mt-1">Используйте короткое имя латиницей. Оно будет в URL (например, #fontainebleau).</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-                <label for="session-id" class="block text-sm font-medium text-gray-300 mb-1">1. ID Сессии</label>
-                <input type="text" id="session-id" class="w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="Например: fontainebleau">
-                 <p class="text-xs text-gray-500 mt-1">Используйте короткое имя латиницей. Оно будет в URL (например, #fontainebleau).</p>
+                <label for="config-file" class="block text-sm font-medium text-gray-300 mb-1">2. Файл `config.json`</label>
+                <input type="file" id="config-file" accept=".json" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
             </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label for="config-file" class="block text-sm font-medium text-gray-300 mb-1">2. Файл `config.json`</label>
-                    <input type="file" id="config-file" accept=".json" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                </div>
-                <div>
-                    <label for="photos-file" class="block text-sm font-medium text-gray-300 mb-1">3. Файл `photos.json`</label>
-                    <input type="file" id="photos-file" accept=".json" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                </div>
-            </div>
-
             <div>
-                 <button id="generate-button" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">
-                    4. Сгенерировать JSON
-                </button>
+                <label for="photos-file" class="block text-sm font-medium text-gray-300 mb-1">3. Файл `photos.json`</label>
+                <input type="file" id="photos-file" accept=".json" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
             </div>
-
-            <div id="result-container" class="hidden">
-                 <label for="json-output" class="block text-sm font-medium text-gray-300 mb-1">5. Скопируйте этот JSON и импортируйте в Firebase</label>
-                <textarea id="json-output" rows="15" class="w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-xs" readonly></textarea>
-                <p class="text-xs text-gray-500 mt-1">Импортируйте это в узел `sessions/ваше-id-сессии`.</p>
+            <div>
+                <label for="results-file" class="block text-sm font-medium text-gray-300 mb-1">4. Файл `results.json` (необязательно)</label>
+                <input type="file" id="results-file" accept=".json" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
             </div>
         </div>
+
+        <div>
+            <button id="generate-button" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed">
+                5. Сгенерировать JSON
+            </button>
+        </div>
+
+        <div id="result-container" class="hidden">
+            <label for="json-output" class="block text-sm font-medium text-gray-300 mb-1">6. Скопируйте этот JSON и импортируйте в Firebase</label>
+            <textarea id="json-output" rows="15" class="w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-xs" readonly></textarea>
+            <p class="text-xs text-gray-500 mt-1">Импортируйте это в узел `sessions/ваше-id-сессии`.</p>
+        </div>
     </div>
-    <script type="module" src="./migration-tool.js"></script>
+</div>
+<script type="module" src="./migration-tool.js"></script>
 </body>
 </html>
