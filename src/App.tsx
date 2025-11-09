@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
-import { ref, get, onValue, runTransaction, DataSnapshot } from 'firebase/database';
+import { ref, get, onValue, runTransaction, DataSnapshot, set, remove, TransactionResult } from 'firebase/database';
 import { Photo, FirebasePhotoData, Settings, Config } from './types';
 import { PhotoCard } from './components/PhotoCard';
 import { Modal } from './components/Modal';
@@ -15,9 +15,19 @@ type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
 type AppStatus = 'loading' | 'success' | 'error' | 'selecting_session';
 
+const getUserId = (): string => {
+    let userId = localStorage.getItem('shutterRankUserId');
+    if (!userId) {
+        userId = crypto.randomUUID();
+        localStorage.setItem('shutterRankUserId', userId);
+    }
+    return userId;
+};
+
 const App: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [availableSessions, setAvailableSessions] = useState<string[]>([]);
+    const [userId] = useState<string>(getUserId());
 
     const [photos, setPhotos] = useState<Photo[]>([]);
     const [config, setConfig] = useState<Config | null>(null);
@@ -76,7 +86,9 @@ const App: React.FC = () => {
                 const snapshot = await get(sessionRef);
 
                 if (!snapshot.exists()) {
-                    throw new Error(`Сессия "${sessionId}" не найдена в Firebase.`);
+                    console.error(`Ошибка: Сессия "${sessionId}" не найдена в Firebase.`);
+                    setStatus('error');
+                    return;
                 }
                 const data = snapshot.val();
 
@@ -107,10 +119,12 @@ const App: React.FC = () => {
 
                 const initialPhotos = photosData.photos;
                 const initialVotes = data.votes || {};
-                const ratingsKey = `userRatings_${sessionId}`;
+
+                const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
+                const userVotesSnapshot = await get(userVotesRef);
+                const userRatings: Record<string, number> = userVotesSnapshot.exists() ? userVotesSnapshot.val() : {};
+
                 const flagsKey = `userFlags_${sessionId}`;
-                const savedRatingsRaw = localStorage.getItem(ratingsKey);
-                const userRatings: Record<string, number> = savedRatingsRaw ? JSON.parse(savedRatingsRaw) : {};
                 const savedFlagsRaw = localStorage.getItem(flagsKey);
                 const userFlags: Record<string, boolean> = savedFlagsRaw ? JSON.parse(savedFlagsRaw) : {};
 
@@ -152,7 +166,7 @@ const App: React.FC = () => {
                 unsubscribeFromVotes();
             }
         };
-    }, [sessionId]);
+    }, [sessionId, userId]);
 
 
     useEffect(() => {
@@ -177,16 +191,12 @@ const App: React.FC = () => {
     }, [status]);
 
     useEffect(() => {
+        // Save only UI preferences like flags to localStorage
         if (status !== 'success' || !sessionId) return;
-        const userRatings: { [key: number]: number } = {};
         const userFlags: { [key: number]: boolean } = {};
         photos.forEach(p => {
-            if (p.userRating) {
-                userRatings[p.id] = p.userRating;
-            }
             userFlags[p.id] = p.isFlagged !== false;
         });
-        localStorage.setItem(`userRatings_${sessionId}`, JSON.stringify(userRatings));
         localStorage.setItem(`userFlags_${sessionId}`, JSON.stringify(userFlags));
     }, [photos, status, sessionId]);
 
@@ -204,7 +214,7 @@ const App: React.FC = () => {
     const starsUsed = useMemo(() => photos.reduce((sum, p) => sum + (p.userRating || 0), 0), [photos]);
 
     const handleRate = useCallback((photoId: number, rating: number) => {
-        if (!config || !sessionId) return;
+        if (!config || !sessionId || !userId) return;
 
         const photoToUpdate = photos.find(p => p.id === photoId);
         if (!photoToUpdate || photoToUpdate.isOutOfCompetition) return;
@@ -228,25 +238,37 @@ const App: React.FC = () => {
             return;
         }
 
+        // Optimistic UI update
         setPhotos(prevPhotos =>
             prevPhotos.map(p =>
                 p.id === photoId ? { ...p, userRating: newRating === 0 ? undefined : newRating } : p
             )
         );
 
-        const voteRef = ref(db, `sessions/${sessionId}/votes/${photoId}`);
-        runTransaction(voteRef, (currentVotes: number | null) => {
+        // Save individual vote to Firebase
+        const userVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${photoId}`);
+        const userVotePromise: Promise<void> = newRating === 0 ? remove(userVoteRef) : set(userVoteRef, newRating);
+
+        // Update aggregate score
+        const aggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${photoId}`);
+        const aggregateVotePromise: Promise<TransactionResult> = runTransaction(aggregateVoteRef, (currentVotes: number | null) => {
             return (currentVotes || 0) + starsDifference;
-        }).catch((error: Error) => {
-            console.error("Firebase transaction failed: ", error);
+        });
+
+        const promises: Promise<any>[] = [userVotePromise, aggregateVotePromise];
+
+        Promise.all(promises).catch((error: Error) => {
+            console.error("Firebase write failed: ", error);
             alert('Не удалось сохранить вашу оценку. Попробуйте еще раз.');
+            // Revert optimistic UI update on failure
             setPhotos(prevPhotos =>
                 prevPhotos.map(p =>
                     p.id === photoId ? { ...p, userRating: currentRating === 0 ? undefined : currentRating } : p
                 )
             );
         });
-    }, [photos, config, ratedPhotosCount, starsUsed, sessionId]);
+
+    }, [photos, config, ratedPhotosCount, starsUsed, sessionId, userId]);
 
     const handleToggleFlag = useCallback((photoId: number) => {
         setPhotos(prevPhotos =>
@@ -259,12 +281,30 @@ const App: React.FC = () => {
     }, []);
 
     const handleResetVotes = useCallback(() => {
+        if (!sessionId || !userId) return;
+
         if (window.confirm('Вы уверены, что хотите сбросить все ваши оценки и отметки для этой сессии? Это действие нельзя отменить.')) {
-            setPhotos(prevPhotos =>
-                prevPhotos.map(p => ({...p, userRating: undefined, isFlagged: true }))
-            );
+            // TODO: Revert aggregate score in a future version with Cloud Functions for atomicity.
+            // For now, we only clear the user's individual votes.
+
+            const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
+
+            // Clear Firebase data first
+            remove(userVotesRef)
+                .then(() => {
+                    // Then clear local state on success
+                    setPhotos(prevPhotos =>
+                        prevPhotos.map(p => ({...p, userRating: undefined, isFlagged: true }))
+                    );
+                    // Also clear flags from localStorage
+                    localStorage.removeItem(`userFlags_${sessionId}`);
+                })
+                .catch(err => {
+                    console.error("Failed to clear votes in Firebase", err);
+                    alert("Не удалось сбросить оценки. Попробуйте еще раз.");
+                });
         }
-    }, []);
+    }, [sessionId, userId]);
 
     const getUserVotesJSON = useCallback(() => {
         const userRatings: { [key: number]: number } = {};
