@@ -1,3 +1,4 @@
+
 # Shutter Rank (Firebase Edition)
 
 *Find what's cool -- cull the rest.*
@@ -13,6 +14,21 @@
 - **Данные в реальном времени**: Конфигурация, список фотографий и результаты голосования хранятся в Firebase Realtime Database.
 - **Автоматический подсчет голосов**: Голоса пользователей немедленно и атомарно обновляют общий рейтинг в базе данных.
 
+## Развертывание (Deployment)
+
+Развертывание проекта автоматизировано с помощью **GitHub Actions**.
+
+1.  **Настройте секрет в GitHub**:
+    *   Перейдите в настройки вашего репозитория: `Settings` > `Secrets and variables` > `Actions`.
+    *   Создайте новый секрет (`New repository secret`) с именем `FIREBASE_SERVICE_ACCOUNT_PHOTO_VOTING_930F3`.
+    *   Вставьте в него содержимое JSON-ключа вашего сервисного аккаунта Firebase.
+
+2.  **Процесс развертывания**:
+    *   **Тестовая среда**: Каждый `push` в ветку `firebase-integration` автоматически развернет приложение на тестовый канал `dev`.
+    *   **Продакшн**: Каждый `push` в ветку `main` развернет приложение на `live` канал.
+
+Этот метод обеспечивает надежное и предсказуемое развертывание в чистой среде.
+
 ## Интеграция с Firebase
 
 ### Структура данных
@@ -23,26 +39,6 @@
 {
   "sessions": {
     "fontainebleau": {
-      "config": {
-        "ratedPhotoLimit": 15,
-        "totalStarsLimit": 25,
-        "defaultLayoutDesktop": "grid",
-        "defaultLayoutMobile": "original",
-        "defaultGridAspectRatio": "3/2"
-      },
-      "photos": {
-        "introArticleMarkdown": "...",
-        "photos": [
-          { "id": 1, "url": "...", "caption": "..." },
-          { "id": 2, "url": "...", "caption": "..." }
-        ]
-      },
-      "votes": {
-        "1": 0,
-        "2": 0
-      }
-    },
-    "st-genevieve": {
       "config": { "..."},
       "photos": { "..."},
       "votes":  { "..."}
@@ -58,7 +54,7 @@
 2.  **Используйте инструмент миграции**:
     *   Откройте файл `migration-tool.html` в вашем браузере.
     *   Введите **ID сессии** (например, `fontainebleau`). Этот ID будет использоваться в URL.
-    *   Загрузите ваши локальные файлы `config.json` и `photos.json`.
+    *   Загрузите ваши локальные файлы `config.json`, `photos.json` и `results.json` (опционально).
     *   Инструмент сгенерирует JSON-структуру для одной сессии.
     *   Скопируйте сгенерированный JSON.
 
@@ -73,7 +69,7 @@
     {
       "rules": {
         "sessions": {
-          ".read": true, // Разрешить чтение списка сессий
+          ".read": true,
           "$sessionId": {
             "config": { ".read": true, ".write": false },
             "photos": { ".read": true, ".write": false },
