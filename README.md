@@ -83,7 +83,10 @@
             "config": { ".write": false },
             "photos": { ".write": false },
             "votes": {
-              "$photo_id": { ".write": "newData.isNumber()" }
+              "$photo_id": {
+                ".write": "newData.isNumber()",
+                ".validate": "(!data.exists() || data.isNumber())"
+              }
             },
             "userVotes": {
               "$userId": {
