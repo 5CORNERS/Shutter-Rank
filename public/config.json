@@ -1,6 +1,6 @@
 {
-  "photosPath": "https://files.le-francais.ru/photos/la-france/voting/photos-Saint-Geneviève-des-Bois.json",
-  "resultsPath": "https://files.le-francais.ru/photos/la-france/voting/results-Saint-Geneviève-des-Bois.json",
+  "photosPath": "https://files.le-francais.ru/photos/la-france/voting/photos-Vernon.json",
+  "resultsPath": "https://files.le-francais.ru/photos/la-france/voting/results-Vernon.json",
   "ratedPhotoLimit": 15,
   "totalStarsLimit": 25,
   "defaultLayoutDesktop": "grid",
