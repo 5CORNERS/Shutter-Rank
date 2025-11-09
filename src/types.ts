@@ -1,16 +1,19 @@
-export interface Photo {
+export interface FirebasePhoto {
   id: number;
   url: string;
-  votes: number;
   caption: string;
-  userRating?: number;
   isOutOfCompetition?: boolean;
+}
+
+export interface Photo extends FirebasePhoto {
+  votes: number;
+  userRating?: number;
   isFlagged?: boolean;
 }
 
-export interface PhotoFile {
+export interface FirebasePhotoData {
     introArticleMarkdown: string;
-    photos: Photo[];
+    photos: FirebasePhoto[];
 }
 
 export type LayoutMode = 'grid' | 'original';
@@ -22,8 +25,6 @@ export interface Settings {
 }
 
 export interface Config {
-  photosPath: string;
-  resultsPath: string;
   ratedPhotoLimit: number;
   totalStarsLimit: number;
   defaultLayoutDesktop: LayoutMode;

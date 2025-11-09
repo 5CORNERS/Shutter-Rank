@@ -15,9 +15,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        editor: resolve(__dirname, 'editor.html'),
-        admin: resolve(__dirname, 'admin.html'),
-        prepare: resolve(__dirname, 'prepare.html'),
+        'migration-tool': resolve(__dirname, 'migration-tool.html'),
       },
     },
   },
