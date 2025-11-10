@@ -4,7 +4,7 @@ import { db } from './firebase';
 import { ref, get, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, AlertTriangle, ArrowUp, ArrowDown, Wand2 } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
 import exifr from 'exifr';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto } from './types';
@@ -15,6 +15,108 @@ type SessionData = {
     photos: FirebasePhotoData;
 };
 
+const generateHtmlForDownload = (photosInOrder: FirebasePhoto[]): string => {
+    const authorCredit = 'Фото: Илья Думов';
+
+    const photoFiguresHtml = photosInOrder.map(photo => {
+        const caption = photo.caption || '';
+        // Note: this logic to clean the URL seems specific to the user's setup, so we keep it.
+        const cleanedUrl = photo.url;
+
+        // This logic handles a special caption format like "Main Caption || Author"
+        const [mainCaption, author] = caption.split('||').map(s => s.trim());
+
+        // Figcaption can contain <br> if an author part exists. Also parses markdown links.
+        const figcaptionHtml = [
+            mainCaption.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'),
+            author
+        ].filter(Boolean).join('<br>');
+
+        // Alt text is constructed differently: it joins parts with a space and adds the main author credit.
+        let altText = mainCaption.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
+        if (author) {
+            altText += ` ${author}`;
+        }
+        altText += ` ${authorCredit}`;
+        const finalAltText = altText.trim().replace(/"/g, '&quot;');
+
+        return `
+<figure class="photo-item" style="display: inline-table; vertical-align: top; margin: 8px;">
+    <img src="${cleanedUrl}" alt="${finalAltText}" class="figure-img img-fluid rounded" style="max-width: 100%; height: auto;">
+    <figcaption class="figure-caption" style="display: table-caption; caption-side: bottom; text-align: left;">${figcaptionHtml}</figcaption>
+</figure>`.trim();
+
+    }).join('\n');
+
+    // This inline script adjusts caption layout dynamically.
+    const inlineScript = `
+<script>
+    (function() {
+        const container = document.getElementById('photo-gallery-container');
+        if (!container) return;
+
+        function adjustCaptions() {
+            const figures = Array.from(container.querySelectorAll('.photo-item'));
+            if (!figures.length) return;
+
+            const rows = new Map();
+            figures.forEach(figure => {
+                const top = Math.round(figure.getBoundingClientRect().top);
+                if (!rows.has(top)) {
+                    rows.set(top, []);
+                }
+                rows.get(top).push(figure);
+            });
+
+            rows.forEach(figuresInRow => {
+                const figcaption = figuresInRow[0].querySelector('.figure-caption');
+                if (!figcaption) return;
+
+                if (figuresInRow.length === 1) {
+                    figcaption.style.display = 'block'; 
+                    figcaption.style.maxWidth = 'none';
+                } else {
+                    figcaption.style.display = 'table-caption';
+                    figcaption.style.maxWidth = '';
+                }
+            });
+        }
+        
+        let resizeTimeout;
+        const debouncedAdjust = () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(adjustCaptions, 100);
+        };
+        
+        window.addEventListener('resize', debouncedAdjust);
+
+        const images = Array.from(container.querySelectorAll('img'));
+        let loadedImages = 0;
+        const checkAllLoaded = () => {
+            loadedImages++;
+            if (loadedImages >= images.length) {
+                adjustCaptions();
+            }
+        };
+        images.forEach(img => {
+            if (img.complete) {
+                checkAllLoaded();
+            } else {
+                img.addEventListener('load', checkAllLoaded, { once: true });
+                img.addEventListener('error', checkAllLoaded, { once: true });
+            }
+        });
+        if (images.length === 0) {
+           adjustCaptions();
+        }
+
+    })();
+<\/script>
+`;
+    return `<div id="photo-gallery-container" style="text-align: left;">\n${photoFiguresHtml}\n</div>\n${inlineScript}`;
+};
+
+
 const EditorApp: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [sessionData, setSessionData] = useState<SessionData | null>(null);
@@ -24,7 +126,6 @@ const EditorApp: React.FC = () => {
     // For Drag and Drop
     const draggedItem = useRef<number | null>(null);
     const dragOverItem = useRef<number | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
     const scrollInterval = useRef<number | null>(null);
 
     useEffect(() => {
@@ -60,21 +161,21 @@ const EditorApp: React.FC = () => {
             fetchData(sessionId);
         }
     }, [sessionId, fetchData]);
-    
+
     const handleSave = async () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
         try {
-            const sessionRef = ref(db, `sessions/${sessionId}`);
+            const updates: { [key: string]: any } = {};
             const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
 
-            await update(sessionRef, {
-                config: sessionData.config,
-                photos: { ...sessionData.photos, photos: finalPhotos },
-            });
+            updates[`sessions/${sessionId}/config`] = sessionData.config;
+            updates[`sessions/${sessionId}/photos`] = { ...sessionData.photos, photos: finalPhotos };
+
+            await update(ref(db), updates);
 
             alert('Изменения успешно сохранены!');
-            fetchData(sessionId); // re-fetch to confirm
+            fetchData(sessionId);
         } catch (error) {
             console.error("Ошибка сохранения:", error);
             alert('Не удалось сохранить изменения.');
@@ -82,7 +183,26 @@ const EditorApp: React.FC = () => {
             setIsSaving(false);
         }
     };
-    
+
+    const handleDownloadHtml = () => {
+        if (!sessionData) return;
+        try {
+            const htmlContent = generateHtmlForDownload(sessionData.photos.photos);
+            const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${sessionId || 'results'}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            alert(`Ошибка при создании HTML: ${(error as Error).message}`);
+            console.error(error);
+        }
+    };
+
     const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         const parsedValue = type === 'number' ? parseFloat(value) || 0 : value;
@@ -104,15 +224,15 @@ const EditorApp: React.FC = () => {
             });
         }
     };
-    
+
     const handleMovePhoto = (index: number, direction: 'up' | 'down') => {
         if (!sessionData) return;
         const newPhotos = [...sessionData.photos.photos];
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
         if (targetIndex < 0 || targetIndex >= newPhotos.length) return;
-        
+
         [newPhotos[index], newPhotos[targetIndex]] = [newPhotos[targetIndex], newPhotos[index]];
-        
+
         setSessionData({
             ...sessionData,
             photos: { ...sessionData.photos, photos: newPhotos },
@@ -129,7 +249,7 @@ const EditorApp: React.FC = () => {
             });
         }
     };
-    
+
     const handleDeletePhoto = (index: number) => {
         if (sessionData && window.confirm('Вы уверены, что хотите удалить эту фотографию?')) {
             const newPhotos = sessionData.photos.photos.filter((_, i) => i !== index);
@@ -141,7 +261,7 @@ const EditorApp: React.FC = () => {
     };
 
     const handleExtractExif = async () => {
-         if (!sessionData || !window.confirm('Это действие попытается извлечь описания из метаданных EXIF/IPTC для всех фотографий и перезапишет текущие описания. Продолжить?')) {
+        if (!sessionData || !window.confirm('Это действие попытается извлечь описания из метаданных EXIF/IPTC для всех фотографий и перезапишет текущие описания. Продолжить?')) {
             return;
         }
 
@@ -151,18 +271,19 @@ const EditorApp: React.FC = () => {
 
         const promises = newPhotos.map(async (photo, index) => {
             try {
+                if (!photo.url) return;
                 const exif = await exifr.parse(photo.url, { iptc: true, exif: true });
                 if (exif && exif.ImageDescription) {
                     newPhotos[index].caption = exif.ImageDescription;
                     successCount++;
                 }
             } catch (error) {
-                console.warn(`Не удалось извлечь EXIF для фото ${photo.id}:`, error);
+                console.warn(`Не удалось извлечь EXIF для фото ${photo.id} (${photo.url}):`, error);
             }
         });
 
         await Promise.allSettled(promises);
-        
+
         setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         setStatus('success');
 
@@ -216,14 +337,14 @@ const EditorApp: React.FC = () => {
                 {/* Config Editor */}
                 <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Настройки сессии</summary>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                         {Object.entries(sessionData.config).map(([key, value]) => (
-                             <div key={key}>
+                            <div key={key}>
                                 <label className="block text-sm font-medium text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
                                 {typeof value === 'number' ? (
-                                     <input type="number" name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
+                                    <input type="number" name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
                                 ) : (
-                                     <select name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white">
+                                    <select name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white">
                                         {key.includes('Layout') ? <>
                                             <option value="grid">Grid</option>
                                             <option value="original">Original</option>
@@ -240,9 +361,9 @@ const EditorApp: React.FC = () => {
                 </details>
 
                 {/* Intro Article Editor */}
-                 <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
+                <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Вступительная статья (Markdown)</summary>
-                     <textarea
+                    <textarea
                         value={sessionData.photos.introArticleMarkdown}
                         onChange={(e) => setSessionData({...sessionData, photos: {...sessionData.photos, introArticleMarkdown: e.target.value}})}
                         rows={10}
@@ -252,21 +373,26 @@ const EditorApp: React.FC = () => {
 
                 {/* Photos Editor */}
                 <div className="space-y-4">
-                     <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
                         <h2 className="text-xl font-semibold text-gray-300">Фотографии ({sessionData.photos.photos.length})</h2>
-                        <button onClick={handleExtractExif} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition-colors">
-                            <Wand2 className="w-5 h-5"/> Извлечь описания из EXIF
-                        </button>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button onClick={handleDownloadHtml} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white transition-colors">
+                                <Download className="w-5 h-5"/> Скачать HTML
+                            </button>
+                            <button onClick={handleExtractExif} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition-colors">
+                                <Wand2 className="w-5 h-5"/> Извлечь описания из EXIF
+                            </button>
+                        </div>
                     </div>
-                    <div ref={containerRef} onDragOver={handleDragOver} className="space-y-3">
+                    <div onDragOver={handleDragOver} className="space-y-3">
                         {sessionData.photos.photos.map((photo, index) => (
-                            <div key={photo.id} 
-                                draggable 
-                                onDragStart={() => draggedItem.current = index}
-                                onDragEnter={() => dragOverItem.current = index}
-                                onDragEnd={handleDrop}
-                                onDragOver={(e) => e.preventDefault()}
-                                className="flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg cursor-grab active:cursor-grabbing">
+                            <div key={photo.id}
+                                 draggable
+                                 onDragStart={() => draggedItem.current = index}
+                                 onDragEnter={() => dragOverItem.current = index}
+                                 onDragEnd={handleDrop}
+                                 onDragOver={(e) => e.preventDefault()}
+                                 className="flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg cursor-grab active:cursor-grabbing">
                                 <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0"/>
                                 <div className="flex-grow space-y-2">
                                     <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="URL"/>
@@ -277,21 +403,21 @@ const EditorApp: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="flex flex-row md:flex-col gap-2 flex-shrink-0">
-                                     <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600 rounded hover:bg-gray-500 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
-                                     <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length-1} className="p-2 bg-gray-600 rounded hover:bg-gray-500 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
+                                    <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600 rounded hover:bg-gray-500 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
+                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length-1} className="p-2 bg-gray-600 rounded hover:bg-gray-500 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
                                     <button onClick={() => handleDeletePhoto(index)} className="p-2 bg-red-800 rounded hover:bg-red-700"><Trash2 className="w-4 h-4"/></button>
                                 </div>
                             </div>
                         ))}
                     </div>
-                     <button onClick={handleAddPhoto} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-                       <Plus className="w-5 h-5"/> Добавить фото
+                    <button onClick={handleAddPhoto} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                        <Plus className="w-5 h-5"/> Добавить фото
                     </button>
                 </div>
-                
-                 <div className="mt-8 pt-6 border-t border-gray-700">
+
+                <div className="mt-8 pt-6 border-t border-gray-700">
                     <button onClick={handleSave} disabled={isSaving} className="w-full inline-flex items-center justify-center gap-x-2 px-4 py-3 font-semibold text-lg rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:bg-gray-600 disabled:cursor-wait">
-                       <Save className="w-6 h-6"/> {isSaving ? 'Сохранение...' : 'Сохранить все изменения'}
+                        <Save className="w-6 h-6"/> {isSaving ? 'Сохранение...' : 'Сохранить все изменения'}
                     </button>
                 </div>
             </div>
