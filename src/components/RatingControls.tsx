@@ -89,7 +89,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
         );
       })}
        {(photo.userRating || 0) > 0 && (
-         <div className='flex items-center justify-center transition-opacity' style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
+         <div className='flex items-center justify-center transition-opacity opacity-0 group-hover/controls:opacity-100' style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
             <button
             onClick={() => onRate(photo.id, 0)}
             className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`}

@@ -358,20 +358,22 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 <ImageWrapper photo={nextPhoto} isVisible={currentIndex < allPhotos.length - 1} />
             </div>
 
+            {/* Navigation Arrows (always visible on desktop) */}
+            {!isTouchDevice && prevPhoto && (
+                <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Предыдущее фото">
+                    <ChevronLeft className="w-10 h-10" />
+                </button>
+            )}
+            {!isTouchDevice && nextPhoto && (
+                <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Следующее фото">
+                    <ChevronRight className="w-10 h-10" />
+                </button>
+            )}
+
+            {/* Controls Container (visibility toggles) */}
             <div
                 className={`absolute inset-0 transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
             >
-                {!isTouchDevice && prevPhoto && (
-                    <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Предыдущее фото">
-                        <ChevronLeft className="w-10 h-10" />
-                    </button>
-                )}
-                {!isTouchDevice && nextPhoto && (
-                    <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Следующее фото">
-                        <ChevronRight className="w-10 h-10" />
-                    </button>
-                )}
-
                 <div
                     className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/60 to-transparent p-4 flex justify-between items-start gap-4"
                     onClick={handleControlInteraction}

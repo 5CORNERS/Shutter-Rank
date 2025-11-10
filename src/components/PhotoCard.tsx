@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Photo, LayoutMode, GridAspectRatio } from '../types';
 import { Info, Flag } from 'lucide-react';
 import { RatingControls } from './RatingControls';
@@ -15,10 +15,17 @@ interface PhotoCardProps {
 
 export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClick, onToggleFlag, displayVotes, layoutMode, gridAspectRatio }) => {
   const [isCaptionVisible, setIsCaptionVisible] = useState(false);
+  const justClosedCaption = useRef(false);
 
   useEffect(() => {
     if (!isCaptionVisible) return;
-    const handleClickOutside = () => setIsCaptionVisible(false);
+    const handleClickOutside = () => {
+        setIsCaptionVisible(false);
+        justClosedCaption.current = true;
+        setTimeout(() => {
+            justClosedCaption.current = false;
+        }, 100);
+    };
     const timerId = setTimeout(() => { window.addEventListener('click', handleClickOutside); }, 0);
     return () => {
         clearTimeout(timerId);
@@ -63,7 +70,11 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
         alt={`Фото ${photo.id}`}
         className={`w-full h-auto object-cover transition-transform duration-300 group-hover:scale-105 cursor-pointer ${layoutMode === 'grid' ? aspectRatioClass : ''}`}
         loading="lazy"
-        onClick={() => onImageClick(photo)}
+        onClick={() => {
+            if (!justClosedCaption.current) {
+                onImageClick(photo);
+            }
+        }}
       />
 
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
@@ -78,7 +89,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-center">
-        <div className={`${controlsVisibilityClass} transition-opacity duration-300`} onClick={e => e.stopPropagation()}>
+        <div className={`${controlsVisibilityClass} transition-opacity duration-300 group/controls`} onClick={e => e.stopPropagation()}>
            <RatingControls photo={photo} onRate={onRate} size="small" disabled={isOutOfComp} />
         </div>
         {displayVotes && (

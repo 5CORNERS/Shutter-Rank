@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
 import { ref, get, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, AlertTriangle, ArrowUp, ArrowDown } from 'lucide-react';
+import { Save, Plus, Trash2, AlertTriangle, ArrowUp, ArrowDown, Wand2 } from 'lucide-react';
+import exifr from 'exifr';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto } from './types';
 
@@ -18,6 +19,13 @@ const EditorApp: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [sessionData, setSessionData] = useState<SessionData | null>(null);
     const [status, setStatus] = useState<Status>('loading');
+    const [isSaving, setIsSaving] = useState(false);
+
+    // For Drag and Drop
+    const draggedItem = useRef<number | null>(null);
+    const dragOverItem = useRef<number | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const scrollInterval = useRef<number | null>(null);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -55,19 +63,23 @@ const EditorApp: React.FC = () => {
     
     const handleSave = async () => {
         if (!sessionId || !sessionData) return;
-        setStatus('loading');
+        setIsSaving(true);
         try {
             const sessionRef = ref(db, `sessions/${sessionId}`);
+            const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
+
             await update(sessionRef, {
                 config: sessionData.config,
-                photos: sessionData.photos,
+                photos: { ...sessionData.photos, photos: finalPhotos },
             });
-            await fetchData(sessionId);
+
             alert('Изменения успешно сохранены!');
+            fetchData(sessionId); // re-fetch to confirm
         } catch (error) {
             console.error("Ошибка сохранения:", error);
-            setStatus('error');
             alert('Не удалось сохранить изменения.');
+        } finally {
+            setIsSaving(false);
         }
     };
     
@@ -99,11 +111,11 @@ const EditorApp: React.FC = () => {
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
         if (targetIndex < 0 || targetIndex >= newPhotos.length) return;
         
-        [newPhotos[index], newPhotos[targetIndex]] = [newPhotos[targetIndex], newPhotos[index]]; // Swap
+        [newPhotos[index], newPhotos[targetIndex]] = [newPhotos[targetIndex], newPhotos[index]];
         
         setSessionData({
             ...sessionData,
-            photos: { ...sessionData.photos, photos: newPhotos.map((p, i) => ({...p, id: i + 1})) },
+            photos: { ...sessionData.photos, photos: newPhotos },
         });
     };
 
@@ -126,6 +138,72 @@ const EditorApp: React.FC = () => {
                 photos: { ...sessionData.photos, photos: newPhotos },
             });
         }
+    };
+
+    const handleExtractExif = async () => {
+         if (!sessionData || !window.confirm('Это действие попытается извлечь описания из метаданных EXIF/IPTC для всех фотографий и перезапишет текущие описания. Продолжить?')) {
+            return;
+        }
+
+        setStatus('loading');
+        let successCount = 0;
+        const newPhotos = [...sessionData.photos.photos];
+
+        const promises = newPhotos.map(async (photo, index) => {
+            try {
+                const exif = await exifr.parse(photo.url, { iptc: true, exif: true });
+                if (exif && exif.ImageDescription) {
+                    newPhotos[index].caption = exif.ImageDescription;
+                    successCount++;
+                }
+            } catch (error) {
+                console.warn(`Не удалось извлечь EXIF для фото ${photo.id}:`, error);
+            }
+        });
+
+        await Promise.allSettled(promises);
+        
+        setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
+        setStatus('success');
+
+        alert(`Успешно извлечено ${successCount} из ${newPhotos.length} описаний.\nНе забудьте сохранить изменения.`);
+    };
+
+    const stopScrolling = () => {
+        if (scrollInterval.current) {
+            clearInterval(scrollInterval.current);
+            scrollInterval.current = null;
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        const SCROLL_ZONE_HEIGHT = 80;
+        const SCROLL_SPEED = 15;
+
+        if (e.clientY < SCROLL_ZONE_HEIGHT) {
+            if (!scrollInterval.current) {
+                scrollInterval.current = window.setInterval(() => { window.scrollBy(0, -SCROLL_SPEED); }, 15);
+            }
+        } else if (window.innerHeight - e.clientY < SCROLL_ZONE_HEIGHT) {
+            if (!scrollInterval.current) {
+                scrollInterval.current = window.setInterval(() => { window.scrollBy(0, SCROLL_SPEED); }, 15);
+            }
+        } else {
+            stopScrolling();
+        }
+    };
+
+    const handleDrop = () => {
+        if (sessionData && draggedItem.current !== null && dragOverItem.current !== null) {
+            const newPhotos = [...sessionData.photos.photos];
+            const dragged = newPhotos.splice(draggedItem.current, 1)[0];
+            newPhotos.splice(dragOverItem.current, 0, dragged);
+            draggedItem.current = null;
+            dragOverItem.current = null;
+            setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos }});
+        }
+        stopScrolling();
     };
 
     const renderContent = () => {
@@ -174,10 +252,21 @@ const EditorApp: React.FC = () => {
 
                 {/* Photos Editor */}
                 <div className="space-y-4">
-                    <h2 className="text-xl font-semibold text-gray-300">Фотографии ({sessionData.photos.photos.length})</h2>
-                    <div className="space-y-3">
+                     <div className="flex flex-wrap items-center justify-between gap-4">
+                        <h2 className="text-xl font-semibold text-gray-300">Фотографии ({sessionData.photos.photos.length})</h2>
+                        <button onClick={handleExtractExif} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition-colors">
+                            <Wand2 className="w-5 h-5"/> Извлечь описания из EXIF
+                        </button>
+                    </div>
+                    <div ref={containerRef} onDragOver={handleDragOver} className="space-y-3">
                         {sessionData.photos.photos.map((photo, index) => (
-                            <div key={photo.id} className="flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg">
+                            <div key={photo.id} 
+                                draggable 
+                                onDragStart={() => draggedItem.current = index}
+                                onDragEnter={() => dragOverItem.current = index}
+                                onDragEnd={handleDrop}
+                                onDragOver={(e) => e.preventDefault()}
+                                className="flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg cursor-grab active:cursor-grabbing">
                                 <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0"/>
                                 <div className="flex-grow space-y-2">
                                     <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="URL"/>
@@ -201,8 +290,8 @@ const EditorApp: React.FC = () => {
                 </div>
                 
                  <div className="mt-8 pt-6 border-t border-gray-700">
-                    <button onClick={handleSave} className="w-full inline-flex items-center justify-center gap-x-2 px-4 py-3 font-semibold text-lg rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors">
-                       <Save className="w-6 h-6"/> Сохранить все изменения
+                    <button onClick={handleSave} disabled={isSaving} className="w-full inline-flex items-center justify-center gap-x-2 px-4 py-3 font-semibold text-lg rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:bg-gray-600 disabled:cursor-wait">
+                       <Save className="w-6 h-6"/> {isSaving ? 'Сохранение...' : 'Сохранить все изменения'}
                     </button>
                 </div>
             </div>
