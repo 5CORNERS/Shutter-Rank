@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
-import { ref, get, set, update } from 'firebase/database';
+import { ref, get, set } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
@@ -18,8 +18,7 @@ type SessionData = {
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
     const photoFiguresHtml = photosInOrder.map(photo => {
         const caption = photo.caption || '';
-        // Per user request, remove '/voting/' or '/votes/' sub-directory from URL path
-        const cleanedUrl = photo.url.replace(/\/vo(t|ting)es?\//, '/');
+        const cleanedUrl = photo.url.replace(/\/voting\/?/, '/');
         const altText = `${caption} Фото: Илья Думов`.trim().replace(/"/g, '&quot;');
 
         const figcaptionHtml = caption ? `${caption}<br>Фото: Илья Думов` : 'Фото: Илья Думов';
@@ -97,7 +96,7 @@ const EditorApp: React.FC = () => {
 
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
-    const draggedElement = useRef<HTMLElement | null>(null);
+    const draggedElementRef = useRef<HTMLElement | null>(null);
     const placeholderRef = useRef<HTMLDivElement | null>(null);
     const scrollInterval = useRef<number | null>(null);
 
@@ -139,15 +138,16 @@ const EditorApp: React.FC = () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
         try {
-            // Re-index photos to maintain order integrity, starting from 1
             const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
             const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
 
-            const sessionRef = ref(db, `sessions/${sessionId}`);
-            await update(sessionRef, {
-                config: sessionData.config,
-                photos: finalPhotoData
-            });
+            const configRef = ref(db, `sessions/${sessionId}/config`);
+            const photosRef = ref(db, `sessions/${sessionId}/photos`);
+
+            await Promise.all([
+                set(configRef, sessionData.config),
+                set(photosRef, finalPhotoData)
+            ]);
 
             alert('Изменения успешно сохранены!');
         } catch (error: any) {
@@ -253,18 +253,24 @@ const EditorApp: React.FC = () => {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
 
-                const exif = await exifr.parse(buffer, { iptc: true, exif: true, xmp: true });
+// Fix: Corrected the `exifr.parse` options. The `userComment` property expects a boolean, but was incorrectly passed a string. The correct option to specify the encoding for the UserComment tag is `userCommentEncoding`.
+                const exif = await exifr.parse(buffer, {
+                    iptc: true,
+                    exif: true,
+                    xmp: true,
+                    userCommentEncoding: 'UTF-8' // Force UTF-8 for UserComment
+                });
 
-                const description = exif?.ImageDescription // EXIF
-                    || exif?.Caption // Common alternative
-                    || exif?.['Caption/Abstract'] // IPTC
-                    || exif?.description; // XMP
+                const description = exif?.ImageDescription
+                    || exif?.UserComment
+                    || exif?.description
+                    || exif?.['Caption/Abstract'];
 
-                if (description) {
-                    newPhotos[i] = { ...newPhotos[i], caption: String(description) };
+                if (typeof description === 'string' && description.trim()) {
+                    newPhotos[i] = { ...newPhotos[i], caption: description.trim() };
                     successCount++;
                 } else {
-                    throw new Error("Описание не найдено в метаданных EXIF, IPTC или XMP.");
+                    throw new Error("Описание не найдено в метаданных.");
                 }
             } catch (error: any) {
                 const errorMessage = error.message || 'Неизвестная ошибка';
@@ -296,9 +302,10 @@ const EditorApp: React.FC = () => {
     }, []);
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-        draggedElement.current = e.currentTarget;
+        draggedElementRef.current = e.currentTarget;
         e.dataTransfer.effectAllowed = 'move';
 
+        // Create and style the placeholder
         if (!placeholderRef.current) {
             placeholderRef.current = document.createElement('div');
             placeholderRef.current.className = 'drag-over-placeholder';
@@ -306,13 +313,13 @@ const EditorApp: React.FC = () => {
         placeholderRef.current.style.height = `${e.currentTarget.offsetHeight}px`;
 
         setTimeout(() => {
-            draggedElement.current?.classList.add('dragging');
+            draggedElementRef.current?.classList.add('dragging');
         }, 0);
     };
 
     const handleDragEnd = useCallback(() => {
-        draggedElement.current?.classList.remove('dragging');
-        draggedElement.current = null;
+        draggedElementRef.current?.classList.remove('dragging');
+        draggedElementRef.current = null;
         placeholderRef.current?.remove();
         stopScrolling();
     }, [stopScrolling]);
@@ -321,18 +328,20 @@ const EditorApp: React.FC = () => {
         e.preventDefault();
         const container = photoListRef.current;
         const placeholder = placeholderRef.current;
-        if (!container || !draggedElement.current || !placeholder) return;
+        if (!container || !draggedElementRef.current || !placeholder) return;
 
         // Auto-scroll logic
         const SCROLL_ZONE_HEIGHT = 80;
         const SCROLL_SPEED = 15;
         const clientY = e.clientY;
 
-        if (clientY < container.getBoundingClientRect().top + SCROLL_ZONE_HEIGHT) {
+        const containerRect = container.getBoundingClientRect();
+
+        if (clientY < containerRect.top + SCROLL_ZONE_HEIGHT) {
             if (!scrollInterval.current) {
                 scrollInterval.current = window.setInterval(() => { window.scrollBy(0, -SCROLL_SPEED); }, 15);
             }
-        } else if (clientY > container.getBoundingClientRect().bottom - SCROLL_ZONE_HEIGHT) {
+        } else if (clientY > window.innerHeight - SCROLL_ZONE_HEIGHT) { // Check against viewport bottom
             if (!scrollInterval.current) {
                 scrollInterval.current = window.setInterval(() => { window.scrollBy(0, SCROLL_SPEED); }, 15);
             }
@@ -340,8 +349,10 @@ const EditorApp: React.FC = () => {
             stopScrolling();
         }
 
+        type Closest = { offset: number; element: HTMLElement | null };
+
         const afterElement = [...container.querySelectorAll<HTMLElement>('[draggable="true"]:not(.dragging)')]
-            .reduce((closest: { offset: number, element: HTMLElement | null }, child) => {
+            .reduce((closest: Closest, child: HTMLElement): Closest => {
                 const box = child.getBoundingClientRect();
                 const offset = clientY - box.top - box.height / 2;
                 if (offset < 0 && offset > closest.offset) {
@@ -359,16 +370,20 @@ const EditorApp: React.FC = () => {
 
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
-        if (!draggedElement.current || !sessionData) {
+        const draggedEl = draggedElementRef.current;
+        if (!draggedEl || !sessionData || !photoListRef.current) {
             handleDragEnd();
             return;
         }
 
-        const draggedIndex = parseInt(draggedElement.current.dataset.index!, 10);
-        const children = Array.from(photoListRef.current!.children);
+        const draggedIndex = parseInt(draggedEl.dataset.index!, 10);
+
+        // Calculate drop index based on placeholder's final position
+        const children = Array.from(photoListRef.current.children);
         let dropIndex = children.indexOf(placeholderRef.current!);
 
-        if (dropIndex > draggedIndex) {
+        // Adjust index if placeholder is after the dragged element's original position
+        if (draggedIndex < dropIndex) {
             dropIndex--;
         }
 
