@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
-import { ref, get, update } from 'firebase/database';
+import { ref, get, set, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
@@ -14,20 +14,15 @@ type SessionData = {
     config: Config;
     photos: FirebasePhotoData;
 };
-type ClosestElement = {
-    offset: number;
-    element: HTMLElement | null;
-};
-
 
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
-    const authorCredit = 'Фото: Илья Думов';
-
     const photoFiguresHtml = photosInOrder.map(photo => {
         const caption = photo.caption || '';
-        const cleanedUrl = photo.url.replace('/voting', '');
-        const altText = `${caption} ${authorCredit}`.trim().replace(/"/g, '&quot;');
-        const figcaptionHtml = caption;
+        // Per user request, remove '/votes/' sub-directory from URL path
+        const cleanedUrl = photo.url.replace('/votes/', '/');
+        const altText = `${caption} Фото: Илья Думов`.trim().replace(/"/g, '&quot;');
+
+        const figcaptionHtml = caption ? `${caption}<br>Фото: Илья Думов` : 'Фото: Илья Думов';
 
         return `
 <figure class="photo-item" style="display: inline-table; vertical-align: top; margin: 8px;">
@@ -102,9 +97,7 @@ const EditorApp: React.FC = () => {
 
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
-    const draggedIndex = useRef<number | null>(null);
-    const dragOverIndex = useRef<number | null>(null);
-    const [dragging, setDragging] = useState(false);
+    const draggedElement = useRef<HTMLElement | null>(null);
     const scrollInterval = useRef<number | null>(null);
 
     useEffect(() => {
@@ -145,19 +138,21 @@ const EditorApp: React.FC = () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
         try {
-            const updates: { [key: string]: any } = {};
-            // Re-index photos to maintain order integrity
+            // Re-index photos to maintain order integrity, starting from 1
             const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
+            const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
 
-            updates[`sessions/${sessionId}/config`] = sessionData.config;
-            updates[`sessions/${sessionId}/photos`] = { ...sessionData.photos, photos: finalPhotos };
+            // PERMISSION_DENIED fix: Perform separate, targeted updates instead of one large update from the root.
+            const configRef = ref(db, `sessions/${sessionId}/config`);
+            const photosRef = ref(db, `sessions/${sessionId}/photos`);
 
-            await update(ref(db), updates);
+            await set(configRef, sessionData.config);
+            await set(photosRef, finalPhotoData);
 
             alert('Изменения успешно сохранены!');
-            fetchData(sessionId);
+            // No need to refetch, local state is the source of truth
         } catch (error: any) {
-            console.error("Ошибка сохранения:", error.code, error.message);
+            console.error("Ошибка сохранения:", error);
             alert(`Не удалось сохранить изменения. Код ошибки: ${error.code}. Подробности в консоли.`);
         } finally {
             setIsSaving(false);
@@ -250,24 +245,29 @@ const EditorApp: React.FC = () => {
         const failedPhotos: { id: number, url: string, error: string }[] = [];
         const newPhotos = [...sessionData.photos.photos];
 
-        const promises = newPhotos.map(async (photo, index) => {
+        for (let i = 0; i < newPhotos.length; i++) {
+            const photo = newPhotos[i];
             try {
-                if (!photo.url) return;
-                const exif = await exifr.parse(photo.url, { iptc: true, exif: true });
+                if (!photo.url) continue;
+
+                // Robust fetching: fetch as blob first, then parse
+                const response = await fetch(photo.url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const buffer = await response.arrayBuffer();
+
+                const exif = await exifr.parse(buffer, { iptc: true, exif: true });
                 if (exif && exif.ImageDescription) {
-                    newPhotos[index].caption = exif.ImageDescription;
+                    newPhotos[i] = { ...newPhotos[i], caption: exif.ImageDescription };
                     successCount++;
                 } else {
                     throw new Error("Поле 'ImageDescription' не найдено.");
                 }
-            } catch (error) {
-                const errorMessage = (error as Error).message;
+            } catch (error: any) {
+                const errorMessage = error.message || 'Неизвестная ошибка';
                 failedPhotos.push({ id: photo.id, url: photo.url, error: errorMessage });
                 console.warn(`Не удалось извлечь EXIF для фото ${photo.id} (${photo.url}):`, error);
             }
-        });
-
-        await Promise.allSettled(promises);
+        }
 
         setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         setStatus('success');
@@ -284,62 +284,68 @@ const EditorApp: React.FC = () => {
         alert(alertMessage);
     };
 
-    // --- Drag and Drop Handlers ---
-    const stopScrolling = () => {
+    const stopScrolling = useCallback(() => {
         if (scrollInterval.current) {
             clearInterval(scrollInterval.current);
             scrollInterval.current = null;
         }
-    };
+    }, []);
 
-    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
-        draggedIndex.current = index;
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+        draggedElement.current = e.currentTarget;
         e.dataTransfer.effectAllowed = 'move';
-        setTimeout(() => setDragging(true), 0);
+        // Use a timeout to allow the browser to render the drag image before applying the class
+        setTimeout(() => {
+            draggedElement.current?.classList.add('dragging');
+        }, 0);
     };
 
-    const handleDragEnd = () => {
-        setDragging(false);
-        draggedIndex.current = null;
-        dragOverIndex.current = null;
+    const handleDragEnd = useCallback(() => {
+        draggedElement.current?.classList.remove('dragging');
+        draggedElement.current = null;
         stopScrolling();
-        // remove placeholder
         const placeholder = photoListRef.current?.querySelector('.drag-over-placeholder');
-        if (placeholder) placeholder.remove();
-    };
+        if (placeholder) {
+            placeholder.remove();
+        }
+    }, [stopScrolling]);
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
-
         const container = photoListRef.current;
-        if (!container || draggedIndex.current === null) return;
+        if (!container || !draggedElement.current) return;
 
+        // Auto-scroll logic
         const SCROLL_ZONE_HEIGHT = 80;
         const SCROLL_SPEED = 15;
-
         if (e.clientY < SCROLL_ZONE_HEIGHT) {
-            if (!scrollInterval.current) scrollInterval.current = window.setInterval(() => { window.scrollBy(0, -SCROLL_SPEED); }, 15);
+            if (!scrollInterval.current) {
+                scrollInterval.current = window.setInterval(() => { window.scrollBy(0, -SCROLL_SPEED); }, 15);
+            }
         } else if (window.innerHeight - e.clientY < SCROLL_ZONE_HEIGHT) {
-            if (!scrollInterval.current) scrollInterval.current = window.setInterval(() => { window.scrollBy(0, SCROLL_SPEED); }, 15);
+            if (!scrollInterval.current) {
+                scrollInterval.current = window.setInterval(() => { window.scrollBy(0, SCROLL_SPEED); }, 15);
+            }
         } else {
             stopScrolling();
         }
 
-        let placeholder = container.querySelector<HTMLElement>('.drag-over-placeholder');
+        // Placeholder logic
+        let placeholder = container.querySelector('.drag-over-placeholder');
         if (!placeholder) {
             placeholder = document.createElement('div');
             placeholder.className = 'drag-over-placeholder';
         }
 
-        const afterElement = [...container.querySelectorAll<HTMLElement>('[draggable="true"]:not(.dragging)')]
-            .reduce<ClosestElement>((closest, child) => {
+        const afterElement = [...container.querySelectorAll('[draggable="true"]:not(.dragging)')]
+            .reduce((closest, child) => {
                 const box = child.getBoundingClientRect();
                 const offset = e.clientY - box.top - box.height / 2;
                 if (offset < 0 && offset > closest.offset) {
                     return { offset, element: child };
                 }
                 return closest;
-            }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
+            }, { offset: Number.NEGATIVE_INFINITY, element: null as Element | null }).element;
 
         if (afterElement) {
             container.insertBefore(placeholder, afterElement);
@@ -351,16 +357,23 @@ const EditorApp: React.FC = () => {
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         const placeholder = photoListRef.current?.querySelector('.drag-over-placeholder');
-        if (!placeholder || draggedIndex.current === null || !sessionData) return;
+        if (!placeholder || !draggedElement.current || !sessionData) {
+            handleDragEnd();
+            return;
+        }
 
-        const children = Array.from(photoListRef.current!.children).filter(c => c.hasAttribute('draggable'));
+        const draggedIndex = parseInt(draggedElement.current.dataset.index!, 10);
+
+        const children = Array.from(photoListRef.current!.children).filter(c => c.hasAttribute('draggable') || c.classList.contains('drag-over-placeholder'));
         const dropIndex = children.indexOf(placeholder);
 
-        const newPhotos = [...sessionData.photos.photos];
-        const [draggedItem] = newPhotos.splice(draggedIndex.current, 1);
-        newPhotos.splice(dropIndex, 0, draggedItem);
+        if (draggedIndex !== dropIndex) {
+            const newPhotos = [...sessionData.photos.photos];
+            const [draggedItem] = newPhotos.splice(draggedIndex, 1);
+            newPhotos.splice(dropIndex, 0, draggedItem);
+            setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
+        }
 
-        setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         handleDragEnd();
     };
 
@@ -421,12 +434,13 @@ const EditorApp: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    <div ref={photoListRef} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd} className="space-y-3">
+                    <div ref={photoListRef} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragEnd} className="space-y-3">
                         {sessionData.photos.photos.map((photo, index) => (
                             <div key={photo.id}
                                  draggable
-                                 onDragStart={(e) => handleDragStart(e, index)}
-                                 className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300 ${dragging && draggedIndex.current === index ? 'dragging' : ''}`}
+                                 onDragStart={(e) => handleDragStart(e)}
+                                 data-index={index}
+                                 className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300`}
                             >
                                 <div className="flex-shrink-0 self-center flex md:flex-col items-center gap-2 drag-handle cursor-grab active:cursor-grabbing">
                                     <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
