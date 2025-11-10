@@ -9,6 +9,24 @@ interface RatingControlsProps {
   disabled?: boolean;
 }
 
+const getStarNounAccusative = (count: number): string => {
+  if (count === 1) {
+    return 'звезду';
+  }
+  if (count >= 2 && count <= 4) {
+    return 'звезды';
+  }
+  return 'звёзд';
+};
+
+const getStarNounGenitive = (count: number): string => {
+    if (count >= 2 && count <= 4) {
+        return 'звезды';
+    }
+    return 'звёзд';
+}
+
+
 export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, size = 'large', disabled = false }) => {
   const [hoverRating, setHoverRating] = useState(0);
   const isTouchDevice = 'ontouchstart' in window;
@@ -48,14 +66,18 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
             style.strokeDasharray = '2 2';
         }
 
+        const titleText = isLocked 
+            ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}` 
+            : `Оценить в ${star} ${getStarNounAccusative(star)}`;
+
         return (
           <button
             key={star}
             onClick={() => handleRate(star)}
             onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
             className={`${buttonPadding} rounded-full transition-all transform hover:scale-125`}
-            aria-label={`Оценить в ${star} звезд`}
-            title={isLocked ? `Эта фотография еще не заслужила ${star} звезд` : `Оценить в ${star} звезд`}
+            aria-label={`Оценить в ${star} ${getStarNounAccusative(star)}`}
+            title={titleText}
           >
             <Star
               className={`${starSizeClass} transition-colors ${starColor}`}

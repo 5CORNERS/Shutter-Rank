@@ -10,7 +10,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { ArticleModal } from './components/IntroModal';
 import { RatingInfoModal } from './components/RatingInfoModal';
 import { useDeviceType } from './hooks/useDeviceType';
-import { Eye, EyeOff, Send, Loader, AlertTriangle, Copy, Trash2, Settings as SettingsIcon, Flag, FlagOff, List } from 'lucide-react';
+import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, Flag, FlagOff, List } from 'lucide-react';
 
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
@@ -41,7 +41,6 @@ const App: React.FC = () => {
     const [votingPhase, setVotingPhase] = useState<VotingPhase>('voting');
     const [status, setStatus] = useState<AppStatus>('loading');
     const [isScrolled, setIsScrolled] = useState(false);
-    const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle');
     const [scrollToId, setScrollToId] = useState<number | null>(null);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
@@ -346,33 +345,6 @@ const App: React.FC = () => {
         }
     }, [sessionId, userId]);
 
-    const getUserVotesJSON = useCallback(() => {
-        const userRatings: { [key: number]: number } = {};
-        photos.forEach(p => {
-            if (p.userRating && p.userRating > 0) {
-                userRatings[p.id] = p.userRating;
-            }
-        });
-        return JSON.stringify(userRatings, null, 2);
-    }, [photos]);
-
-    const handleShareToTelegram = useCallback(() => {
-        const dataStr = getUserVotesJSON();
-        const text = `Мои голоса в фотоконкурсе "${sessionId || ''}":\n\n\`\`\`json\n${dataStr}\n\`\`\``;
-        const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent('Результаты голосования')}&text=${encodeURIComponent(text)}`;
-        window.open(telegramUrl, '_blank');
-    }, [getUserVotesJSON, sessionId]);
-
-    const handleCopyToClipboard = useCallback(() => {
-        const dataStr = getUserVotesJSON();
-        navigator.clipboard.writeText(dataStr).then(() => {
-            setCopyStatus('copied');
-            setTimeout(() => setCopyStatus('idle'), 2000);
-        }).catch(err => {
-            console.error('Не удалось скопировать: ', err);
-        });
-    }, [getUserVotesJSON]);
-
     const sortedPhotos = useMemo(() => {
         let photosCopy = [...photosWithMaxRating];
         if (filterFlags) {
@@ -581,22 +553,6 @@ const App: React.FC = () => {
                     <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 max-w-4xl mx-auto flex flex-col items-center gap-4">
                         <StatsInfo />
                         <div className='flex flex-wrap items-center justify-center gap-4'>
-                            <button
-                                onClick={handleShareToTelegram}
-                                disabled={!hasVotes}
-                                className="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg bg-blue-500 hover:bg-blue-600 focus:ring-blue-400 text-white transition-colors disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
-                            >
-                                <Send className="w-4 h-4" />
-                                <span>Отправить результат</span>
-                            </button>
-                            <button
-                                onClick={handleCopyToClipboard}
-                                disabled={!hasVotes}
-                                className="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg bg-gray-600 hover:bg-gray-700 focus:ring-gray-500 text-white transition-colors disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
-                            >
-                                <Copy className="w-4 h-4" />
-                                <span>{copyStatus === 'copied' ? 'Скопировано!' : 'Скопировать результат'}</span>
-                            </button>
                             <button
                                 onClick={handleResetVotes}
                                 disabled={!hasVotes}

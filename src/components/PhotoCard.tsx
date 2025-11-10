@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Photo, LayoutMode, GridAspectRatio } from '../types';
-import { Info, Flag, Star } from 'lucide-react';
+import { Info, Flag } from 'lucide-react';
 import { RatingControls } from './RatingControls';
 
 interface PhotoCardProps {
@@ -34,8 +34,9 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
 
   const isFlagged = photo.isFlagged !== false;
   const isOutOfComp = !!photo.isOutOfCompetition;
+  const hasUserRating = photo.userRating && photo.userRating > 0;
 
-  const voteRingClass = photo.userRating && photo.userRating > 0
+  const voteRingClass = hasUserRating
     ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-yellow-400/80'
     : '';
   
@@ -49,6 +50,11 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
   const aspectRatioClass = aspectRatioMap[gridAspectRatio];
 
   const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 border transition-all duration-300 hover:shadow-indigo-500/30 ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''}`;
+
+  const controlsVisibilityClass = hasUserRating 
+      ? 'opacity-100' 
+      : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100';
+
 
   return (
     <div id={`photo-card-${photo.id}`} className={containerClasses}>
@@ -72,15 +78,9 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-center">
-        <div className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300" onClick={e => e.stopPropagation()}>
+        <div className={`${controlsVisibilityClass} transition-opacity duration-300`} onClick={e => e.stopPropagation()}>
            <RatingControls photo={photo} onRate={onRate} size="small" disabled={isOutOfComp} />
         </div>
-        {!displayVotes && photo.userRating && photo.userRating > 0 && (
-          <div className="flex items-center gap-1 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md text-sm animate-fade-in">
-            <Star className="w-4 h-4 text-yellow-400" fill="currentColor" />
-            <span className="font-bold text-white">{photo.userRating}</span>
-          </div>
-        )}
         {displayVotes && (
             <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 backdrop-blur-sm px-3 py-1 rounded-md animate-fade-in`}>
               {photo.votes}

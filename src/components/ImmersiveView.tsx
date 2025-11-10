@@ -32,6 +32,15 @@ interface VendorFullscreenElement extends HTMLDivElement {
     webkitRequestFullscreen?(): Promise<void>;
 }
 
+const getStarNounAccusative = (count: number): string => {
+  if (count === 1) {
+    return 'звезду';
+  }
+  if (count >= 2 && count <= 4) {
+    return 'звезды';
+  }
+  return 'звёзд';
+};
 
 const ImageWrapper: React.FC<{ photo?: Photo; isVisible: boolean }> = React.memo(({ photo, isVisible }) => (
     <div
@@ -437,7 +446,14 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                         }
 
                                         return (
-                                            <button key={star} onClick={() => handleRate(star)} onMouseEnter={() => !isTouchDevice && setHoverRating(star)} className={`p-2 rounded-full transition-all transform hover:scale-125`} aria-label={`Оценить в ${star} звезд`}>
+                                            <button
+                                                key={star}
+                                                onClick={() => handleRate(star)}
+                                                onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
+                                                className={`p-2 rounded-full transition-all transform hover:scale-125`}
+                                                aria-label={`Оценить в ${star} ${getStarNounAccusative(star)}`}
+                                                title={`Оценить в ${star} ${getStarNounAccusative(star)}`}
+                                            >
                                                 <Star className={`w-7 h-7 transition-colors ${starColor}`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} style={style}/>
                                             </button>
                                         )

@@ -16,6 +16,9 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         'migration-tool': resolve(__dirname, 'migration-tool.html'),
+        'admin': resolve(__dirname, 'admin.html'),
+        'editor': resolve(__dirname, 'editor.html'),
+        'prepare': resolve(__dirname, 'prepare.html'),
       },
     },
   },

@@ -21,9 +21,9 @@ export const RatingInfoModal: React.FC<RatingInfoModalProps> = ({ onClose }) => 
             <div>
                 <p className="text-gray-400 mb-2">Мы предлагаем такую систему оценок:</p>
                 <ul className="space-y-1 text-gray-300 list-none p-0">
-                    <li className="flex items-start"><span className="flex items-center w-28 flex-shrink-0"><Star className="w-4 h-4 mr-1 text-yellow-400"/></span> — достойная фотография, выбираю;</li>
-                    <li className="flex items-start"><span className="flex items-center w-28 flex-shrink-0"><Star className="w-4 h-4 mr-1 text-yellow-400"/><Star className="w-4 h-4 mr-1 text-yellow-400"/></span> — превосходная фотография;</li>
-                    <li className="flex items-start"><span className="flex items-center w-28 flex-shrink-0"><Star className="w-4 h-4 mr-1 text-yellow-400"/><Star className="w-4 h-4 mr-1 text-yellow-400"/><Star className="w-4 h-4 mr-1 text-yellow-400"/></span> — потрясающее фото, из ряда вон!</li>
+                    <li className="flex items-start"><span className="flex items-center w-16 flex-shrink-0"><Star className="w-4 h-4 mr-1 text-yellow-400"/></span> — достойная фотография, выбираю;</li>
+                    <li className="flex items-start"><span className="flex items-center w-16 flex-shrink-0"><Star className="w-4 h-4 mr-1 text-yellow-400"/><Star className="w-4 h-4 mr-1 text-yellow-400"/></span> — превосходная фотография;</li>
+                    <li className="flex items-start"><span className="flex items-center w-16 flex-shrink-0"><Star className="w-4 h-4 mr-1 text-yellow-400"/><Star className="w-4 h-4 mr-1 text-yellow-400"/><Star className="w-4 h-4 mr-1 text-yellow-400"/></span> — потрясающее фото, из ряда вон!</li>
                 </ul>
             </div>
         </div>
