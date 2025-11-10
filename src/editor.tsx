@@ -15,40 +15,29 @@ type SessionData = {
     photos: FirebasePhotoData;
 };
 
-const generateHtmlForDownload = (photosInOrder: FirebasePhoto[]): string => {
+const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
     const authorCredit = 'Фото: Илья Думов';
 
     const photoFiguresHtml = photosInOrder.map(photo => {
         const caption = photo.caption || '';
-        // Note: this logic to clean the URL seems specific to the user's setup, so we keep it.
-        const cleanedUrl = photo.url;
 
-        // This logic handles a special caption format like "Main Caption || Author"
-        const [mainCaption, author] = caption.split('||').map(s => s.trim());
+        // As per user's HTML sample, the author credit is part of the alt text.
+        // The figcaption contains only the main caption.
+        const altText = `${caption} ${authorCredit}`.trim().replace(/"/g, '&quot;');
 
-        // Figcaption can contain <br> if an author part exists. Also parses markdown links.
-        const figcaptionHtml = [
-            mainCaption.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'),
-            author
-        ].filter(Boolean).join('<br>');
-
-        // Alt text is constructed differently: it joins parts with a space and adds the main author credit.
-        let altText = mainCaption.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1');
-        if (author) {
-            altText += ` ${author}`;
-        }
-        altText += ` ${authorCredit}`;
-        const finalAltText = altText.trim().replace(/"/g, '&quot;');
+        // If caption contains '||' it was a special format, but the user's new sample doesn't use it.
+        // We will stick to the provided sample: figcaption is just the caption.
+        const figcaptionHtml = caption;
 
         return `
 <figure class="photo-item" style="display: inline-table; vertical-align: top; margin: 8px;">
-    <img src="${cleanedUrl}" alt="${finalAltText}" class="figure-img img-fluid rounded" style="max-width: 100%; height: auto;">
+    <img src="${photo.url}" alt="${altText}" class="figure-img img-fluid rounded" style="max-width: 100%; height: auto;">
     <figcaption class="figure-caption" style="display: table-caption; caption-side: bottom; text-align: left;">${figcaptionHtml}</figcaption>
 </figure>`.trim();
 
     }).join('\n');
 
-    // This inline script adjusts caption layout dynamically.
+    // This inline script adjusts caption layout dynamically, taken from user's sample.
     const inlineScript = `
 <script>
     (function() {
@@ -90,25 +79,14 @@ const generateHtmlForDownload = (photosInOrder: FirebasePhoto[]): string => {
         
         window.addEventListener('resize', debouncedAdjust);
 
-        const images = Array.from(container.querySelectorAll('img'));
-        let loadedImages = 0;
-        const checkAllLoaded = () => {
-            loadedImages++;
-            if (loadedImages >= images.length) {
+        let imageLoadCheckInterval = setInterval(() => {
+            const images = Array.from(container.querySelectorAll('img'));
+            const allLoaded = images.every(img => img.complete);
+            if (allLoaded) {
+                clearInterval(imageLoadCheckInterval);
                 adjustCaptions();
             }
-        };
-        images.forEach(img => {
-            if (img.complete) {
-                checkAllLoaded();
-            } else {
-                img.addEventListener('load', checkAllLoaded, { once: true });
-                img.addEventListener('error', checkAllLoaded, { once: true });
-            }
-        });
-        if (images.length === 0) {
-           adjustCaptions();
-        }
+        }, 100);
 
     })();
 <\/script>
@@ -185,14 +163,14 @@ const EditorApp: React.FC = () => {
     };
 
     const handleDownloadHtml = () => {
-        if (!sessionData) return;
+        if (!sessionData || !sessionId) return;
         try {
-            const htmlContent = generateHtmlForDownload(sessionData.photos.photos);
+            const htmlContent = generateHtmlForDownload(sessionData.photos.photos, sessionId);
             const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${sessionId || 'results'}.html`;
+            a.download = `${sessionId}-gallery.html`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
