@@ -18,6 +18,7 @@ type SessionData = {
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
     const photoFiguresHtml = photosInOrder.map(photo => {
         const caption = photo.caption || '';
+        // Correctly remove the /voting/ or /voting subdirectory
         const cleanedUrl = photo.url.replace(/\/voting\/?/, '/');
         const altText = `${caption} Фото: Илья Думов`.trim().replace(/"/g, '&quot;');
 
@@ -138,9 +139,11 @@ const EditorApp: React.FC = () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
         try {
+            // Re-assign IDs based on the new order before saving
             const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
             const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
 
+            // Your security rules require separate writes to /config and /photos
             const configRef = ref(db, `sessions/${sessionId}/config`);
             const photosRef = ref(db, `sessions/${sessionId}/photos`);
 
@@ -249,20 +252,21 @@ const EditorApp: React.FC = () => {
             try {
                 if (!photo.url) continue;
 
+                // This is the robust way: fetch the image as a buffer first
                 const response = await fetch(photo.url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
 
-// Fix: Corrected the `exifr.parse` options. The `userComment` property expects a boolean, but was incorrectly passed a string. The correct option to specify the encoding for the UserComment tag is `userCommentEncoding`.
+                // Correctly call exifr.parse with valid options
                 const exif = await exifr.parse(buffer, {
                     iptc: true,
-                    exif: true,
+                    exif: true, // This enables UserComment parsing
                     xmp: true,
-                    userCommentEncoding: 'UTF-8' // Force UTF-8 for UserComment
                 });
 
+                // Check multiple fields in order of priority
                 const description = exif?.ImageDescription
-                    || exif?.UserComment
+                    || exif?.UserComment // exifr decodes this correctly if `exif:true` is set
                     || exif?.description
                     || exif?.['Caption/Abstract'];
 
