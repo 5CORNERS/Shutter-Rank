@@ -9,6 +9,7 @@ export interface Photo extends FirebasePhoto {
   votes: number;
   userRating?: number;
   isFlagged?: boolean;
+  maxRating?: number;
 }
 
 export interface FirebasePhotoData {
@@ -30,4 +31,6 @@ export interface Config {
   defaultLayoutDesktop: LayoutMode;
   defaultLayoutMobile: LayoutMode;
   defaultGridAspectRatio: GridAspectRatio;
+  unlockFourStarsThresholdPercent?: number;
+  unlockFiveStarsThresholdPercent?: number;
 }

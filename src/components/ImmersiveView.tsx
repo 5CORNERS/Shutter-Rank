@@ -27,6 +27,12 @@ const TAP_THRESHOLD = 10;
 const TRANSITION_DURATION = 250;
 const PHOTO_GAP = 10;
 
+// Add vendor prefixes to the standard Element interface
+interface VendorFullscreenElement extends HTMLDivElement {
+    webkitRequestFullscreen?(): Promise<void>;
+}
+
+
 const ImageWrapper: React.FC<{ photo?: Photo; isVisible: boolean }> = React.memo(({ photo, isVisible }) => (
     <div
         className="w-screen h-full flex-shrink-0 flex items-center justify-center"
@@ -45,26 +51,26 @@ const ImageWrapper: React.FC<{ photo?: Photo; isVisible: boolean }> = React.memo
 ));
 
 export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
-                                                                allPhotos,
-                                                                photoId,
-                                                                onClose,
-                                                                onNext,
-                                                                onPrev,
-                                                                onRate,
-                                                                onToggleFlag,
-                                                                displayVotes,
-                                                                ratedPhotosCount,
-                                                                starsUsed,
-                                                                ratedPhotoLimit,
-                                                                totalStarsLimit
-                                                            }) => {
+    allPhotos,
+    photoId,
+    onClose,
+    onNext,
+    onPrev,
+    onRate,
+    onToggleFlag,
+    displayVotes,
+    ratedPhotosCount,
+    starsUsed,
+    ratedPhotoLimit,
+    totalStarsLimit
+}) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
 
     const prevPhoto = allPhotos[currentIndex - 1];
     const nextPhoto = allPhotos[currentIndex + 1];
 
-    const containerRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<VendorFullscreenElement>(null);
     const filmStripRef = useRef<HTMLDivElement>(null);
     const currentPhotoIdRef = useRef(photoId);
     const touchOriginIsControl = useRef(false);
@@ -112,13 +118,13 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     useEffect(() => {
         const element = containerRef.current;
         if (!element) return;
-
+    
         const enterFullscreen = async () => {
             try {
-                if (element.requestFullscreen) {
+                 if (element.requestFullscreen) {
                     await element.requestFullscreen();
-                } else if ((element as any).webkitRequestFullscreen) {
-                    await (element as any).webkitRequestFullscreen();
+                } else if (element.webkitRequestFullscreen) {
+                    await element.webkitRequestFullscreen();
                 }
             } catch (err) {
                 console.warn('Не удалось войти в полноэкранный режим:', err);
@@ -126,7 +132,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         };
 
         if (document.fullscreenElement === null) {
-            enterFullscreen();
+            void enterFullscreen();
         }
 
         const handleFullscreenChange = () => {
@@ -134,7 +140,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 handleClose();
             }
         };
-
+        
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, [handleClose]);
@@ -269,7 +275,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         const baseOffset = -screenWidth - PHOTO_GAP;
         let targetTransform = `translateX(${baseOffset}px)`;
         let onAnimationEndCallback: (() => void) | null = null;
-
+        
         // Prioritize vertical swipe for closing, but it must be a clear vertical gesture.
         if (dragState.axis === 'V' && Math.abs(deltaY) > SWIPE_THRESHOLD_Y) {
             handleClose();
@@ -287,7 +293,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 onAnimationEndCallback = onNext;
             }
         }
-
+        
         filmstrip.style.transform = targetTransform;
 
         const handleTransitionEnd = () => {
@@ -319,6 +325,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     };
 
     const isOutOfComp = !!photo.isOutOfCompetition;
+    const maxRating = photo.maxRating ?? 3;
 
     return (
         <div
@@ -366,7 +373,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                             {photo.id}
                         </div>
                         {isTouchDevice && !isOutOfComp && (
-                            <button
+                             <button
                                 onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
                                 className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
                                 aria-label="Отметить фото"
@@ -388,18 +395,20 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     </div>
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent pt-12">
-                    <div className="px-4 pb-2 text-left text-gray-200">
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent pt-12 group/controls"
+                    onMouseEnter={() => !isTouchDevice && setControlsVisible(true)}>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover/controls:opacity-100 transition-opacity pointer-events-none" />
+                    <div className="px-4 pb-2 text-left text-gray-200 relative">
                         <p>{photo.caption}</p>
                     </div>
                     <div
-                        className="p-4 flex flex-nowrap justify-between items-center gap-4"
+                        className="p-4 flex flex-nowrap justify-between items-center gap-4 relative"
                         onClick={handleControlInteraction}
                         onTouchStart={handleControlTouchStart}
                         onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
                     >
                         <div className="flex items-center flex-shrink-0">
-                            {!isTouchDevice && !isOutOfComp && (
+                             {!isTouchDevice && !isOutOfComp && (
                                 <button
                                     onClick={() => onToggleFlag(photo.id)}
                                     className="p-2 mr-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"
@@ -413,9 +422,23 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                     {[1, 2, 3, 4, 5].map((star) => {
                                         const isFilled = (photo.userRating || 0) >= star;
                                         const isHighlighted = !isTouchDevice && (hoverRating || 0) >= star;
+                                        const isLocked = star > maxRating;
+
+                                        let starColor = 'text-gray-500';
+                                        if (isFilled) {
+                                            starColor = 'text-yellow-400';
+                                        } else if (isHighlighted) {
+                                            starColor = isLocked ? 'text-red-500' : 'text-yellow-400';
+                                        }
+
+                                        const style: React.CSSProperties = {};
+                                        if (isLocked && !isFilled && !isHighlighted) {
+                                            style.strokeDasharray = '2 2';
+                                        }
+
                                         return (
                                             <button key={star} onClick={() => handleRate(star)} onMouseEnter={() => !isTouchDevice && setHoverRating(star)} className={`p-2 rounded-full transition-all transform hover:scale-125`} aria-label={`Оценить в ${star} звезд`}>
-                                                <Star className={`w-7 h-7 transition-colors ${ isHighlighted || isFilled ? 'text-yellow-400' : 'text-gray-500' }`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}/>
+                                                <Star className={`w-7 h-7 transition-colors ${starColor}`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} style={style}/>
                                             </button>
                                         )
                                     })}

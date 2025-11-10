@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { LayoutMode, GridAspectRatio, Settings } from '../types';
+import { useModalLifecycle } from '../hooks/useModalLifecycle';
 
 interface SettingsModalProps {
   currentSettings: Settings;
@@ -12,19 +13,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ currentSettings, o
   const [layout, setLayout] = useState<LayoutMode>(currentSettings.layout);
   const [ratio, setRatio] = useState<GridAspectRatio>(currentSettings.gridAspectRatio);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.body.style.overflow = 'auto';
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [onClose]);
+  useModalLifecycle(onClose);
 
   const handleSave = () => {
     onSave({ layout, gridAspectRatio: ratio });

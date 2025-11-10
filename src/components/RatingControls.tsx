@@ -18,6 +18,8 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
   }
 
   const handleRate = (rating: number) => {
+    // The check for maxRating is now in App.tsx handleRate
+    // This function can be called with a rating > maxRating to trigger the info modal
     const newRating = photo.userRating === rating ? 0 : rating;
     onRate(photo.id, newRating);
   };
@@ -31,6 +33,21 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
       {[1, 2, 3, 4, 5].map((star) => {
         const isFilled = (photo.userRating || 0) >= star;
         const isHighlighted = !isTouchDevice && hoverRating >= star;
+        const maxRating = photo.maxRating ?? 3;
+        const isLocked = star > maxRating;
+
+        let starColor = 'text-gray-500';
+        if (isFilled) {
+            starColor = 'text-yellow-400';
+        } else if (isHighlighted) {
+            starColor = isLocked ? 'text-red-500' : 'text-yellow-400';
+        }
+        
+        const style: React.CSSProperties = {};
+        if (isLocked && !isFilled && !isHighlighted) {
+            style.strokeDasharray = '2 2';
+        }
+
         return (
           <button
             key={star}
@@ -38,11 +55,13 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
             onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
             className={`${buttonPadding} rounded-full transition-all transform hover:scale-125`}
             aria-label={`Оценить в ${star} звезд`}
+            title={isLocked ? `Эта фотография еще не заслужила ${star} звезд` : `Оценить в ${star} звезд`}
           >
             <Star
-              className={`${starSizeClass} transition-colors ${isHighlighted || isFilled ? 'text-yellow-400' : 'text-gray-500'}`}
+              className={`${starSizeClass} transition-colors ${starColor}`}
               fill={isFilled ? 'currentColor' : 'none'}
               strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}
+              style={style}
             />
           </button>
         );
