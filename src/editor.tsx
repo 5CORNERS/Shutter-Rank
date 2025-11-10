@@ -14,6 +14,11 @@ type SessionData = {
     config: Config;
     photos: FirebasePhotoData;
 };
+type ClosestElement = {
+    offset: number;
+    element: HTMLElement | null;
+};
+
 
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
     const authorCredit = 'Фото: Илья Думов';
@@ -327,10 +332,12 @@ const EditorApp: React.FC = () => {
         }
 
         const afterElement = [...container.querySelectorAll<HTMLElement>('[draggable="true"]:not(.dragging)')]
-            .reduce((closest, child) => {
+            .reduce<ClosestElement>((closest, child) => {
                 const box = child.getBoundingClientRect();
                 const offset = e.clientY - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) return { offset, element: child };
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset, element: child };
+                }
                 return closest;
             }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
 
