@@ -18,8 +18,8 @@ type SessionData = {
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
     const photoFiguresHtml = photosInOrder.map(photo => {
         const caption = photo.caption || '';
-        // Per user request, remove '/votes/' sub-directory from URL path
-        const cleanedUrl = photo.url.replace('/votes/', '/');
+        // Per user request, remove '/voting/' or '/votes/' sub-directory from URL path
+        const cleanedUrl = photo.url.replace(/\/vo(t|ting)es?\//, '/');
         const altText = `${caption} Фото: Илья Думов`.trim().replace(/"/g, '&quot;');
 
         const figcaptionHtml = caption ? `${caption}<br>Фото: Илья Думов` : 'Фото: Илья Думов';
@@ -98,6 +98,7 @@ const EditorApp: React.FC = () => {
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
     const draggedElement = useRef<HTMLElement | null>(null);
+    const placeholderRef = useRef<HTMLDivElement | null>(null);
     const scrollInterval = useRef<number | null>(null);
 
     useEffect(() => {
@@ -142,15 +143,13 @@ const EditorApp: React.FC = () => {
             const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
             const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
 
-            // PERMISSION_DENIED fix: Perform separate, targeted updates instead of one large update from the root.
-            const configRef = ref(db, `sessions/${sessionId}/config`);
-            const photosRef = ref(db, `sessions/${sessionId}/photos`);
-
-            await set(configRef, sessionData.config);
-            await set(photosRef, finalPhotoData);
+            const sessionRef = ref(db, `sessions/${sessionId}`);
+            await update(sessionRef, {
+                config: sessionData.config,
+                photos: finalPhotoData
+            });
 
             alert('Изменения успешно сохранены!');
-            // No need to refetch, local state is the source of truth
         } catch (error: any) {
             console.error("Ошибка сохранения:", error);
             alert(`Не удалось сохранить изменения. Код ошибки: ${error.code}. Подробности в консоли.`);
@@ -250,17 +249,22 @@ const EditorApp: React.FC = () => {
             try {
                 if (!photo.url) continue;
 
-                // Robust fetching: fetch as blob first, then parse
                 const response = await fetch(photo.url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
 
-                const exif = await exifr.parse(buffer, { iptc: true, exif: true });
-                if (exif && exif.ImageDescription) {
-                    newPhotos[i] = { ...newPhotos[i], caption: exif.ImageDescription };
+                const exif = await exifr.parse(buffer, { iptc: true, exif: true, xmp: true });
+
+                const description = exif?.ImageDescription // EXIF
+                    || exif?.Caption // Common alternative
+                    || exif?.['Caption/Abstract'] // IPTC
+                    || exif?.description; // XMP
+
+                if (description) {
+                    newPhotos[i] = { ...newPhotos[i], caption: String(description) };
                     successCount++;
                 } else {
-                    throw new Error("Поле 'ImageDescription' не найдено.");
+                    throw new Error("Описание не найдено в метаданных EXIF, IPTC или XMP.");
                 }
             } catch (error: any) {
                 const errorMessage = error.message || 'Неизвестная ошибка';
@@ -278,7 +282,7 @@ const EditorApp: React.FC = () => {
             alertMessage += `\n\nВозможные причины:`;
             alertMessage += `\n- CORS-политика на сервере изображений (проверьте, что она настроена).`;
             alertMessage += `\n- Файл изображения поврежден или недоступен по URL.`;
-            alertMessage += `\n- В метаданных фотографии отсутствует поле 'ImageDescription'.`;
+            alertMessage += `\n- В метаданных фотографии отсутствует поле с описанием.`;
             alertMessage += '\n\nОткройте консоль разработчика (F12) для просмотра полного списка ошибок.'
         }
         alert(alertMessage);
@@ -294,7 +298,13 @@ const EditorApp: React.FC = () => {
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
         draggedElement.current = e.currentTarget;
         e.dataTransfer.effectAllowed = 'move';
-        // Use a timeout to allow the browser to render the drag image before applying the class
+
+        if (!placeholderRef.current) {
+            placeholderRef.current = document.createElement('div');
+            placeholderRef.current.className = 'drag-over-placeholder';
+        }
+        placeholderRef.current.style.height = `${e.currentTarget.offsetHeight}px`;
+
         setTimeout(() => {
             draggedElement.current?.classList.add('dragging');
         }, 0);
@@ -303,26 +313,26 @@ const EditorApp: React.FC = () => {
     const handleDragEnd = useCallback(() => {
         draggedElement.current?.classList.remove('dragging');
         draggedElement.current = null;
+        placeholderRef.current?.remove();
         stopScrolling();
-        const placeholder = photoListRef.current?.querySelector('.drag-over-placeholder');
-        if (placeholder) {
-            placeholder.remove();
-        }
     }, [stopScrolling]);
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         const container = photoListRef.current;
-        if (!container || !draggedElement.current) return;
+        const placeholder = placeholderRef.current;
+        if (!container || !draggedElement.current || !placeholder) return;
 
         // Auto-scroll logic
         const SCROLL_ZONE_HEIGHT = 80;
         const SCROLL_SPEED = 15;
-        if (e.clientY < SCROLL_ZONE_HEIGHT) {
+        const clientY = e.clientY;
+
+        if (clientY < container.getBoundingClientRect().top + SCROLL_ZONE_HEIGHT) {
             if (!scrollInterval.current) {
                 scrollInterval.current = window.setInterval(() => { window.scrollBy(0, -SCROLL_SPEED); }, 15);
             }
-        } else if (window.innerHeight - e.clientY < SCROLL_ZONE_HEIGHT) {
+        } else if (clientY > container.getBoundingClientRect().bottom - SCROLL_ZONE_HEIGHT) {
             if (!scrollInterval.current) {
                 scrollInterval.current = window.setInterval(() => { window.scrollBy(0, SCROLL_SPEED); }, 15);
             }
@@ -330,22 +340,15 @@ const EditorApp: React.FC = () => {
             stopScrolling();
         }
 
-        // Placeholder logic
-        let placeholder = container.querySelector('.drag-over-placeholder');
-        if (!placeholder) {
-            placeholder = document.createElement('div');
-            placeholder.className = 'drag-over-placeholder';
-        }
-
-        const afterElement = [...container.querySelectorAll('[draggable="true"]:not(.dragging)')]
-            .reduce((closest, child) => {
+        const afterElement = [...container.querySelectorAll<HTMLElement>('[draggable="true"]:not(.dragging)')]
+            .reduce((closest: { offset: number, element: HTMLElement | null }, child) => {
                 const box = child.getBoundingClientRect();
-                const offset = e.clientY - box.top - box.height / 2;
+                const offset = clientY - box.top - box.height / 2;
                 if (offset < 0 && offset > closest.offset) {
                     return { offset, element: child };
                 }
                 return closest;
-            }, { offset: Number.NEGATIVE_INFINITY, element: null as Element | null }).element;
+            }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
 
         if (afterElement) {
             container.insertBefore(placeholder, afterElement);
@@ -356,18 +359,20 @@ const EditorApp: React.FC = () => {
 
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
-        const placeholder = photoListRef.current?.querySelector('.drag-over-placeholder');
-        if (!placeholder || !draggedElement.current || !sessionData) {
+        if (!draggedElement.current || !sessionData) {
             handleDragEnd();
             return;
         }
 
         const draggedIndex = parseInt(draggedElement.current.dataset.index!, 10);
+        const children = Array.from(photoListRef.current!.children);
+        let dropIndex = children.indexOf(placeholderRef.current!);
 
-        const children = Array.from(photoListRef.current!.children).filter(c => c.hasAttribute('draggable') || c.classList.contains('drag-over-placeholder'));
-        const dropIndex = children.indexOf(placeholder);
+        if (dropIndex > draggedIndex) {
+            dropIndex--;
+        }
 
-        if (draggedIndex !== dropIndex) {
+        if (draggedIndex !== dropIndex && dropIndex > -1) {
             const newPhotos = [...sessionData.photos.photos];
             const [draggedItem] = newPhotos.splice(draggedIndex, 1);
             newPhotos.splice(dropIndex, 0, draggedItem);
@@ -434,11 +439,12 @@ const EditorApp: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    <div ref={photoListRef} onDragOver={handleDragOver} onDrop={handleDrop} onDragEnd={handleDragEnd} onDragLeave={handleDragEnd} className="space-y-3">
+                    <div ref={photoListRef} onDragOver={handleDragOver} onDrop={handleDrop} onDragLeave={handleDragEnd} className="space-y-3">
                         {sessionData.photos.photos.map((photo, index) => (
                             <div key={photo.id}
                                  draggable
                                  onDragStart={(e) => handleDragStart(e)}
+                                 onDragEnd={handleDragEnd}
                                  data-index={index}
                                  className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300`}
                             >
