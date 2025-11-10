@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
-import { ref, get, set, update } from 'firebase/database';
+import { ref, get, set } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
@@ -141,17 +141,17 @@ const EditorApp: React.FC = () => {
             const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
             const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
 
-            const updates: { [key: string]: any } = {};
-            updates[`/sessions/${sessionId}/config`] = sessionData.config;
-            updates[`/sessions/${sessionId}/photos`] = finalPhotoData;
+            const configRef = ref(db, `sessions/${sessionId}/config`);
+            await set(configRef, sessionData.config);
 
-            await update(ref(db), updates);
+            const photosRef = ref(db, `sessions/${sessionId}/photos`);
+            await set(photosRef, finalPhotoData);
 
             alert('Изменения успешно сохранены!');
             await fetchData(sessionId);
         } catch (error: any) {
             console.error("Ошибка сохранения:", error);
-            alert(`Не удалось сохранить изменения. Код ошибки: ${error.code}. Подробности в консоли.`);
+            alert(`Не удалось сохранить изменения. Подробности в консоли.`);
         } finally {
             setIsSaving(false);
         }

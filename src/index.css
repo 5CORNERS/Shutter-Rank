@@ -10,5 +10,5 @@
     background: #374151; /* gray-700 */
     border: 2px dashed #6b7280; /* gray-500 */
     border-radius: 0.5rem; /* rounded-lg */
-    margin: 0.75rem 0;
+    margin: 0.5rem 0; /* Adjusted margin */
 }
