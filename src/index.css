@@ -7,8 +7,9 @@
     background: #1f2937; /* gray-800 */
 }
 .drag-over-placeholder {
-    height: 10rem; /* h-40 */
+    height: 100px;
     background: #374151; /* gray-700 */
     border: 2px dashed #6b7280; /* gray-500 */
     border-radius: 0.5rem; /* rounded-lg */
+    margin: 0.75rem 0;
 }

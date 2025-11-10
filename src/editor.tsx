@@ -18,10 +18,9 @@ type SessionData = {
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
     const photoFiguresHtml = photosInOrder.map(photo => {
         const caption = photo.caption || '';
-        // Correctly remove the /voting/ or /voting subdirectory
         const cleanedUrl = photo.url.replace(/\/voting\/?/, '/');
         const altText = `${caption} Фото: Илья Думов`.trim().replace(/"/g, '&quot;');
-
+        
         const figcaptionHtml = caption ? `${caption}<br>Фото: Илья Думов` : 'Фото: Илья Думов';
 
         return `
@@ -134,16 +133,14 @@ const EditorApp: React.FC = () => {
             fetchData(sessionId);
         }
     }, [sessionId, fetchData]);
-
+    
     const handleSave = async () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
         try {
-            // Re-assign IDs based on the new order before saving
             const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
             const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
 
-            // Your security rules require separate writes to /config and /photos
             const configRef = ref(db, `sessions/${sessionId}/config`);
             const photosRef = ref(db, `sessions/${sessionId}/photos`);
 
@@ -151,8 +148,10 @@ const EditorApp: React.FC = () => {
                 set(configRef, sessionData.config),
                 set(photosRef, finalPhotoData)
             ]);
-
+            
             alert('Изменения успешно сохранены!');
+            // After saving, re-fetch to get consistent state from DB
+            await fetchData(sessionId);
         } catch (error: any) {
             console.error("Ошибка сохранения:", error);
             alert(`Не удалось сохранить изменения. Код ошибки: ${error.code}. Подробности в консоли.`);
@@ -161,7 +160,7 @@ const EditorApp: React.FC = () => {
         }
     };
 
-    const handleDownloadHtml = () => {
+     const handleDownloadHtml = () => {
         if (!sessionData || !sessionId) return;
         try {
             const htmlContent = generateHtmlForDownload(sessionData.photos.photos, sessionId);
@@ -179,7 +178,7 @@ const EditorApp: React.FC = () => {
             console.error(error);
         }
     };
-
+    
     const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         const parsedValue = type === 'number' ? parseFloat(value) || 0 : value;
@@ -201,15 +200,15 @@ const EditorApp: React.FC = () => {
             });
         }
     };
-
+    
     const handleMovePhoto = (index: number, direction: 'up' | 'down') => {
         if (!sessionData) return;
         const newPhotos = [...sessionData.photos.photos];
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
         if (targetIndex < 0 || targetIndex >= newPhotos.length) return;
-
+        
         [newPhotos[index], newPhotos[targetIndex]] = [newPhotos[targetIndex], newPhotos[index]];
-
+        
         setSessionData({
             ...sessionData,
             photos: { ...sessionData.photos, photos: newPhotos },
@@ -226,7 +225,7 @@ const EditorApp: React.FC = () => {
             });
         }
     };
-
+    
     const handleDeletePhoto = (index: number) => {
         if (sessionData && window.confirm('Вы уверены, что хотите удалить эту фотографию?')) {
             const newPhotos = sessionData.photos.photos.filter((_, i) => i !== index);
@@ -238,7 +237,7 @@ const EditorApp: React.FC = () => {
     };
 
     const handleExtractExif = async () => {
-        if (!sessionData || !window.confirm('Это действие попытается извлечь описания из метаданных EXIF/IPTC для всех фотографий и перезапишет текущие описания. Продолжить?')) {
+         if (!sessionData || !window.confirm('Это действие попытается извлечь описания из метаданных EXIF/IPTC для всех фотографий и перезапишет текущие описания. Продолжить?')) {
             return;
         }
 
@@ -251,30 +250,27 @@ const EditorApp: React.FC = () => {
             const photo = newPhotos[i];
             try {
                 if (!photo.url) continue;
-
-                // This is the robust way: fetch the image as a buffer first
+                
                 const response = await fetch(photo.url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
 
-                // Correctly call exifr.parse with valid options
                 const exif = await exifr.parse(buffer, {
                     iptc: true,
-                    exif: true, // This enables UserComment parsing
+                    exif: true,
                     xmp: true,
                 });
-
-                // Check multiple fields in order of priority
-                const description = exif?.ImageDescription
-                    || exif?.UserComment // exifr decodes this correctly if `exif:true` is set
-                    || exif?.description
-                    || exif?.['Caption/Abstract'];
+                
+                const description = exif?.ImageDescription 
+                                 || exif?.UserComment
+                                 || exif?.description 
+                                 || exif?.['Caption/Abstract'];
 
                 if (typeof description === 'string' && description.trim()) {
                     newPhotos[i] = { ...newPhotos[i], caption: description.trim() };
                     successCount++;
                 } else {
-                    throw new Error("Описание не найдено в метаданных.");
+                     throw new Error("Описание не найдено в метаданных.");
                 }
             } catch (error: any) {
                 const errorMessage = error.message || 'Неизвестная ошибка';
@@ -282,12 +278,12 @@ const EditorApp: React.FC = () => {
                 console.warn(`Не удалось извлечь EXIF для фото ${photo.id} (${photo.url}):`, error);
             }
         }
-
+        
         setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         setStatus('success');
 
         let alertMessage = `Успешно извлечено ${successCount} из ${newPhotos.length} описаний.`;
-        if (failedPhotos.length > 0) {
+         if (failedPhotos.length > 0) {
             alertMessage += `\n\nНе удалось обработать ${failedPhotos.length} фото.`;
             alertMessage += `\n\nВозможные причины:`;
             alertMessage += `\n- CORS-политика на сервере изображений (проверьте, что она настроена).`;
@@ -297,7 +293,8 @@ const EditorApp: React.FC = () => {
         }
         alert(alertMessage);
     };
-
+    
+    // Vanilla JS Drag-and-Drop ported from working example
     const stopScrolling = useCallback(() => {
         if (scrollInterval.current) {
             clearInterval(scrollInterval.current);
@@ -307,15 +304,13 @@ const EditorApp: React.FC = () => {
 
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
         draggedElementRef.current = e.currentTarget;
-        e.dataTransfer.effectAllowed = 'move';
-
-        // Create and style the placeholder
+        // The placeholder is created here, its height is set based on the dragged element.
         if (!placeholderRef.current) {
             placeholderRef.current = document.createElement('div');
             placeholderRef.current.className = 'drag-over-placeholder';
         }
         placeholderRef.current.style.height = `${e.currentTarget.offsetHeight}px`;
-
+        
         setTimeout(() => {
             draggedElementRef.current?.classList.add('dragging');
         }, 0);
@@ -327,14 +322,13 @@ const EditorApp: React.FC = () => {
         placeholderRef.current?.remove();
         stopScrolling();
     }, [stopScrolling]);
-
+    
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         const container = photoListRef.current;
         const placeholder = placeholderRef.current;
         if (!container || !draggedElementRef.current || !placeholder) return;
 
-        // Auto-scroll logic
         const SCROLL_ZONE_HEIGHT = 80;
         const SCROLL_SPEED = 15;
         const clientY = e.clientY;
@@ -342,17 +336,17 @@ const EditorApp: React.FC = () => {
         const containerRect = container.getBoundingClientRect();
 
         if (clientY < containerRect.top + SCROLL_ZONE_HEIGHT) {
-            if (!scrollInterval.current) {
+             if (!scrollInterval.current) {
                 scrollInterval.current = window.setInterval(() => { window.scrollBy(0, -SCROLL_SPEED); }, 15);
             }
-        } else if (clientY > window.innerHeight - SCROLL_ZONE_HEIGHT) { // Check against viewport bottom
+        } else if (clientY > window.innerHeight - SCROLL_ZONE_HEIGHT) {
             if (!scrollInterval.current) {
                 scrollInterval.current = window.setInterval(() => { window.scrollBy(0, SCROLL_SPEED); }, 15);
             }
         } else {
             stopScrolling();
         }
-
+        
         type Closest = { offset: number; element: HTMLElement | null };
 
         const afterElement = [...container.querySelectorAll<HTMLElement>('[draggable="true"]:not(.dragging)')]
@@ -371,7 +365,7 @@ const EditorApp: React.FC = () => {
             container.appendChild(placeholder);
         }
     };
-
+    
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         const draggedEl = draggedElementRef.current;
@@ -381,12 +375,10 @@ const EditorApp: React.FC = () => {
         }
 
         const draggedIndex = parseInt(draggedEl.dataset.index!, 10);
-
-        // Calculate drop index based on placeholder's final position
+        
         const children = Array.from(photoListRef.current.children);
         let dropIndex = children.indexOf(placeholderRef.current!);
-
-        // Adjust index if placeholder is after the dragged element's original position
+        
         if (draggedIndex < dropIndex) {
             dropIndex--;
         }
@@ -397,7 +389,7 @@ const EditorApp: React.FC = () => {
             newPhotos.splice(dropIndex, 0, draggedItem);
             setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         }
-
+        
         handleDragEnd();
     };
 
@@ -411,14 +403,14 @@ const EditorApp: React.FC = () => {
                 {/* Config Editor */}
                 <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Настройки сессии</summary>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                         {Object.entries(sessionData.config).map(([key, value]) => (
-                            <div key={key}>
+                             <div key={key}>
                                 <label className="block text-sm font-medium text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
                                 {typeof value === 'number' ? (
-                                    <input type="number" name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
+                                     <input type="number" name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
                                 ) : (
-                                    <select name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white">
+                                     <select name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white">
                                         {key.includes('Layout') ? <>
                                             <option value="grid">Grid</option>
                                             <option value="original">Original</option>
@@ -435,9 +427,9 @@ const EditorApp: React.FC = () => {
                 </details>
 
                 {/* Intro Article Editor */}
-                <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
+                 <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Вступительная статья (Markdown)</summary>
-                    <textarea
+                     <textarea
                         value={sessionData.photos.introArticleMarkdown}
                         onChange={(e) => setSessionData({...sessionData, photos: {...sessionData.photos, introArticleMarkdown: e.target.value}})}
                         rows={10}
@@ -447,10 +439,10 @@ const EditorApp: React.FC = () => {
 
                 {/* Photos Editor */}
                 <div className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
+                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <h2 className="text-xl font-semibold text-gray-300">Фотографии ({sessionData.photos.photos.length})</h2>
                         <div className="flex flex-wrap items-center gap-3">
-                            <button onClick={handleDownloadHtml} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white transition-colors">
+                             <button onClick={handleDownloadHtml} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white transition-colors">
                                 <Download className="w-5 h-5"/> Скачать HTML
                             </button>
                             <button onClick={handleExtractExif} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition-colors">
@@ -460,17 +452,17 @@ const EditorApp: React.FC = () => {
                     </div>
                     <div ref={photoListRef} onDragOver={handleDragOver} onDrop={handleDrop} onDragLeave={handleDragEnd} className="space-y-3">
                         {sessionData.photos.photos.map((photo, index) => (
-                            <div key={photo.id}
-                                 draggable
-                                 onDragStart={(e) => handleDragStart(e)}
-                                 onDragEnd={handleDragEnd}
-                                 data-index={index}
-                                 className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300`}
-                            >
+                            <div key={photo.id} 
+                                draggable 
+                                onDragStart={(e) => handleDragStart(e)}
+                                onDragEnd={handleDragEnd}
+                                data-index={index}
+                                className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300`}
+                                >
                                 <div className="flex-shrink-0 self-center flex md:flex-col items-center gap-2 drag-handle cursor-grab active:cursor-grabbing">
-                                    <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
-                                    <div className="text-gray-500">☰</div>
-                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length-1} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
+                                     <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
+                                     <div className="text-gray-500">☰</div>
+                                     <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length-1} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
                                 </div>
                                 <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0"/>
                                 <div className="flex-grow space-y-2">
@@ -487,14 +479,14 @@ const EditorApp: React.FC = () => {
                             </div>
                         ))}
                     </div>
-                    <button onClick={handleAddPhoto} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-                        <Plus className="w-5 h-5"/> Добавить фото
+                     <button onClick={handleAddPhoto} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                       <Plus className="w-5 h-5"/> Добавить фото
                     </button>
                 </div>
-
-                <div className="mt-8 pt-6 border-t border-gray-700">
+                
+                 <div className="mt-8 pt-6 border-t border-gray-700">
                     <button onClick={handleSave} disabled={isSaving} className="w-full inline-flex items-center justify-center gap-x-2 px-4 py-3 font-semibold text-lg rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:bg-gray-600 disabled:cursor-wait">
-                        <Save className="w-6 h-6"/> {isSaving ? 'Сохранение...' : 'Сохранить все изменения'}
+                       <Save className="w-6 h-6"/> {isSaving ? 'Сохранение...' : 'Сохранить все изменения'}
                     </button>
                 </div>
             </div>
