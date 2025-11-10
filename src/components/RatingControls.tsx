@@ -61,11 +61,6 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
             starColor = isLocked ? 'text-red-500' : 'text-yellow-400';
         }
         
-        const style: React.CSSProperties = {};
-        if (isLocked && !isFilled && !isHighlighted) {
-            style.strokeDasharray = '2 2';
-        }
-
         const titleText = isLocked 
             ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}` 
             : `Оценить в ${star} ${getStarNounAccusative(star)}`;
@@ -80,16 +75,15 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
             title={titleText}
           >
             <Star
-              className={`${starSizeClass} transition-colors ${starColor}`}
+              className={`${starSizeClass} transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`}
               fill={isFilled ? 'currentColor' : 'none'}
               strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}
-              style={style}
             />
           </button>
         );
       })}
        {(photo.userRating || 0) > 0 && (
-         <div className='flex items-center justify-center transition-opacity opacity-0 group-hover/controls:opacity-100' style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
+         <div className='flex items-center justify-center transition-opacity opacity-0 group-hover:opacity-100' style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
             <button
             onClick={() => onRate(photo.id, 0)}
             className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`}

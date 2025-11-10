@@ -442,11 +442,6 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                             starColor = isLocked ? 'text-red-500' : 'text-yellow-400';
                                         }
 
-                                        const style: React.CSSProperties = {};
-                                        if (isLocked && !isFilled && !isHighlighted) {
-                                            style.strokeDasharray = '2 2';
-                                        }
-
                                         return (
                                             <button
                                                 key={star}
@@ -456,7 +451,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                 aria-label={`Оценить в ${star} ${getStarNounAccusative(star)}`}
                                                 title={`Оценить в ${star} ${getStarNounAccusative(star)}`}
                                             >
-                                                <Star className={`w-7 h-7 transition-colors ${starColor}`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} style={style}/>
+                                                <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
                                             </button>
                                         )
                                     })}
