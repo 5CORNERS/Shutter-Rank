@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
-import { ref, get, set } from 'firebase/database';
+import { ref, get, set, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
@@ -98,7 +98,6 @@ const EditorApp: React.FC = () => {
     const photoListRef = useRef<HTMLDivElement>(null);
     const placeholderRef = useRef<HTMLDivElement | null>(null);
     const draggedItemIndex = useRef<number | null>(null);
-    const dropTargetIndex = useRef<number | null>(null);
     const scrollInterval = useRef<number | null>(null);
 
     useEffect(() => {
@@ -142,13 +141,11 @@ const EditorApp: React.FC = () => {
             const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
             const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
 
-            const configRef = ref(db, `sessions/${sessionId}/config`);
-            const photosRef = ref(db, `sessions/${sessionId}/photos`);
+            const updates: { [key: string]: any } = {};
+            updates[`/sessions/${sessionId}/config`] = sessionData.config;
+            updates[`/sessions/${sessionId}/photos`] = finalPhotoData;
 
-            await Promise.all([
-                set(configRef, sessionData.config),
-                set(photosRef, finalPhotoData)
-            ]);
+            await update(ref(db), updates);
 
             alert('Изменения успешно сохранены!');
             await fetchData(sessionId);
@@ -259,10 +256,9 @@ const EditorApp: React.FC = () => {
                     iptc: true,
                     exif: true,
                     xmp: true,
-                    userComment: true, // Crucial for reading UserComment tag
+                    userComment: true,
                 });
 
-                // Prioritized search for description field
                 const description = exif?.ImageDescription
                     || exif?.UserComment
                     || exif?.description
@@ -296,7 +292,6 @@ const EditorApp: React.FC = () => {
         alert(alertMessage);
     };
 
-    // Vanilla JS Drag-and-Drop ported from working example
     const stopScrolling = useCallback(() => {
         if (scrollInterval.current) {
             clearInterval(scrollInterval.current);
@@ -327,7 +322,6 @@ const EditorApp: React.FC = () => {
         placeholderRef.current?.remove();
         stopScrolling();
         draggedItemIndex.current = null;
-        dropTargetIndex.current = null;
     }, [stopScrolling]);
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -387,7 +381,7 @@ const EditorApp: React.FC = () => {
         }
 
         const children = Array.from(placeholder.parentElement.children);
-        const newIndex = children.indexOf(placeholder) -1; // -1 because placeholder is also a child
+        const newIndex = children.indexOf(placeholder) -1;
 
         const newPhotos = [...sessionData.photos.photos];
         const [draggedItem] = newPhotos.splice(draggedItemIndex.current, 1);
