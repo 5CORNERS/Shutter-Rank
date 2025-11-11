@@ -1,8 +1,5 @@
-// FIX: The import from 'firebase/app' was causing a module resolution error.
-// Switched to 'firebase/compat/app' which is more stable across different bundler setups.
-// The app instance created by the compat `initializeApp` is compatible with v9 modular functions like `getDatabase`,
-// allowing for a targeted fix without refactoring the entire application.
-import { initializeApp } from 'firebase/compat/app';
+// Fix: Changed to a namespace import to resolve a potential module resolution issue with Firebase.
+import * as firebaseApp from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 
 // Your web app's Firebase configuration
@@ -19,8 +16,7 @@ const firebaseConfig = {
 
 
 // Initialize Firebase
-// FIX: Correctly call `initializeApp` as a direct function import to resolve "Property 'initializeApp' does not exist on type".
-const app = initializeApp(firebaseConfig);
+const app = firebaseApp.initializeApp(firebaseConfig);
 
 // Export instance of Realtime Database
 export const db = getDatabase(app);
