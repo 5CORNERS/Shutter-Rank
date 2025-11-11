@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
-import { ref, get, update } from 'firebase/database';
+import { ref, get, set, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
@@ -137,23 +137,32 @@ const EditorApp: React.FC = () => {
     const handleSave = async () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
+
+        console.log("--- Firebase Save Debug ---");
+        console.log("Session ID:", sessionId);
+
+        // The object for `update` needs to have full string paths as keys.
+        // `ref(db)` points to the root of the database.
+        const updates: { [key: string]: any } = {};
+        updates[`sessions/${sessionId}/config`] = sessionData.config;
+        updates[`sessions/${sessionId}/photos`] = sessionData.photos;
+
+        console.log("Final `updates` object being sent to Firebase:", updates);
+        console.log('Inspect the object above. Keys should be valid paths (e.g., "sessions/your-id/config"). Invalid or undefined paths can cause a PERMISSION_DENIED error by attempting to write to the root.');
+
         try {
-            const updates: { [key: string]: any } = {};
-            updates[`sessions/${sessionId}/config`] = sessionData.config;
-            updates[`sessions/${sessionId}/photos`] = sessionData.photos;
+            // Reverted to two separate `set` operations as a reliable workaround for the `update` at root issue.
+            // This is not atomic but should resolve the PERMISSION_DENIED error.
+            const configRef = ref(db, `sessions/${sessionId}/config`);
+            const photosRef = ref(db, `sessions/${sessionId}/photos`);
 
-            // --- DEBUGGING BLOCK ---
-            console.log('%c--- Firebase Save Debug ---', 'color: #4285F4; font-size: 16px; font-weight: bold;');
-            console.log('Session ID:', sessionId);
-            console.log('Final `updates` object being sent to Firebase:');
-            console.log(updates);
-            console.log('Inspect the object above. Keys should be valid paths (e.g., "sessions/your-id/config"). Invalid or undefined paths can cause a PERMISSION_DENIED error by attempting to write to the root.');
-            // --- END DEBUGGING BLOCK ---
+            const configPromise = set(configRef, sessionData.config);
+            const photosPromise = set(photosRef, sessionData.photos);
 
-            await update(ref(db), updates);
+            await Promise.all([configPromise, photosPromise]);
 
             alert('Изменения успешно сохранены!');
-            await fetchData(sessionId);
+            await fetchData(sessionId); // Refresh data after save
         } catch (error: any) {
             console.error("Ошибка сохранения:", error);
             alert(`Не удалось сохранить изменения. Подробности в консоли: ${error.message}`);
@@ -161,6 +170,7 @@ const EditorApp: React.FC = () => {
             setIsSaving(false);
         }
     };
+
 
     const handleDownloadHtml = () => {
         if (!sessionData || !sessionId) return;
