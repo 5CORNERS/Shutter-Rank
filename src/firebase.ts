@@ -1,5 +1,4 @@
-// Fix: Changed to a namespace import to resolve a potential module resolution issue with Firebase.
-import * as firebaseApp from 'firebase/app';
+import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 
 // Your web app's Firebase configuration
@@ -16,7 +15,7 @@ const firebaseConfig = {
 
 
 // Initialize Firebase
-const app = firebaseApp.initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 
 // Export instance of Realtime Database
 export const db = getDatabase(app);
