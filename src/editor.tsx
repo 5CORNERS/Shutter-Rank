@@ -117,6 +117,26 @@ const EditorApp: React.FC = () => {
             const snapshot = await get(sessionRef);
             if (snapshot.exists()) {
                 const data = snapshot.val();
+
+                // --- Automatic Migration Logic ---
+                const photosArray = data.photos?.photos || [];
+                if (photosArray.length > 0 && photosArray[0].order === undefined) {
+                    alert('Обнаружена сессия старого формата. Будет произведена автоматическая миграция: фотографиям будет присвоен порядковый номер для сортировки. Сессия будет сохранена.');
+
+                    const migratedPhotos = photosArray.map((photo: FirebasePhoto, index: number) => ({
+                        ...photo,
+                        order: index,
+                    }));
+
+                    const migratedPhotosData = { ...data.photos, photos: migratedPhotos };
+
+                    await set(ref(db, `sessions/${id}/photos`), migratedPhotosData);
+
+                    // Use migrated data for the current session
+                    data.photos = migratedPhotosData;
+                }
+                // --- End of Migration Logic ---
+
                 setSessionData({ config: data.config, photos: data.photos });
                 setStatus('success');
             } else {
@@ -138,26 +158,27 @@ const EditorApp: React.FC = () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
 
-        console.log("--- Firebase Save Debug ---");
-        console.log("Session ID:", sessionId);
+        // Create a new photos array with updated `order` property
+        const photosWithOrder = sessionData.photos.photos.map((photo, index) => ({
+            ...photo,
+            order: index,
+        }));
 
-        // The object for `update` needs to have full string paths as keys.
-        // `ref(db)` points to the root of the database.
-        const updates: { [key: string]: any } = {};
-        updates[`sessions/${sessionId}/config`] = sessionData.config;
-        updates[`sessions/${sessionId}/photos`] = sessionData.photos;
-
-        console.log("Final `updates` object being sent to Firebase:", updates);
-        console.log('Inspect the object above. Keys should be valid paths (e.g., "sessions/your-id/config"). Invalid or undefined paths can cause a PERMISSION_DENIED error by attempting to write to the root.');
+        const finalSessionData = {
+            ...sessionData,
+            photos: {
+                ...sessionData.photos,
+                photos: photosWithOrder,
+            },
+        };
 
         try {
-            // Reverted to two separate `set` operations as a reliable workaround for the `update` at root issue.
-            // This is not atomic but should resolve the PERMISSION_DENIED error.
             const configRef = ref(db, `sessions/${sessionId}/config`);
             const photosRef = ref(db, `sessions/${sessionId}/photos`);
 
-            const configPromise = set(configRef, sessionData.config);
-            const photosPromise = set(photosRef, sessionData.photos);
+            // We use the `finalSessionData` which has the updated `order`
+            const configPromise = set(configRef, finalSessionData.config);
+            const photosPromise = set(photosRef, finalSessionData.photos);
 
             await Promise.all([configPromise, photosPromise]);
 
@@ -230,7 +251,13 @@ const EditorApp: React.FC = () => {
     const handleAddPhoto = () => {
         if (sessionData) {
             const newId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) + 1 : 1;
-            const newPhoto: FirebasePhoto = { id: newId, url: '', caption: 'Новое фото', isOutOfCompetition: false };
+            const newPhoto: FirebasePhoto = {
+                id: newId,
+                url: '',
+                caption: 'Новое фото',
+                isOutOfCompetition: false,
+                order: sessionData.photos.photos.length,
+            };
             setSessionData({
                 ...sessionData,
                 photos: { ...sessionData.photos, photos: [...sessionData.photos.photos, newPhoto] },

@@ -29,7 +29,7 @@ const App: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [availableSessions, setAvailableSessions] = useState<string[]>([]);
     const [userId] = useState<string>(getUserId());
-    
+
     const [photos, setPhotos] = useState<Photo[]>([]);
     const [config, setConfig] = useState<Config | null>(null);
     const [settings, setSettings] = useState<Settings | null>(null);
@@ -47,7 +47,7 @@ const App: React.FC = () => {
     const [isRatingInfoModalOpen, setIsRatingInfoModalOpen] = useState(false);
     const [filterFlags, setFilterFlags] = useState(false);
 
-    const { isDesktop } = useDeviceType();
+    const { isDesktop, isTouchDevice } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -55,7 +55,7 @@ const App: React.FC = () => {
             const hash = decodeURIComponent(window.location.hash.slice(1));
             setSessionId(hash || null);
         };
-        
+
         window.addEventListener('hashchange', handleHashChange);
         handleHashChange(); // Initial load
 
@@ -64,7 +64,7 @@ const App: React.FC = () => {
 
     useEffect(() => {
         let unsubscribeFromVotes: (() => void) | null = null;
-    
+
         const loadSessionData = async () => {
             if (!sessionId) {
                 try {
@@ -92,10 +92,10 @@ const App: React.FC = () => {
                     return;
                 }
                 const data = snapshot.val();
-    
+
                 const loadedConfig = data.config as Config;
                 setConfig(loadedConfig);
-    
+
                 const photosData = data.photos as FirebasePhotoData;
                 if (photosData.introArticleMarkdown) {
                     setIntroArticle(photosData.introArticleMarkdown);
@@ -106,21 +106,20 @@ const App: React.FC = () => {
                         localStorage.setItem(hasSeenKey, 'true');
                     }
                 }
-    
+
                 const savedSettingsRaw = localStorage.getItem('userSettings');
                 if (savedSettingsRaw) {
                     setSettings(JSON.parse(savedSettingsRaw) as Settings);
                 } else {
-                    const currentIsDesktop = window.innerWidth >= 768;
                     setSettings({
-                        layout: currentIsDesktop ? loadedConfig.defaultLayoutDesktop : loadedConfig.defaultLayoutMobile,
+                        layout: !isTouchDevice ? loadedConfig.defaultLayoutDesktop : loadedConfig.defaultLayoutMobile,
                         gridAspectRatio: loadedConfig.defaultGridAspectRatio || '4/3'
                     });
                 }
-    
+
                 const initialPhotos = photosData.photos;
                 const initialVotes = data.votes || {};
-                
+
                 const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
                 const userVotesSnapshot = await get(userVotesRef);
                 const userRatings: Record<string, number> = userVotesSnapshot.exists() ? userVotesSnapshot.val() : {};
@@ -128,7 +127,7 @@ const App: React.FC = () => {
                 const flagsKey = `userFlags_${sessionId}`;
                 const savedFlagsRaw = localStorage.getItem(flagsKey);
                 const userFlags: Record<string, boolean> = savedFlagsRaw ? JSON.parse(savedFlagsRaw) : {};
-    
+
                 const initialPhotoState: Photo[] = initialPhotos.map(p => ({
                     ...p,
                     votes: initialVotes[String(p.id)] || 0,
@@ -137,13 +136,13 @@ const App: React.FC = () => {
                 }));
                 setPhotos(initialPhotoState);
                 setStatus('success');
-    
+
             } catch (error) {
                 console.error("Ошибка загрузки данных сессии из Firebase:", error);
                 setStatus('error');
             }
         };
-    
+
         loadSessionData().then(() => {
             if (sessionId) {
                 const votesRef = ref(db, `sessions/${sessionId}/votes`);
@@ -161,13 +160,13 @@ const App: React.FC = () => {
                 });
             }
         });
-    
+
         return () => {
             if (unsubscribeFromVotes) {
                 unsubscribeFromVotes();
             }
         };
-    }, [sessionId, userId]);
+    }, [sessionId, userId, isTouchDevice]);
 
 
     useEffect(() => {
@@ -213,23 +212,23 @@ const App: React.FC = () => {
 
     const photosWithMaxRating = useMemo(() => {
         if (!photos.length || !config) return photos;
-    
+
         const fourStarThreshold = config.unlockFourStarsThresholdPercent ?? 20;
         const fiveStarThreshold = config.unlockFiveStarsThresholdPercent ?? 50;
-        
+
         const photosInCompetition = photos.filter(p => !p.isOutOfCompetition);
         if (photosInCompetition.length === 0) {
             return photos.map(p => ({ ...p, maxRating: 3 }));
         }
 
         const totalVotes = photosInCompetition.reduce((sum, p) => sum + p.votes, 0);
-        
+
         if (totalVotes === 0) {
             return photos.map(p => ({ ...p, maxRating: 3 }));
         }
-    
+
         const averageVotes = totalVotes / photosInCompetition.length;
-    
+
         return photos.map(p => {
             if (p.isOutOfCompetition) return { ...p, maxRating: 3 };
 
@@ -249,10 +248,10 @@ const App: React.FC = () => {
 
     const handleRate = useCallback((photoId: number, rating: number) => {
         if (!config || !sessionId || !userId) return;
-    
+
         const photoToUpdate = photosWithMaxRating.find(p => p.id === photoId);
         if (!photoToUpdate || photoToUpdate.isOutOfCompetition) return;
-    
+
         const currentRating = photoToUpdate.userRating || 0;
         let newRating = rating;
 
@@ -260,30 +259,30 @@ const App: React.FC = () => {
             setIsRatingInfoModalOpen(true);
             return;
         }
-    
+
         if (newRating === currentRating) {
             newRating = 0; // Toggle off rating
         }
-    
+
         const isNewRating = currentRating === 0 && newRating > 0;
         if (isNewRating && ratedPhotosCount >= config.ratedPhotoLimit) {
             alert(`Можно оценить не более ${config.ratedPhotoLimit} фотографий.`);
             return;
         }
-    
+
         const starsDifference = newRating - currentRating;
         if (starsUsed + starsDifference > config.totalStarsLimit) {
             alert(`Общее количество звезд не может превышать ${config.totalStarsLimit}. У вас осталось ${config.totalStarsLimit - starsUsed} звезд.`);
             return;
         }
-    
+
         // Optimistic UI update
         setPhotos(prevPhotos =>
             prevPhotos.map(p =>
                 p.id === photoId ? { ...p, userRating: newRating === 0 ? undefined : newRating } : p
             )
         );
-    
+
         // Save individual vote to Firebase
         const userVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${photoId}`);
         const userVotePromise: Promise<void> = newRating === 0 ? remove(userVoteRef) : set(userVoteRef, newRating);
@@ -293,13 +292,13 @@ const App: React.FC = () => {
         const aggregateVotePromise: Promise<TransactionResult> = runTransaction(aggregateVoteRef, (currentVotes: number | null) => {
             return (currentVotes || 0) + starsDifference;
         });
-        
+
         const promises: (Promise<void> | Promise<TransactionResult>)[] = [userVotePromise, aggregateVotePromise];
 
         Promise.all(promises).catch((error: Error) => {
             console.error("Firebase write failed: ", error);
             alert('Не удалось сохранить вашу оценку. Попробуйте еще раз.');
-             // Revert optimistic UI update on failure
+            // Revert optimistic UI update on failure
             setPhotos(prevPhotos =>
                 prevPhotos.map(p =>
                     p.id === photoId ? { ...p, userRating: currentRating === 0 ? undefined : currentRating } : p
@@ -308,7 +307,7 @@ const App: React.FC = () => {
         });
 
     }, [photosWithMaxRating, config, ratedPhotosCount, starsUsed, sessionId, userId]);
-    
+
     const handleToggleFlag = useCallback((photoId: number) => {
         setPhotos(prevPhotos =>
             prevPhotos.map(photo =>
@@ -327,7 +326,7 @@ const App: React.FC = () => {
             // For now, we only clear the user's individual votes.
 
             const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
-            
+
             // Clear Firebase data first
             remove(userVotesRef)
                 .then(() => {
@@ -361,10 +360,11 @@ const App: React.FC = () => {
                 const scoreA = getScore(a);
                 const scoreB = getScore(b);
                 if (scoreB !== scoreA) return scoreB - scoreA;
-                return a.id - b.id;
+                return (a.order ?? a.id) - (b.order ?? b.id);
             });
         } else {
-            photosCopy.sort((a, b) => a.id - b.id);
+            // Sort by the new 'order' property, falling back to 'id' for compatibility
+            photosCopy.sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id));
         }
         return photosCopy;
     }, [photosWithMaxRating, sortBy, votingPhase, filterFlags]);
@@ -396,12 +396,13 @@ const App: React.FC = () => {
     }, [selectedPhotoIndex, sortedPhotos]);
 
     const handleImageClick = useCallback((photo: Photo) => {
-        if (isDesktop) {
-            setSelectedPhotoId(photo.id);
-        } else {
+        // Use isTouchDevice for a more reliable check that doesn't change on rotation
+        if (isTouchDevice) {
             setImmersivePhotoId(photo.id);
+        } else {
+            setSelectedPhotoId(photo.id);
         }
-    }, [isDesktop]);
+    }, [isTouchDevice]);
 
     const immersivePhotoIndex = useMemo(() => immersivePhotoId !== null ? sortedPhotos.findIndex(p => p.id === immersivePhotoId) : -1, [immersivePhotoId, sortedPhotos]);
 
@@ -416,12 +417,14 @@ const App: React.FC = () => {
         const finalPhotoId = lastViewedPhotoId ?? immersivePhotoId;
         setImmersivePhotoId(null);
 
-        if (isDesktop && finalPhotoId !== null) {
+        // Use isTouchDevice to decide whether to open the modal or scroll.
+        // This prevents the bug where rotating the device opens the modal.
+        if (!isTouchDevice && finalPhotoId !== null) {
             setSelectedPhotoId(finalPhotoId);
         } else {
             scrollToPhoto(finalPhotoId);
         }
-    }, [isDesktop, immersivePhotoId]);
+    }, [isTouchDevice, immersivePhotoId]);
 
     const handleNextImmersive = useCallback(() => {
         if (immersivePhotoIndex > -1 && immersivePhotoIndex < sortedPhotos.length - 1) {
@@ -473,16 +476,16 @@ const App: React.FC = () => {
             </div>
         );
     }
-    
+
     if (status === 'selecting_session') {
         return (
             <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center text-white p-4 text-center">
-                 <List className="w-12 h-12 text-indigo-400 mb-4" />
+                <List className="w-12 h-12 text-indigo-400 mb-4" />
                 <h1 className="text-3xl font-bold mb-6">Выберите сессию голосования</h1>
                 <div className="max-w-sm w-full space-y-3">
                     {availableSessions.length > 0 ? (
                         availableSessions.map(session => (
-                            <a 
+                            <a
                                 key={session}
                                 href={`#${session}`}
                                 className="block w-full text-center px-6 py-3 text-lg font-semibold rounded-lg bg-gray-700 hover:bg-indigo-600 focus:ring-indigo-500 text-white transition-colors"
@@ -491,7 +494,7 @@ const App: React.FC = () => {
                             </a>
                         ))
                     ) : (
-                         <p className="text-gray-400">Доступных сессий не найдено.</p>
+                        <p className="text-gray-400">Доступных сессий не найдено.</p>
                     )}
                 </div>
             </div>
@@ -506,7 +509,7 @@ const App: React.FC = () => {
                 <p className="mt-2 text-gray-400 max-w-md">
                     Не удалось загрузить данные для сессии "{sessionId || 'неизвестно'}". Проверьте, что сессия с таким ID существует в Firebase и данные в ней корректны.
                 </p>
-                 <a href="#" className="mt-6 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                <a href="#" className="mt-6 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
                     Вернуться к выбору сессии
                 </a>
             </div>
@@ -530,13 +533,13 @@ const App: React.FC = () => {
                     onSave={handleSaveSettings}
                 />
             )}
-            
+
             {isRatingInfoModalOpen && (
                 <RatingInfoModal onClose={() => setIsRatingInfoModalOpen(false)} />
             )}
 
             <div className={`fixed top-0 left-0 right-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700/50 shadow-lg transition-transform duration-300 ease-in-out px-4 py-2 flex justify-between items-center ${!!selectedPhoto ? 'z-[51]' : 'z-40'} ${showStickyHeader ? 'translate-y-0' : '-translate-y-full'}`}>
-                 <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a>
+                <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a>
                 <StatsInfo isCompact={true} />
                 <div className="w-24"></div>
             </div>
@@ -572,7 +575,7 @@ const App: React.FC = () => {
                                 {votingPhase === 'voting' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                                 <span>{votingPhase === 'voting' ? 'Показать общие' : 'Скрыть общие'}</span>
                             </button>
-                             <button
+                            <button
                                 onClick={() => setFilterFlags(f => !f)}
                                 className={`inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${filterFlags ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
                                 title={filterFlags ? "Показать все фотографии" : "Показать только отмеченные фото"}
@@ -609,7 +612,7 @@ const App: React.FC = () => {
                 </div>
             </main>
 
-            {isDesktop && selectedPhoto && (
+            {!isTouchDevice && selectedPhoto && (
                 <Modal
                     photo={selectedPhoto}
                     onClose={handleCloseModal}
