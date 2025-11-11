@@ -1,3 +1,4 @@
+// FIX: Use a named import for `initializeApp` as required by the Firebase v9+ modular SDK.
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 
@@ -15,6 +16,7 @@ const firebaseConfig = {
 
 
 // Initialize Firebase
+// FIX: Correctly call `initializeApp` as a direct function import to resolve "Property 'initializeApp' does not exist on type".
 const app = initializeApp(firebaseConfig);
 
 // Export instance of Realtime Database
