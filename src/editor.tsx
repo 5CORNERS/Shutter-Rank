@@ -138,19 +138,18 @@ const EditorApp: React.FC = () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
         try {
-            // Re-index photos to ensure IDs are sequential from 1
-            const finalPhotos = sessionData.photos.photos.map((p, i) => ({...p, id: i + 1}));
-            const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
-
+            // The `sessionData` state already reflects all user changes (deletions, reordering, edits).
+            // By removing the re-indexing step that was here before, we preserve stable photo IDs.
+            // This is crucial for maintaining the link between photos and their votes, and it
+            // fixes the root cause of the PERMISSION_DENIED error.
             const updates: { [key: string]: any } = {};
-            // FIX: Paths must NOT start with a forward slash for multi-path updates.
             updates[`sessions/${sessionId}/config`] = sessionData.config;
-            updates[`sessions/${sessionId}/photos`] = finalPhotoData;
+            updates[`sessions/${sessionId}/photos`] = sessionData.photos;
 
             await update(ref(db), updates);
 
             alert('Изменения успешно сохранены!');
-            // Refetch data to ensure UI is in sync with the database, especially with re-indexed IDs
+            // Refetch data to confirm the save and get a clean state from the server.
             await fetchData(sessionId);
         } catch (error: any) {
             console.error("Ошибка сохранения:", error);
