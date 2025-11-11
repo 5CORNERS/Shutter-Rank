@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getDatabase } from 'firebase/database';
+import { getDatabase, setLogLevel } from 'firebase/database';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -19,3 +19,7 @@ const app = initializeApp(firebaseConfig);
 
 // Export instance of Realtime Database
 export const db = getDatabase(app);
+
+// Enable detailed logging for debugging database operations.
+// This will show the exact paths being written to in the browser console.
+setLogLevel('debug');

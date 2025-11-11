@@ -138,18 +138,21 @@ const EditorApp: React.FC = () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
         try {
-            // The `sessionData` state already reflects all user changes (deletions, reordering, edits).
-            // By removing the re-indexing step that was here before, we preserve stable photo IDs.
-            // This is crucial for maintaining the link between photos and their votes, and it
-            // fixes the root cause of the PERMISSION_DENIED error.
             const updates: { [key: string]: any } = {};
             updates[`sessions/${sessionId}/config`] = sessionData.config;
             updates[`sessions/${sessionId}/photos`] = sessionData.photos;
 
+            // --- DEBUGGING BLOCK ---
+            console.log('%c--- Firebase Save Debug ---', 'color: #4285F4; font-size: 16px; font-weight: bold;');
+            console.log('Session ID:', sessionId);
+            console.log('Final `updates` object being sent to Firebase:');
+            console.log(updates);
+            console.log('Inspect the object above. Keys should be valid paths (e.g., "sessions/your-id/config"). Invalid or undefined paths can cause a PERMISSION_DENIED error by attempting to write to the root.');
+            // --- END DEBUGGING BLOCK ---
+
             await update(ref(db), updates);
 
             alert('Изменения успешно сохранены!');
-            // Refetch data to confirm the save and get a clean state from the server.
             await fetchData(sessionId);
         } catch (error: any) {
             console.error("Ошибка сохранения:", error);
