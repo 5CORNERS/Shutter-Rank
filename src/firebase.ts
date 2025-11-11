@@ -1,5 +1,8 @@
-// FIX: Use a named import for `initializeApp` as required by the Firebase v9+ modular SDK.
-import { initializeApp } from 'firebase/app';
+// FIX: The import from 'firebase/app' was causing a module resolution error.
+// Switched to 'firebase/compat/app' which is more stable across different bundler setups.
+// The app instance created by the compat `initializeApp` is compatible with v9 modular functions like `getDatabase`,
+// allowing for a targeted fix without refactoring the entire application.
+import { initializeApp } from 'firebase/compat/app';
 import { getDatabase } from 'firebase/database';
 
 // Your web app's Firebase configuration

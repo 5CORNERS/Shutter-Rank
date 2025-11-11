@@ -143,9 +143,9 @@ const EditorApp: React.FC = () => {
             const finalPhotoData = { ...sessionData.photos, photos: finalPhotos };
 
             const updates: { [key: string]: any } = {};
-            // Use full paths from the root for the update operation
-            updates[`/sessions/${sessionId}/config`] = sessionData.config;
-            updates[`/sessions/${sessionId}/photos`] = finalPhotoData;
+            // FIX: Paths must NOT start with a forward slash for multi-path updates.
+            updates[`sessions/${sessionId}/config`] = sessionData.config;
+            updates[`sessions/${sessionId}/photos`] = finalPhotoData;
 
             await update(ref(db), updates);
 
