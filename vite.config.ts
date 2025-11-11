@@ -8,18 +8,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // https://vite.js.dev/config/
 export default defineConfig({
-  base: './',
-  plugins: [react()],
-  publicDir: 'public',
-  build: {
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'index.html'),
-        'migration-tool': resolve(__dirname, 'migration-tool.html'),
-        'admin': resolve(__dirname, 'admin.html'),
-        'editor': resolve(__dirname, 'editor.html'),
-        'prepare': resolve(__dirname, 'prepare.html'),
-      },
+    base: '/',
+    plugins: [react()],
+    publicDir: 'public',
+    build: {
+        rollupOptions: {
+            input: {
+                main: resolve(__dirname, 'index.html'),
+                'migration-tool': resolve(__dirname, 'migration-tool.html'),
+                'admin': resolve(__dirname, 'admin.html'),
+                'editor': resolve(__dirname, 'editor.html'),
+                'prepare': resolve(__dirname, 'prepare.html'),
+            },
+        },
     },
-  },
 })
