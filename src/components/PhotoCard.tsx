@@ -11,9 +11,10 @@ interface PhotoCardProps {
     displayVotes: boolean;
     layoutMode: LayoutMode;
     gridAspectRatio: GridAspectRatio;
+    showRatingControls?: boolean;
 }
 
-export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClick, onToggleFlag, displayVotes, layoutMode, gridAspectRatio }) => {
+export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClick, onToggleFlag, displayVotes, layoutMode, gridAspectRatio, showRatingControls = true }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
     // This handler now explicitly prevents opening the immersive view if the caption is being closed.
@@ -83,9 +84,11 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
             </div>
 
             <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-center">
-                <div className={`${controlsVisibilityClass} transition-opacity duration-300`} onClick={e => e.stopPropagation()}>
-                    <RatingControls photo={photo} onRate={onRate} size="small" disabled={isOutOfComp} />
-                </div>
+                {showRatingControls && (
+                    <div className={`${controlsVisibilityClass} transition-opacity duration-300`} onClick={e => e.stopPropagation()}>
+                        <RatingControls photo={photo} onRate={onRate} size="small" disabled={isOutOfComp} />
+                    </div>
+                )}
                 {displayVotes && (
                     <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 backdrop-blur-sm px-3 py-1 rounded-md animate-fade-in`}>
                         {photo.votes}

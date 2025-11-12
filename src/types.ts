@@ -4,6 +4,7 @@ export interface FirebasePhoto {
     caption: string;
     isOutOfCompetition?: boolean;
     order?: number;
+    groupId?: string;
 }
 
 export interface Photo extends FirebasePhoto {
@@ -13,9 +14,24 @@ export interface Photo extends FirebasePhoto {
     maxRating?: number;
 }
 
+export interface FirebaseDataGroups {
+    [groupId: string]: string;
+}
+
+export interface PhotoStack {
+    type: 'stack';
+    groupId: string;
+    photos: Photo[];
+    isExpanded: boolean;
+    selectedPhotoId: number | null;
+}
+
+export type GalleryItem = (Photo & { type: 'photo' }) | PhotoStack;
+
 export interface FirebasePhotoData {
     introArticleMarkdown: string;
     photos: FirebasePhoto[];
+    groups?: FirebaseDataGroups;
 }
 
 export type LayoutMode = 'grid' | 'original';
