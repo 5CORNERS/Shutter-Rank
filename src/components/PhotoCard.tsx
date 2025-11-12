@@ -12,9 +12,10 @@ interface PhotoCardProps {
     layoutMode: LayoutMode;
     gridAspectRatio: GridAspectRatio;
     showRatingControls?: boolean;
+    isDimmed?: boolean;
 }
 
-export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClick, onToggleFlag, displayVotes, layoutMode, gridAspectRatio, showRatingControls = true }) => {
+export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClick, onToggleFlag, displayVotes, layoutMode, gridAspectRatio, showRatingControls = true, isDimmed = false }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
     // This handler now explicitly prevents opening the immersive view if the caption is being closed.
@@ -54,7 +55,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
     };
     const aspectRatioClass = aspectRatioMap[gridAspectRatio];
 
-    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 hover:shadow-indigo-500/30 ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''}`;
+    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 hover:shadow-indigo-500/30 ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''} ${isDimmed ? 'opacity-50' : 'opacity-100'}`;
 
     const controlsVisibilityClass = hasUserRating
         ? 'opacity-100'

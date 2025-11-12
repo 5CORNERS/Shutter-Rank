@@ -674,7 +674,25 @@ const App: React.FC = () => {
                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
                 }>
                     {sortedGalleryItems.map(item => {
-                        if ('photos' in item) {
+                        if ('photos' in item && item.isExpanded) {
+                            // Render expanded stack in a full-width container
+                            return (
+                                <div key={`${item.groupId}-expanded`} className="col-span-full">
+                                    <PhotoStackComponent
+                                        stack={item}
+                                        onRate={handleRate}
+                                        onImageClick={handleImageClick}
+                                        onToggleFlag={handleToggleFlag}
+                                        onStateChange={handleStackStateChange}
+                                        displayVotes={votingPhase === 'results'}
+                                        layoutMode={settings.layout}
+                                        gridAspectRatio={settings.gridAspectRatio}
+                                        showToast={setToastMessage}
+                                    />
+                                </div>
+                            );
+                        } else if ('photos' in item) {
+                            // Render collapsed stack
                             return (
                                 <div key={item.groupId} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
                                     <PhotoStackComponent
@@ -690,7 +708,9 @@ const App: React.FC = () => {
                                     />
                                 </div>
                             );
-                        } else {
+                        }
+                        else {
+                            // Render single photo
                             return (
                                 <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
                                     <PhotoCard

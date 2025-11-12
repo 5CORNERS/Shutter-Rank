@@ -29,7 +29,9 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
     };
 
     const handleSelectPhoto = (photoId: number) => {
-        onStateChange(stack.groupId, { selectedPhotoId: photoId });
+        // Toggle selection: if the same photo is clicked, deselect it.
+        const newSelectedId = stack.selectedPhotoId === photoId ? null : photoId;
+        onStateChange(stack.groupId, { selectedPhotoId: newSelectedId });
     };
 
     const handleRateCover = (photoId: number, rating: number) => {
@@ -45,64 +47,60 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
         if (!coverPhoto) return null; // Should not happen if stack has photos
         return (
             <div id={`photo-stack-${coverPhoto.id}`} className="relative photo-stack-visual" onClick={handleExpand}>
-        <PhotoCard
-            photo={coverPhoto}
-        onRate={handleRateCover}
-        onImageClick={handleExpand}
-        onToggleFlag={onToggleFlag}
-        displayVotes={displayVotes}
-        layoutMode={layoutMode}
-        gridAspectRatio={gridAspectRatio}
-        />
-        <div className="absolute top-2 right-2 z-30 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-md text-sm font-semibold flex items-center gap-1.5 pointer-events-none">
-        <Layers size={14} />
-        <span>{stack.photos.length}</span>
-        </div>
-        </div>
-    );
+                <PhotoCard
+                    photo={coverPhoto}
+                    onRate={handleRateCover}
+                    onImageClick={handleExpand}
+                    onToggleFlag={onToggleFlag}
+                    displayVotes={displayVotes}
+                    layoutMode={layoutMode}
+                    gridAspectRatio={gridAspectRatio}
+                />
+                <div className="absolute top-2 left-12 z-30 bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-md text-sm font-semibold flex items-center gap-1.5 pointer-events-none">
+                    <Layers size={14} />
+                    <span>{stack.photos.length}</span>
+                </div>
+            </div>
+        );
     }
 
+    // Expanded View
     return (
-        <div id={`photo-stack-expanded-${stack.groupId}`} className="bg-gray-800/50 border-2 border-indigo-500/30 rounded-lg p-4 space-y-4">
-    <div className="flex justify-between items-center">
-    <h3 className="text-lg font-bold text-gray-200">Выберите лучшее фото в группе</h3>
-    <button onClick={handleCollapse} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors">
-    <X size={20} />
-    </button>
-    </div>
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {stack.photos.map(photo => {
-                const isSelected = stack.selectedPhotoId === photo.id;
-                return (
-                    <div key={photo.id} className={`relative transition-opacity duration-300 ${!isSelected && stack.selectedPhotoId !== null ? 'opacity-50 hover:opacity-100' : ''}`} onClick={() => handleSelectPhoto(photo.id)}>
-                <PhotoCard
-                    photo={photo}
-                onRate={onRate}
-                onImageClick={onImageClick}
-                onToggleFlag={onToggleFlag}
-                displayVotes={displayVotes}
-                layoutMode="grid" // Force grid inside stack
-                gridAspectRatio="1/1"
-                showRatingControls={isSelected} // Pass down prop
-                />
-                {isSelected && (
-                    <div className="absolute top-2 left-2 z-30 pointer-events-none">
-                    <div className="bg-green-600 text-white rounded-full p-1.5 shadow-lg">
-                    <CheckSquare size={16} />
-                </div>
-                </div>
-                )}
-                {isSelected && stack.selectedPhotoId !== null && (
-                    <div className="absolute bottom-14 right-2 z-30 animate-fade-in">
-                    <button onClick={(e) => { e.stopPropagation(); handleCollapse(); }} className="px-3 py-1.5 text-xs font-semibold rounded-full bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-lg">
-                    Готово
-                    </button>
-                    </div>
-                )}
-                </div>
-            )
-            })}
+        <div id={`photo-stack-expanded-${stack.groupId}`} className="bg-gray-800/50 border-2 border-indigo-500/30 rounded-lg p-3 sm:p-4 space-y-4 col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4 animate-fade-in">
+            <div className="flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-200">Выберите лучшее фото в группе</h3>
+                <button onClick={handleCollapse} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
+                    <X size={20} />
+                </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {stack.photos.map(photo => {
+                    const isSelected = stack.selectedPhotoId === photo.id;
+                    const isDimmed = stack.selectedPhotoId !== null && !isSelected;
+                    return (
+                        <div key={photo.id} className="relative cursor-pointer" onClick={() => handleSelectPhoto(photo.id)}>
+                            <PhotoCard
+                                photo={photo}
+                                onRate={onRate}
+                                onImageClick={onImageClick}
+                                onToggleFlag={onToggleFlag}
+                                displayVotes={displayVotes}
+                                layoutMode="grid" // Force grid inside stack
+                                gridAspectRatio="1/1"
+                                showRatingControls={isSelected}
+                                isDimmed={isDimmed}
+                            />
+                            {isSelected && (
+                                <div className="absolute top-2 left-2 z-30 pointer-events-none">
+                                    <div className="bg-green-600 text-white rounded-full p-1.5 shadow-lg animate-fade-in">
+                                        <CheckSquare size={16} />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
         </div>
-        </div>
-);
+    );
 };
