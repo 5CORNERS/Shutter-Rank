@@ -65,7 +65,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
     const CollapsedView = () => {
         if (!coverPhoto) return null;
         return (
-            <div id={`photo-stack-${coverPhoto.id}`} className="relative" onClick={handleExpand}>
+            <div id={`photo-stack-${coverPhoto.id}`} className="relative group" onClick={handleExpand}>
                 <div className="relative z-[1] photo-stack-visual">
                     <PhotoCard
                         photo={coverPhoto}
@@ -77,8 +77,8 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         gridAspectRatio={gridAspectRatio}
                     />
                 </div>
-                <div className="absolute top-2 left-10 z-[3] bg-black/60 backdrop-blur-sm text-white px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 pointer-events-none opacity-70 group-hover:opacity-100 transition-opacity">
-                    <Layers size={14} />
+                <div className="absolute top-2 right-2 z-[3] bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-base font-bold flex items-center gap-2 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
+                    <Layers size={18} />
                     <span>{stack.photos.length}</span>
                 </div>
             </div>

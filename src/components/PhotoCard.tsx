@@ -18,15 +18,12 @@ interface PhotoCardProps {
 export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClick, onToggleFlag, displayVotes, layoutMode, gridAspectRatio, showRatingControls = true, isDimmed = false }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
-    // This handler now explicitly prevents opening the immersive view if the caption is being closed.
     const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        // A direct click on the card body. If the caption is visible, close it and do nothing else.
         if (isCaptionVisible) {
-            e.stopPropagation(); // Prevent any other handlers from firing
+            e.stopPropagation();
             setIsCaptionVisible(false);
             return;
         }
-        // Otherwise, proceed to the default action (opening modal/immersive view).
         onImageClick(photo);
     };
 
@@ -73,39 +70,41 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
 
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none z-[2]" />
 
-            <div className="absolute top-2 right-2 z-[3] opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <button onClick={(e) => { e.stopPropagation(); setIsCaptionVisible(p => !p); }} className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"><Info className="w-5 h-5" /></button>
-                {isCaptionVisible && (
-                    <div className="absolute top-full right-0 mt-2 w-64 bg-gray-800 border border-gray-600 p-3 rounded-lg shadow-xl animate-fade-in" onClick={(e) => e.stopPropagation()}>
-                        <p className="text-sm text-gray-200">{photo.caption}</p>
-                    </div>
-                )}
-            </div>
-
-            <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-center z-[3]">
-                {showRatingControls && (
-                    <div className={`${controlsVisibilityClass} transition-opacity duration-300`} onClick={e => e.stopPropagation()}>
-                        <RatingControls photo={photo} onRate={onRate} size="small" disabled={isOutOfComp} />
-                    </div>
-                )}
-                {displayVotes && (
-                    <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 backdrop-blur-sm px-3 py-1 rounded-md animate-fade-in`}>
-                        {photo.votes}
-                    </div>
-                )}
-            </div>
-
-            <div className="absolute top-2 left-2 z-[3] flex items-center gap-1.5 opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="absolute top-2 left-2 z-[3] flex items-center gap-1.5">
                 {!isOutOfComp && (
                     <button
                         onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
-                        className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white"
+                        className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                         title={isFlagged ? "Снять отметку" : "Отметить"}
                         aria-label="Отметить фото"
                     >
                         <Flag className="w-5 h-5" fill={isFlagged ? 'currentColor' : 'none'} />
                     </button>
                 )}
+            </div>
+
+            <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-end z-[3]">
+                <div className="flex items-center gap-2">
+                    {showRatingControls && (
+                        <div className={`${controlsVisibilityClass} transition-opacity duration-300`} onClick={e => e.stopPropagation()}>
+                            <RatingControls photo={photo} onRate={onRate} size="small" disabled={isOutOfComp} />
+                        </div>
+                    )}
+                    {displayVotes && (
+                        <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-md`}>
+                            {photo.votes}
+                        </div>
+                    )}
+                </div>
+
+                <div className="relative">
+                    <button onClick={(e) => { e.stopPropagation(); setIsCaptionVisible(p => !p); }} className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300"><Info className="w-5 h-5" /></button>
+                    {isCaptionVisible && (
+                        <div className="absolute bottom-full right-0 mb-2 w-64 bg-gray-800 border border-gray-600 p-3 rounded-lg shadow-xl animate-fade-in" onClick={(e) => e.stopPropagation()}>
+                            <p className="text-sm text-gray-200">{photo.caption}</p>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

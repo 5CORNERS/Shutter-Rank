@@ -44,6 +44,14 @@ const getStarNounAccusative = (count: number): string => {
     return 'звёзд';
 };
 
+const getStarNounGenitive = (count: number): string => {
+    if (count >= 2 && count <= 4) {
+        return 'звезды';
+    }
+    return 'звёзд';
+}
+
+
 const ImageWrapper: React.FC<{ photo?: Photo; isVisible: boolean }> = React.memo(({ photo, isVisible }) => (
     <div
         className="w-screen h-full flex-shrink-0 flex items-center justify-center"
@@ -445,7 +453,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                 onClick={() => onSelectOtherFromGroup(groupInfo.id)}
                                 className="ml-auto flex-shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1 rounded-full"
                             >
-                                Выбрать другое
+                                Изменить выбор
                             </button>
                         </div>
                     )}
@@ -482,14 +490,18 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                             starColor = isLocked ? 'text-red-500' : 'text-yellow-400';
                                         }
 
+                                        const titleText = isLocked
+                                            ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}`
+                                            : `Оценить в ${star} ${getStarNounAccusative(star)}`;
+
                                         return (
                                             <button
                                                 key={star}
                                                 onClick={() => handleRate(star)}
                                                 onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
                                                 className={`p-2 rounded-full transition-all transform hover:scale-125`}
-                                                aria-label={`Оценить в ${star} ${getStarNounAccusative(star)}`}
-                                                title={`Оценить в ${star} ${getStarNounAccusative(star)}`}
+                                                aria-label={titleText}
+                                                title={titleText}
                                             >
                                                 <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
                                             </button>

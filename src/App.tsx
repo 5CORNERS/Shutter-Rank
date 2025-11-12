@@ -2,6 +2,7 @@
 
 
 
+
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
@@ -633,6 +634,13 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
             <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
+            {activeExpandedGroup && (
+                <div
+                    className="fixed inset-0 bg-black/70 z-10 animate-fadeIn"
+                    onClick={() => handleStackStateChange(activeExpandedGroup, { isExpanded: false })}
+                />
+            )}
+
             {isArticleModalOpen && introArticle && (
                 <ArticleModal content={introArticle} onClose={() => setIsArticleModalOpen(false)} />
             )}
@@ -655,7 +663,7 @@ const App: React.FC = () => {
                 <div className="w-24"></div>
             </div>
 
-            <main className={`container mx-auto px-4 py-8 transition-opacity duration-300 ${activeExpandedGroup ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+            <main className={`container mx-auto px-4 py-8`}>
                 <header ref={headerRef} className="text-center mb-8">
                     <div className="flex justify-center items-center gap-3 mb-2">
                         <h1 className="text-4xl font-bold tracking-tight capitalize">{sessionId ? sessionId.replace(/[-_]/g, ' ') : ''}</h1>
@@ -712,7 +720,7 @@ const App: React.FC = () => {
                             const groupName = groups[item.groupId] || '';
                             const isExpandedAndActive = item.isExpanded && activeExpandedGroup === item.groupId;
                             return (
-                                <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''} ${isExpandedAndActive ? 'col-span-full' : ''} ${isExpandedAndActive ? 'relative z-20 pointer-events-auto' : ''}`}>
+                                <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''} ${isExpandedAndActive ? 'col-span-full' : ''} ${isExpandedAndActive ? 'relative z-20' : ''}`}>
                                     <PhotoStackComponent
                                         stack={item}
                                         groupName={groupName}

@@ -85,7 +85,7 @@ export const Modal: React.FC<ModalProps> = ({
                                 onClick={() => onSelectOtherFromGroup(groupInfo.id)}
                                 className="ml-auto flex-shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1 rounded-full"
                             >
-                                Выбрать другое
+                                Выбрать эту
                             </button>
                         </div>
                     )}
