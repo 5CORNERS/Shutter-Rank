@@ -33,13 +33,13 @@ interface VendorFullscreenElement extends HTMLDivElement {
 }
 
 const getStarNounAccusative = (count: number): string => {
-  if (count === 1) {
-    return 'звезду';
-  }
-  if (count >= 2 && count <= 4) {
-    return 'звезды';
-  }
-  return 'звёзд';
+    if (count === 1) {
+        return 'звезду';
+    }
+    if (count >= 2 && count <= 4) {
+        return 'звезды';
+    }
+    return 'звёзд';
 };
 
 const ImageWrapper: React.FC<{ photo?: Photo; isVisible: boolean }> = React.memo(({ photo, isVisible }) => (
@@ -60,31 +60,33 @@ const ImageWrapper: React.FC<{ photo?: Photo; isVisible: boolean }> = React.memo
 ));
 
 export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
-    allPhotos,
-    photoId,
-    onClose,
-    onNext,
-    onPrev,
-    onRate,
-    onToggleFlag,
-    displayVotes,
-    ratedPhotosCount,
-    starsUsed,
-    ratedPhotoLimit,
-    totalStarsLimit
-}) => {
+                                                                allPhotos,
+                                                                photoId,
+                                                                onClose,
+                                                                onNext,
+                                                                onPrev,
+                                                                onRate,
+                                                                onToggleFlag,
+                                                                displayVotes,
+                                                                ratedPhotosCount,
+                                                                starsUsed,
+                                                                ratedPhotoLimit,
+                                                                totalStarsLimit
+                                                            }) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
 
-    const prevPhoto = allPhotos[currentIndex - 1];
-    const nextPhoto = allPhotos[currentIndex + 1];
+    const prevPhoto = allPhotos[currentIndex - 1] ?? allPhotos[allPhotos.length - 1];
+    const nextPhoto = allPhotos[currentIndex + 1] ?? allPhotos[0];
 
     const containerRef = useRef<VendorFullscreenElement>(null);
     const filmStripRef = useRef<HTMLDivElement>(null);
     const currentPhotoIdRef = useRef(photoId);
     const touchOriginIsControl = useRef(false);
+    const activityTimer = useRef<number | null>(null);
 
     const [controlsVisible, setControlsVisible] = useState(true);
+    const [arrowsVisible, setArrowsVisible] = useState(true);
     const [hoverRating, setHoverRating] = useState(0);
     const [showHint, setShowHint] = useState(false);
     const [animationState, setAnimationState] = useState<AnimationState>('idle');
@@ -92,6 +94,13 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const [screenWidth, setScreenWidth] = useState(window.innerWidth);
 
     const isTouchDevice = useMemo(() => 'ontouchstart' in window, []);
+
+    const showArrows = useCallback(() => {
+        if (isTouchDevice) return;
+        setArrowsVisible(true);
+        if (activityTimer.current) clearTimeout(activityTimer.current);
+        activityTimer.current = window.setTimeout(() => setArrowsVisible(false), 2000);
+    }, [isTouchDevice]);
 
     useEffect(() => {
         const handleResize = () => setScreenWidth(window.innerWidth);
@@ -102,6 +111,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     useEffect(() => {
         currentPhotoIdRef.current = photoId;
         setHoverRating(0);
+        showArrows();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [photoId]);
 
     useLayoutEffect(() => {
@@ -127,10 +138,10 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     useEffect(() => {
         const element = containerRef.current;
         if (!element) return;
-    
+
         const enterFullscreen = async () => {
             try {
-                 if (element.requestFullscreen) {
+                if (element.requestFullscreen) {
                     await element.requestFullscreen();
                 } else if (element.webkitRequestFullscreen) {
                     await element.webkitRequestFullscreen();
@@ -149,7 +160,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 handleClose();
             }
         };
-        
+
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
     }, [handleClose]);
@@ -159,9 +170,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 handleClose();
-            } else if (e.key === 'ArrowRight' && nextPhoto) {
+            } else if (e.key === 'ArrowRight') {
                 onNext();
-            } else if (e.key === 'ArrowLeft' && prevPhoto) {
+            } else if (e.key === 'ArrowLeft') {
                 onPrev();
             } else if (e.key === ' ' && !isTouchDevice) {
                 e.preventDefault();
@@ -175,8 +186,11 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             }
         }
         document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [handleClose, onNext, onPrev, nextPhoto, prevPhoto, isTouchDevice, photo, onRate, onToggleFlag]);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            if (activityTimer.current) clearTimeout(activityTimer.current);
+        }
+    }, [handleClose, onNext, onPrev, isTouchDevice, photo, onRate, onToggleFlag]);
 
     useEffect(() => {
         if (showHint) {
@@ -193,8 +207,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     }, [showHint]);
 
     const handleRate = (rating: number) => {
-        const newRating = photo.userRating === rating ? 0 : rating;
-        onRate(photo.id, newRating);
+        onRate(photo.id, rating);
     };
 
     const getScoreColor = (score: number) => {
@@ -284,7 +297,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         const baseOffset = -screenWidth - PHOTO_GAP;
         let targetTransform = `translateX(${baseOffset}px)`;
         let onAnimationEndCallback: (() => void) | null = null;
-        
+
         // Prioritize vertical swipe for closing, but it must be a clear vertical gesture.
         if (dragState.axis === 'V' && Math.abs(deltaY) > SWIPE_THRESHOLD_Y) {
             handleClose();
@@ -302,7 +315,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 onAnimationEndCallback = onNext;
             }
         }
-        
+
         filmstrip.style.transform = targetTransform;
 
         const handleTransitionEnd = () => {
@@ -336,6 +349,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const isOutOfComp = !!photo.isOutOfCompetition;
     const maxRating = photo.maxRating ?? 3;
 
+    const hasMultiplePhotos = allPhotos.length > 1;
+
     return (
         <div
             ref={containerRef}
@@ -344,6 +359,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             onTouchMove={isTouchDevice ? handleTouchMove : undefined}
             onTouchEnd={isTouchDevice ? handleTouchEnd : undefined}
             onClick={handleBackgroundClick}
+            onMouseMove={showArrows}
             style={{ touchAction: 'none' }}
         >
             <div
@@ -353,21 +369,25 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     width: `calc(300vw + ${PHOTO_GAP * 2}px)`,
                 }}
             >
-                <ImageWrapper photo={prevPhoto} isVisible={currentIndex > 0} />
+                <ImageWrapper photo={hasMultiplePhotos ? prevPhoto : undefined} isVisible={currentIndex > 0} />
                 <ImageWrapper photo={photo} isVisible={true} />
-                <ImageWrapper photo={nextPhoto} isVisible={currentIndex < allPhotos.length - 1} />
+                <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={currentIndex < allPhotos.length - 1} />
             </div>
 
-            {/* Navigation Arrows (always visible on desktop) */}
-            {!isTouchDevice && prevPhoto && (
-                <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Предыдущее фото">
-                    <ChevronLeft className="w-10 h-10" />
-                </button>
+            {/* Navigation Arrows */}
+            {hasMultiplePhotos && !isTouchDevice && (
+                <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 transition-opacity duration-300 ${arrowsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                    <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Предыдущее фото">
+                        <ChevronLeft className="w-10 h-10" />
+                    </button>
+                </div>
             )}
-            {!isTouchDevice && nextPhoto && (
-                <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Следующее фото">
-                    <ChevronRight className="w-10 h-10" />
-                </button>
+            {hasMultiplePhotos && !isTouchDevice && (
+                <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 transition-opacity duration-300 ${arrowsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                    <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Следующее фото">
+                        <ChevronRight className="w-10 h-10" />
+                    </button>
+                </div>
             )}
 
             {/* Controls Container (visibility toggles) */}
@@ -384,7 +404,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                             {photo.id}
                         </div>
                         {isTouchDevice && !isOutOfComp && (
-                             <button
+                            <button
                                 onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
                                 className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
                                 aria-label="Отметить фото"
@@ -407,7 +427,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 </div>
 
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent pt-12 group/controls"
-                    onMouseEnter={() => !isTouchDevice && setControlsVisible(true)}>
+                     onMouseEnter={() => !isTouchDevice && setControlsVisible(true)}>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover/controls:opacity-100 transition-opacity pointer-events-none" />
                     <div className="px-4 pb-2 text-left text-gray-200 relative">
                         <p>{photo.caption}</p>
@@ -419,7 +439,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                         onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
                     >
                         <div className="flex items-center flex-shrink-0">
-                             {!isTouchDevice && !isOutOfComp && (
+                            {!isTouchDevice && !isOutOfComp && (
                                 <button
                                     onClick={() => onToggleFlag(photo.id)}
                                     className="p-2 mr-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"

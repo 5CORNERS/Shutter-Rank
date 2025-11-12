@@ -1,5 +1,6 @@
 
 
+
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
@@ -36,6 +37,7 @@ const App: React.FC = () => {
 
     const [photos, setPhotos] = useState<Photo[]>([]);
     const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+    const [groups, setGroups] = useState<FirebaseDataGroups>({});
     const [config, setConfig] = useState<Config | null>(null);
     const [settings, setSettings] = useState<Settings | null>(null);
     const [introArticle, setIntroArticle] = useState<string | null>(null);
@@ -104,6 +106,7 @@ const App: React.FC = () => {
 
                 const photosData = data.photos as FirebasePhotoData;
                 const groupsData = (data.groups || {}) as FirebaseDataGroups;
+                setGroups(groupsData);
 
                 if (photosData.introArticleMarkdown) {
                     setIntroArticle(photosData.introArticleMarkdown);
@@ -290,6 +293,7 @@ const App: React.FC = () => {
         });
 
         setGalleryItems(grouped);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [photosWithMaxRating]);
 
 
@@ -394,30 +398,6 @@ const App: React.FC = () => {
         }
     }, [sessionId, userId]);
 
-    const sortedPhotosForImmersive = useMemo(() => {
-        let photosCopy = [...photosWithMaxRating];
-        if (filterFlags) {
-            photosCopy = photosCopy.filter(p => p.isFlagged !== false);
-        }
-        if (sortBy === 'score') {
-            photosCopy.sort((a, b) => {
-                const getScore = (p: Photo) => {
-                    if (votingPhase === 'results') {
-                        return p.votes;
-                    }
-                    return p.userRating || 0;
-                };
-                const scoreA = getScore(a);
-                const scoreB = getScore(b);
-                if (scoreB !== scoreA) return scoreB - scoreA;
-                return (a.order ?? a.id) - (b.order ?? b.id);
-            });
-        } else {
-            photosCopy.sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id));
-        }
-        return photosCopy;
-    }, [photosWithMaxRating, sortBy, votingPhase, filterFlags]);
-
     const sortedGalleryItems = useMemo(() => {
         let itemsCopy = [...galleryItems];
         if (filterFlags) {
@@ -434,7 +414,13 @@ const App: React.FC = () => {
         // The default order is already sorted by `order` field.
         return itemsCopy;
 
-    }, [galleryItems, sortBy, votingPhase, filterFlags]);
+    }, [galleryItems, filterFlags]);
+
+    const sortedPhotosForImmersive = useMemo(() => {
+        // Flatten the gallery items to get a single list of photos in the exact
+        // order they appear on screen, respecting filters and group structure.
+        return sortedGalleryItems.flatMap(item => (item.type === 'stack' ? item.photos : item));
+    }, [sortedGalleryItems]);
 
 
     const scrollToPhoto = (photoId: number | null) => {
@@ -452,15 +438,15 @@ const App: React.FC = () => {
     }, [selectedPhotoId]);
 
     const handleNextPhoto = useCallback(() => {
-        if (selectedPhotoIndex < sortedPhotosForImmersive.length - 1) {
-            setSelectedPhotoId(sortedPhotosForImmersive[selectedPhotoIndex + 1].id);
-        }
+        if (sortedPhotosForImmersive.length === 0) return;
+        const nextIndex = (selectedPhotoIndex + 1) % sortedPhotosForImmersive.length;
+        setSelectedPhotoId(sortedPhotosForImmersive[nextIndex].id);
     }, [selectedPhotoIndex, sortedPhotosForImmersive]);
 
     const handlePrevPhoto = useCallback(() => {
-        if (selectedPhotoIndex > 0) {
-            setSelectedPhotoId(sortedPhotosForImmersive[selectedPhotoIndex - 1].id);
-        }
+        if (sortedPhotosForImmersive.length === 0) return;
+        const prevIndex = (selectedPhotoIndex - 1 + sortedPhotosForImmersive.length) % sortedPhotosForImmersive.length;
+        setSelectedPhotoId(sortedPhotosForImmersive[prevIndex].id);
     }, [selectedPhotoIndex, sortedPhotosForImmersive]);
 
     const handleImageClick = useCallback((photo: Photo) => {
@@ -492,15 +478,15 @@ const App: React.FC = () => {
     }, [isTouchDevice, immersivePhotoId]);
 
     const handleNextImmersive = useCallback(() => {
-        if (immersivePhotoIndex > -1 && immersivePhotoIndex < sortedPhotosForImmersive.length - 1) {
-            setImmersivePhotoId(sortedPhotosForImmersive[immersivePhotoIndex + 1].id);
-        }
+        if (sortedPhotosForImmersive.length === 0 || immersivePhotoIndex === -1) return;
+        const nextIndex = (immersivePhotoIndex + 1) % sortedPhotosForImmersive.length;
+        setImmersivePhotoId(sortedPhotosForImmersive[nextIndex].id);
     }, [immersivePhotoIndex, sortedPhotosForImmersive]);
 
     const handlePrevImmersive = useCallback(() => {
-        if (immersivePhotoIndex > 0) {
-            setImmersivePhotoId(sortedPhotosForImmersive[immersivePhotoIndex - 1].id);
-        }
+        if (sortedPhotosForImmersive.length === 0 || immersivePhotoIndex === -1) return;
+        const prevIndex = (immersivePhotoIndex - 1 + sortedPhotosForImmersive.length) % sortedPhotosForImmersive.length;
+        setImmersivePhotoId(sortedPhotosForImmersive[prevIndex].id);
     }, [immersivePhotoIndex, sortedPhotosForImmersive]);
 
     const handleTogglePhase = () => {
@@ -674,29 +660,13 @@ const App: React.FC = () => {
                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
                 }>
                     {sortedGalleryItems.map(item => {
-                        if ('photos' in item && item.isExpanded) {
-                            // Render expanded stack in a full-width container
+                        if ('photos' in item) {
+                            const groupName = groups[item.groupId] || '';
                             return (
-                                <div key={`${item.groupId}-expanded`} className="col-span-full">
+                                <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''} ${item.isExpanded ? 'col-span-full' : ''}`}>
                                     <PhotoStackComponent
                                         stack={item}
-                                        onRate={handleRate}
-                                        onImageClick={handleImageClick}
-                                        onToggleFlag={handleToggleFlag}
-                                        onStateChange={handleStackStateChange}
-                                        displayVotes={votingPhase === 'results'}
-                                        layoutMode={settings.layout}
-                                        gridAspectRatio={settings.gridAspectRatio}
-                                        showToast={setToastMessage}
-                                    />
-                                </div>
-                            );
-                        } else if ('photos' in item) {
-                            // Render collapsed stack
-                            return (
-                                <div key={item.groupId} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                    <PhotoStackComponent
-                                        stack={item}
+                                        groupName={groupName}
                                         onRate={handleRate}
                                         onImageClick={handleImageClick}
                                         onToggleFlag={handleToggleFlag}
@@ -739,8 +709,8 @@ const App: React.FC = () => {
                     onNext={handleNextPhoto}
                     onPrev={handlePrevPhoto}
                     onEnterImmersive={handleEnterImmersive}
-                    hasNext={selectedPhotoIndex < sortedPhotosForImmersive.length - 1}
-                    hasPrev={selectedPhotoIndex > 0}
+                    hasNext={sortedPhotosForImmersive.length > 1}
+                    hasPrev={sortedPhotosForImmersive.length > 1}
                     config={config}
                     ratedPhotosCount={ratedPhotosCount}
                     starsUsed={starsUsed}

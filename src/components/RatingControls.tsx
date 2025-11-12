@@ -46,6 +46,10 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
     const buttonPadding = size === 'large' ? 'p-2' : 'p-1.5';
     const hasRating = (photo.userRating || 0) > 0;
 
+    const resetVisibilityClass = hasRating
+        ? (size === 'large' ? 'opacity-100' : 'sm:opacity-0 group-hover:opacity-100')
+        : 'opacity-0';
+
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
             {[1, 2, 3, 4, 5].map((star) => {
@@ -82,17 +86,15 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
                     </button>
                 );
             })}
-            {hasRating && (
-                <div className={`flex items-center justify-center transition-opacity ${hasRating ? 'opacity-100' : 'opacity-0'}`} style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
-                    <button
-                        onClick={() => onRate(photo.id, 0)}
-                        className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`}
-                        aria-label="Сбросить оценку"
-                    >
-                        <XCircle className={xCircleSizeClass} />
-                    </button>
-                </div>
-            )}
+            <div className={`flex items-center justify-center transition-opacity ${resetVisibilityClass}`} style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
+                <button
+                    onClick={() => onRate(photo.id, 0)}
+                    className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`}
+                    aria-label="Сбросить оценку"
+                >
+                    <XCircle className={xCircleSizeClass} />
+                </button>
+            </div>
         </div>
     );
 };
