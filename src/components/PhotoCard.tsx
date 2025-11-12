@@ -43,8 +43,8 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
         : '';
 
     const competitionClass = isOutOfComp
-        ? 'saturate-[.8] border-dashed border-gray-600'
-        : 'border-solid border-gray-700/50 hover:border-indigo-500/50';
+        ? 'saturate-[.8] border border-dashed border-gray-600'
+        : 'border border-solid border-gray-700/50 hover:border-indigo-500/50';
 
     const aspectRatioMap: Record<GridAspectRatio, string> = {
         '1/1': 'aspect-square',
@@ -53,7 +53,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
     };
     const aspectRatioClass = aspectRatioMap[gridAspectRatio];
 
-    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 border hover:shadow-indigo-500/30 ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''}`;
+    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 hover:shadow-indigo-500/30 ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''}`;
 
     const controlsVisibilityClass = hasUserRating
         ? 'opacity-100'
