@@ -1,6 +1,7 @@
 
 
 
+
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
@@ -54,6 +55,7 @@ const App: React.FC = () => {
     const [isRatingInfoModalOpen, setIsRatingInfoModalOpen] = useState(false);
     const [filterFlags, setFilterFlags] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [activeExpandedGroup, setActiveExpandedGroup] = useState<string | null>(null);
 
     const { isDesktop, isTouchDevice } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
@@ -211,10 +213,17 @@ const App: React.FC = () => {
         localStorage.setItem(`userFlags_${sessionId}`, JSON.stringify(userFlags));
     }, [photos, status, sessionId]);
 
+    const scrollToPhoto = useCallback((photoId: number | null) => {
+        if (photoId !== null) {
+            // Delay to allow DOM to update after state change (e.g., stack expansion)
+            setTimeout(() => setScrollToId(photoId), 50);
+        }
+    }, []);
+
     useEffect(() => {
         if (scrollToId === null) return;
 
-        const element = document.getElementById(`photo-card-${scrollToId}`) || document.getElementById(`photo-stack-${scrollToId}`);
+        const element = document.getElementById(`photo-card-${scrollToId}`) || document.getElementById(`photo-stack-wrapper-${scrollToId}`);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -416,38 +425,43 @@ const App: React.FC = () => {
 
     }, [galleryItems, filterFlags]);
 
-    const sortedPhotosForImmersive = useMemo(() => {
-        // Flatten the gallery items to get a single list of photos in the exact
-        // order they appear on screen, respecting filters and group structure.
-        return sortedGalleryItems.flatMap(item => (item.type === 'stack' ? item.photos : item));
-    }, [sortedGalleryItems]);
-
-
-    const scrollToPhoto = (photoId: number | null) => {
-        if (photoId !== null) {
-            setTimeout(() => setScrollToId(photoId), 50);
+    const photosForViewer = useMemo(() => {
+        // If a group is expanded, viewer navigation is limited to that group
+        if (activeExpandedGroup) {
+            const activeGroup = sortedGalleryItems.find(item => item.type === 'stack' && item.groupId === activeExpandedGroup);
+            if (activeGroup && activeGroup.type === 'stack') {
+                return activeGroup.photos;
+            }
         }
-    };
+        // Otherwise, navigation is through the entire gallery flow
+        return sortedGalleryItems.map(item => {
+            if (item.type === 'stack') {
+                return item.photos.find(p => p.id === item.selectedPhotoId) || item.photos[0];
+            }
+            return item;
+        }).filter((photo): photo is Photo => !!photo);
+    }, [sortedGalleryItems, activeExpandedGroup]);
 
-    const selectedPhoto = useMemo(() => selectedPhotoId !== null ? sortedPhotosForImmersive.find(p => p.id === selectedPhotoId) : null, [selectedPhotoId, sortedPhotosForImmersive]);
-    const selectedPhotoIndex = useMemo(() => selectedPhotoId !== null ? sortedPhotosForImmersive.findIndex(p => p.id === selectedPhotoId) : -1, [selectedPhotoId, sortedPhotosForImmersive]);
+
+    const selectedPhoto = useMemo(() => selectedPhotoId !== null ? photosForViewer.find(p => p.id === selectedPhotoId) : null, [selectedPhotoId, photosForViewer]);
+    const selectedPhotoIndex = useMemo(() => selectedPhotoId !== null ? photosForViewer.findIndex(p => p.id === selectedPhotoId) : -1, [selectedPhotoId, photosForViewer]);
 
     const handleCloseModal = useCallback(() => {
         scrollToPhoto(selectedPhotoId);
         setSelectedPhotoId(null);
-    }, [selectedPhotoId]);
+    }, [selectedPhotoId, scrollToPhoto]);
 
     const handleNextPhoto = useCallback(() => {
-        if (sortedPhotosForImmersive.length === 0) return;
-        const nextIndex = (selectedPhotoIndex + 1) % sortedPhotosForImmersive.length;
-        setSelectedPhotoId(sortedPhotosForImmersive[nextIndex].id);
-    }, [selectedPhotoIndex, sortedPhotosForImmersive]);
+        if (photosForViewer.length === 0) return;
+        const nextIndex = (selectedPhotoIndex + 1) % photosForViewer.length;
+        setSelectedPhotoId(photosForViewer[nextIndex].id);
+    }, [selectedPhotoIndex, photosForViewer]);
 
     const handlePrevPhoto = useCallback(() => {
-        if (sortedPhotosForImmersive.length === 0) return;
-        const prevIndex = (selectedPhotoIndex - 1 + sortedPhotosForImmersive.length) % sortedPhotosForImmersive.length;
-        setSelectedPhotoId(sortedPhotosForImmersive[prevIndex].id);
-    }, [selectedPhotoIndex, sortedPhotosForImmersive]);
+        if (photosForViewer.length === 0) return;
+        const prevIndex = (selectedPhotoIndex - 1 + photosForViewer.length) % photosForViewer.length;
+        setSelectedPhotoId(photosForViewer[prevIndex].id);
+    }, [selectedPhotoIndex, photosForViewer]);
 
     const handleImageClick = useCallback((photo: Photo) => {
         if (isTouchDevice) {
@@ -457,7 +471,7 @@ const App: React.FC = () => {
         }
     }, [isTouchDevice]);
 
-    const immersivePhotoIndex = useMemo(() => immersivePhotoId !== null ? sortedPhotosForImmersive.findIndex(p => p.id === immersivePhotoId) : -1, [immersivePhotoId, sortedPhotosForImmersive]);
+    const immersivePhotoIndex = useMemo(() => immersivePhotoId !== null ? photosForViewer.findIndex(p => p.id === immersivePhotoId) : -1, [immersivePhotoId, photosForViewer]);
 
     const handleEnterImmersive = useCallback(() => {
         if (selectedPhoto) {
@@ -475,19 +489,19 @@ const App: React.FC = () => {
         } else {
             scrollToPhoto(finalPhotoId);
         }
-    }, [isTouchDevice, immersivePhotoId]);
+    }, [isTouchDevice, immersivePhotoId, scrollToPhoto]);
 
     const handleNextImmersive = useCallback(() => {
-        if (sortedPhotosForImmersive.length === 0 || immersivePhotoIndex === -1) return;
-        const nextIndex = (immersivePhotoIndex + 1) % sortedPhotosForImmersive.length;
-        setImmersivePhotoId(sortedPhotosForImmersive[nextIndex].id);
-    }, [immersivePhotoIndex, sortedPhotosForImmersive]);
+        if (photosForViewer.length === 0 || immersivePhotoIndex === -1) return;
+        const nextIndex = (immersivePhotoIndex + 1) % photosForViewer.length;
+        setImmersivePhotoId(photosForViewer[nextIndex].id);
+    }, [immersivePhotoIndex, photosForViewer]);
 
     const handlePrevImmersive = useCallback(() => {
-        if (sortedPhotosForImmersive.length === 0 || immersivePhotoIndex === -1) return;
-        const prevIndex = (immersivePhotoIndex - 1 + sortedPhotosForImmersive.length) % sortedPhotosForImmersive.length;
-        setImmersivePhotoId(sortedPhotosForImmersive[prevIndex].id);
-    }, [immersivePhotoIndex, sortedPhotosForImmersive]);
+        if (photosForViewer.length === 0 || immersivePhotoIndex === -1) return;
+        const prevIndex = (immersivePhotoIndex - 1 + photosForViewer.length) % photosForViewer.length;
+        setImmersivePhotoId(photosForViewer[prevIndex].id);
+    }, [immersivePhotoIndex, photosForViewer]);
 
     const handleTogglePhase = () => {
         setVotingPhase(p => p === 'voting' ? 'results' : 'voting');
@@ -499,16 +513,50 @@ const App: React.FC = () => {
         setIsSettingsModalOpen(false);
     };
 
-    const handleStackStateChange = (groupId: string, changes: Partial<PhotoStack>) => {
+    const handleStackStateChange = useCallback((groupId: string, changes: Partial<PhotoStack>) => {
+        if (changes.isExpanded) {
+            setActiveExpandedGroup(groupId);
+        } else if (changes.isExpanded === false) {
+            setActiveExpandedGroup(null);
+        }
+
         setGalleryItems(currentItems =>
             currentItems.map(item => {
-                if ('photos' in item && item.groupId === groupId) {
+                if (item.type === 'stack' && item.groupId === groupId) {
                     return { ...item, ...changes };
                 }
                 return item;
             })
         );
-    };
+    }, []);
+
+    const handleSelectOtherFromGroup = useCallback((groupId: string) => {
+        const groupStack = galleryItems.find(item => item.type === 'stack' && item.groupId === groupId) as PhotoStack | undefined;
+
+        // Close any open viewers
+        setSelectedPhotoId(null);
+        setImmersivePhotoId(null);
+
+        if (groupStack) {
+            handleStackStateChange(groupId, { isExpanded: true });
+            const photoToScrollTo = groupStack.photos.find(p => p.id === groupStack.selectedPhotoId) || groupStack.photos[0];
+            if (photoToScrollTo) {
+                scrollToPhoto(photoToScrollTo.id);
+            }
+        }
+    }, [galleryItems, handleStackStateChange, scrollToPhoto]);
+
+    const findGroupForPhoto = useCallback((photoId: number | null): { id: string; name: string } | null => {
+        if (photoId === null) return null;
+        const photo = photos.find(p => p.id === photoId);
+        if (!photo || !photo.groupId) return null;
+        const groupName = groups[photo.groupId];
+        if (!groupName) return null;
+        return { id: photo.groupId, name: groupName };
+    }, [photos, groups]);
+
+    const selectedPhotoGroupInfo = useMemo(() => findGroupForPhoto(selectedPhotoId), [selectedPhotoId, findGroupForPhoto]);
+    const immersivePhotoGroupInfo = useMemo(() => findGroupForPhoto(immersivePhotoId), [immersivePhotoId, findGroupForPhoto]);
 
     const StatsInfo = ({isCompact = false}) => {
         if (!config) return null;
@@ -607,7 +655,7 @@ const App: React.FC = () => {
                 <div className="w-24"></div>
             </div>
 
-            <main className="container mx-auto px-4 py-8">
+            <main className={`container mx-auto px-4 py-8 transition-opacity duration-300 ${activeExpandedGroup ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
                 <header ref={headerRef} className="text-center mb-8">
                     <div className="flex justify-center items-center gap-3 mb-2">
                         <h1 className="text-4xl font-bold tracking-tight capitalize">{sessionId ? sessionId.replace(/[-_]/g, ' ') : ''}</h1>
@@ -660,10 +708,11 @@ const App: React.FC = () => {
                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
                 }>
                     {sortedGalleryItems.map(item => {
-                        if ('photos' in item) {
+                        if (item.type === 'stack') {
                             const groupName = groups[item.groupId] || '';
+                            const isExpandedAndActive = item.isExpanded && activeExpandedGroup === item.groupId;
                             return (
-                                <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''} ${item.isExpanded ? 'col-span-full' : ''}`}>
+                                <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''} ${isExpandedAndActive ? 'col-span-full' : ''} ${isExpandedAndActive ? 'relative z-20 pointer-events-auto' : ''}`}>
                                     <PhotoStackComponent
                                         stack={item}
                                         groupName={groupName}
@@ -675,6 +724,7 @@ const App: React.FC = () => {
                                         layoutMode={settings.layout}
                                         gridAspectRatio={settings.gridAspectRatio}
                                         showToast={setToastMessage}
+                                        filterFlags={filterFlags}
                                     />
                                 </div>
                             );
@@ -709,17 +759,19 @@ const App: React.FC = () => {
                     onNext={handleNextPhoto}
                     onPrev={handlePrevPhoto}
                     onEnterImmersive={handleEnterImmersive}
-                    hasNext={sortedPhotosForImmersive.length > 1}
-                    hasPrev={sortedPhotosForImmersive.length > 1}
+                    hasNext={photosForViewer.length > 1}
+                    hasPrev={photosForViewer.length > 1}
                     config={config}
                     ratedPhotosCount={ratedPhotosCount}
                     starsUsed={starsUsed}
+                    groupInfo={selectedPhotoGroupInfo}
+                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                 />
             )}
 
             {immersivePhotoId !== null && (
                 <ImmersiveView
-                    allPhotos={sortedPhotosForImmersive}
+                    allPhotos={photosForViewer}
                     photoId={immersivePhotoId}
                     onClose={handleCloseImmersive}
                     onNext={handleNextImmersive}
@@ -731,6 +783,8 @@ const App: React.FC = () => {
                     starsUsed={starsUsed}
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     totalStarsLimit={config.totalStarsLimit}
+                    groupInfo={immersivePhotoGroupInfo}
+                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                 />
             )}
         </div>

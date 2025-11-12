@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import { Photo } from '../types';
-import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag, Layers } from 'lucide-react';
 
 interface ImmersiveViewProps {
     allPhotos: Photo[];
@@ -15,6 +15,8 @@ interface ImmersiveViewProps {
     starsUsed: number;
     ratedPhotoLimit: number;
     totalStarsLimit: number;
+    groupInfo: { id: string; name: string } | null;
+    onSelectOtherFromGroup: (groupId: string) => void;
 }
 
 type AnimationState = 'idle' | 'dragging' | 'animating';
@@ -71,13 +73,15 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                                 ratedPhotosCount,
                                                                 starsUsed,
                                                                 ratedPhotoLimit,
-                                                                totalStarsLimit
+                                                                totalStarsLimit,
+                                                                groupInfo,
+                                                                onSelectOtherFromGroup
                                                             }) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
 
-    const prevPhoto = allPhotos[currentIndex - 1] ?? allPhotos[allPhotos.length - 1];
-    const nextPhoto = allPhotos[currentIndex + 1] ?? allPhotos[0];
+    const prevPhoto = allPhotos[(currentIndex - 1 + allPhotos.length) % allPhotos.length];
+    const nextPhoto = allPhotos[(currentIndex + 1) % allPhotos.length];
 
     const containerRef = useRef<VendorFullscreenElement>(null);
     const filmStripRef = useRef<HTMLDivElement>(null);
@@ -429,6 +433,22 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent pt-12 group/controls"
                      onMouseEnter={() => !isTouchDevice && setControlsVisible(true)}>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover/controls:opacity-100 transition-opacity pointer-events-none" />
+                    {groupInfo && (
+                        <div
+                            className="px-4 pt-2 flex items-center gap-3 text-sm text-gray-200"
+                            onClick={handleControlInteraction}
+                            onTouchStart={handleControlTouchStart}
+                        >
+                            <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
+                            <span className="truncate">Группа: «{groupInfo.name}»</span>
+                            <button
+                                onClick={() => onSelectOtherFromGroup(groupInfo.id)}
+                                className="ml-auto flex-shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1 rounded-full"
+                            >
+                                Выбрать другое
+                            </button>
+                        </div>
+                    )}
                     <div className="px-4 pb-2 text-left text-gray-200 relative">
                         <p>{photo.caption}</p>
                     </div>

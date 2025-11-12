@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Photo, Config } from '../types';
-import { X, ChevronLeft, ChevronRight, Maximize, Star, Flag } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Maximize, Star, Flag, Layers } from 'lucide-react';
 import { RatingControls } from './RatingControls';
 
 interface ModalProps {
@@ -17,9 +17,15 @@ interface ModalProps {
     config: Config | null;
     ratedPhotosCount: number;
     starsUsed: number;
+    groupInfo: { id: string; name: string } | null;
+    onSelectOtherFromGroup: (groupId: string) => void;
 }
 
-export const Modal: React.FC<ModalProps> = ({ photo, onClose, displayVotes, onNext, onPrev, onEnterImmersive, onRate, onToggleFlag, hasNext, hasPrev, config, ratedPhotosCount, starsUsed }) => {
+export const Modal: React.FC<ModalProps> = ({
+                                                photo, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
+                                                onRate, onToggleFlag, hasNext, hasPrev, config, ratedPhotosCount,
+                                                starsUsed, groupInfo, onSelectOtherFromGroup
+                                            }) => {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') onClose();
@@ -71,7 +77,19 @@ export const Modal: React.FC<ModalProps> = ({ photo, onClose, displayVotes, onNe
                 </div>
 
                 <div className="group/controls bg-gradient-to-t from-gray-900 via-gray-800/80 to-gray-800/60 hover:from-black hover:to-gray-900/80 transition-colors duration-300 rounded-b-lg">
-                    <div className="p-3 text-center text-gray-300 border-t border-gray-700/50">
+                    {groupInfo && (
+                        <div className="flex items-center gap-3 text-sm text-gray-400 border-t border-gray-700/50 px-4 py-2" onClick={e => e.stopPropagation()}>
+                            <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
+                            <span className="truncate">Группа: «{groupInfo.name}»</span>
+                            <button
+                                onClick={() => onSelectOtherFromGroup(groupInfo.id)}
+                                className="ml-auto flex-shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1 rounded-full"
+                            >
+                                Выбрать другое
+                            </button>
+                        </div>
+                    )}
+                    <div className={`p-3 text-center text-gray-300 ${groupInfo ? '' : 'border-t border-gray-700/50'}`}>
                         <p>{photo.caption}</p>
                     </div>
 
