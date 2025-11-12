@@ -15,6 +15,7 @@ interface PhotoStackProps {
     layoutMode: LayoutMode;
     gridAspectRatio: GridAspectRatio;
     showToast: (message: string) => void;
+    filterFlags: boolean;
 }
 
 const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
@@ -28,7 +29,7 @@ const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
-                                                                   stack, groupName, onRate, onImageClick, onToggleFlag, onStateChange, displayVotes, layoutMode, gridAspectRatio, showToast
+                                                                   stack, groupName, onRate, onImageClick, onToggleFlag, onStateChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags
                                                                }) => {
     const coverPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId) || stack.photos[0];
     const selectedPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId);
@@ -85,6 +86,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
     }
 
     const ExpandedView = () => {
+        const photosToShow = filterFlags ? stack.photos.filter(p => p.isFlagged !== false) : stack.photos;
         return (
             <div className="bg-gray-800/50 border-2 border-indigo-500/30 rounded-lg p-3 sm:p-4 space-y-4">
                 <div className="flex flex-wrap justify-between items-center gap-2">
@@ -104,7 +106,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                     </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {stack.photos.map(photo => {
+                    {photosToShow.map(photo => {
                         const isSelected = stack.selectedPhotoId === photo.id;
                         const isDimmed = stack.selectedPhotoId !== null && !isSelected;
                         return (

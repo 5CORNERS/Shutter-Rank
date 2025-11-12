@@ -6,7 +6,7 @@ import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, AlertTriangle } from 'lucide-react';
 import './index.css';
-import { FirebasePhoto, FirebasePhotoData } from './types';
+import { FirebasePhoto, FirebasePhotoData, Config } from './types';
 
 type Status = 'idle' | 'processing' | 'processed' | 'saving' | 'error';
 
@@ -31,6 +31,7 @@ const PrepareApp: React.FC = () => {
             url,
             caption: `Фото ${index + 1}`,
             isOutOfCompetition: false,
+            order: index,
         }));
         setPhotos(photoData);
         setStatus('processed');
@@ -38,7 +39,8 @@ const PrepareApp: React.FC = () => {
 
     const handlePhotoChange = (index: number, field: keyof FirebasePhoto, value: string | boolean) => {
         const newPhotos = [...photos];
-        newPhotos[index] = { ...newPhotos[index], [field]: value };
+        const photoToUpdate = { ...newPhotos[index], [field]: value };
+        newPhotos[index] = photoToUpdate as FirebasePhoto;
         setPhotos(newPhotos);
     };
 
@@ -59,40 +61,76 @@ const PrepareApp: React.FC = () => {
         try {
             const sessionRef = ref(db, `sessions/${trimmedId}`);
             const snapshot = await get(sessionRef);
-            if (snapshot.exists()) {
+            const sessionExists = snapshot.exists();
+
+            if (sessionExists) {
                 if (!window.confirm(`Сессия "${trimmedId}" уже существует. Вы уверены, что хотите перезаписать ее данные о фотографиях?`)) {
                     setStatus('processed');
                     return;
                 }
             }
-            
+
+            const photosWithOrder: FirebasePhoto[] = photos.map((photo, index) => ({
+                ...photo,
+                order: index,
+            }));
+
             const photosData: FirebasePhotoData = {
                 introArticleMarkdown: intro,
-                photos: photos,
+                photos: photosWithOrder,
             };
 
-            await set(ref(db, `sessions/${trimmedId}/photos`), photosData);
-            
-            // Initialize votes for new photos if they don't exist
-            const votesRef = ref(db, `sessions/${trimmedId}/votes`);
-            const votesSnapshot = await get(votesRef);
-            const currentVotes = votesSnapshot.val() || {};
-            photos.forEach(p => {
-                if (currentVotes[p.id] === undefined) {
-                    currentVotes[p.id] = 0;
-                }
-            });
-            await set(votesRef, currentVotes);
+            if (sessionExists) {
+                // For existing sessions, just update photos and votes
+                await set(ref(db, `sessions/${trimmedId}/photos`), photosData);
+                const votesRef = ref(db, `sessions/${trimmedId}/votes`);
+                const votesSnapshot = await get(votesRef);
+                const currentVotes = votesSnapshot.val() || {};
+                photosWithOrder.forEach(p => {
+                    if (currentVotes[p.id] === undefined) {
+                        currentVotes[p.id] = 0;
+                    }
+                });
+                await set(votesRef, currentVotes);
+
+            } else {
+                // For new sessions, create the complete structure
+                const defaultConfig: Config = {
+                    ratedPhotoLimit: 15,
+                    totalStarsLimit: 25,
+                    defaultLayoutDesktop: 'grid',
+                    defaultLayoutMobile: 'original',
+                    defaultGridAspectRatio: '4/3',
+                    unlockFourStarsThresholdPercent: 20,
+                    unlockFiveStarsThresholdPercent: 50,
+                };
+
+                const initialVotes: { [key: number]: number } = {};
+                photosWithOrder.forEach(p => {
+                    initialVotes[p.id] = 0;
+                });
+
+                const newSessionData = {
+                    config: defaultConfig,
+                    photos: photosData,
+                    groups: {},
+                    votes: initialVotes,
+                    userVotes: {}
+                };
+
+                await set(sessionRef, newSessionData);
+            }
 
             alert(`Сессия "${trimmedId}" успешно сохранена с ${photos.length} фотографиями.`);
             window.location.href = `/editor.html?session=${trimmedId}`;
+
         } catch (err) {
             console.error(err);
             setError('Ошибка сохранения данных в Firebase. Проверьте консоль.');
             setStatus('error');
         }
     };
-    
+
     const renderContent = () => {
         if (status === 'saving') {
             return <Spinner text="Сохранение сессии в Firebase..." />;
@@ -100,16 +138,16 @@ const PrepareApp: React.FC = () => {
 
         if (status === 'error') {
             return (
-                 <div className="text-center text-red-400">
+                <div className="text-center text-red-400">
                     <AlertTriangle className="w-12 h-12 mx-auto mb-2" />
                     <p>{error}</p>
-                    <button onClick={() => setStatus('idle')} className="mt-4 px-4 py-2 bg-indigo-600 rounded text-white">Попробовать снова</button>
+                    <button onClick={() => { setStatus(photos.length > 0 ? 'processed' : 'idle'); setError(''); }} className="mt-4 px-4 py-2 bg-indigo-600 rounded text-white">Попробовать снова</button>
                 </div>
             );
         }
 
         if (status === 'processed' || status === 'processing') {
-             return (
+            return (
                 <div className="space-y-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">ID Сессии</label>
@@ -118,7 +156,7 @@ const PrepareApp: React.FC = () => {
                     {photos.map((photo, index) => (
                         <div key={index} className="flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg">
                             <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0" />
-                             <div className="flex-grow space-y-2">
+                            <div className="flex-grow space-y-2">
                                 <p className="text-sm text-gray-400 break-all">{photo.url}</p>
                                 <textarea
                                     value={photo.caption}
@@ -148,7 +186,7 @@ const PrepareApp: React.FC = () => {
                 </div>
             );
         }
-        
+
         return (
             <div className="space-y-4">
                 <div>
