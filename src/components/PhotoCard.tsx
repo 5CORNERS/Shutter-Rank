@@ -43,7 +43,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({ photo, onRate, onImageClic
         : '';
 
     const competitionClass = isOutOfComp
-        ? 'saturate-[.8] border border-dashed border-gray-600'
+        ? 'saturate-[.8] border-2 border-dashed border-gray-500'
         : 'border border-solid border-gray-700/50 hover:border-indigo-500/50';
 
     const aspectRatioMap: Record<GridAspectRatio, string> = {
