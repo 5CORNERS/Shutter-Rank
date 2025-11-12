@@ -1,14 +1,18 @@
+
+
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
 import { ref, get, onValue, runTransaction, DataSnapshot, set, remove, TransactionResult } from 'firebase/database';
-import { Photo, FirebasePhotoData, Settings, Config } from './types';
+import { Photo, FirebasePhotoData, Settings, Config, GalleryItem, PhotoStack, FirebaseDataGroups } from './types';
 import { PhotoCard } from './components/PhotoCard';
 import { Modal } from './components/Modal';
 import { ImmersiveView } from './components/ImmersiveView';
 import { SettingsModal } from './components/SettingsModal';
 import { ArticleModal } from './components/IntroModal';
 import { RatingInfoModal } from './components/RatingInfoModal';
+import { PhotoStackComponent } from './components/PhotoStack';
+import { Toast } from './components/Toast';
 import { useDeviceType } from './hooks/useDeviceType';
 import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, Flag, FlagOff, List } from 'lucide-react';
 
@@ -31,6 +35,7 @@ const App: React.FC = () => {
     const [userId] = useState<string>(getUserId());
 
     const [photos, setPhotos] = useState<Photo[]>([]);
+    const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
     const [config, setConfig] = useState<Config | null>(null);
     const [settings, setSettings] = useState<Settings | null>(null);
     const [introArticle, setIntroArticle] = useState<string | null>(null);
@@ -46,6 +51,7 @@ const App: React.FC = () => {
     const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
     const [isRatingInfoModalOpen, setIsRatingInfoModalOpen] = useState(false);
     const [filterFlags, setFilterFlags] = useState(false);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const { isDesktop, isTouchDevice } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
@@ -97,6 +103,8 @@ const App: React.FC = () => {
                 setConfig(loadedConfig);
 
                 const photosData = data.photos as FirebasePhotoData;
+                const groupsData = (data.groups || {}) as FirebaseDataGroups;
+
                 if (photosData.introArticleMarkdown) {
                     setIntroArticle(photosData.introArticleMarkdown);
                     const hasSeenKey = `introArticleSeen_${sessionId}`;
@@ -133,7 +141,7 @@ const App: React.FC = () => {
                     votes: initialVotes[String(p.id)] || 0,
                     userRating: userRatings[p.id],
                     isFlagged: userFlags[p.id] === undefined ? true : userFlags[p.id]
-                }));
+                })).sort((a,b) => (a.order ?? a.id) - (b.order ?? b.id));
                 setPhotos(initialPhotoState);
                 setStatus('success');
 
@@ -203,7 +211,7 @@ const App: React.FC = () => {
     useEffect(() => {
         if (scrollToId === null) return;
 
-        const element = document.getElementById(`photo-card-${scrollToId}`);
+        const element = document.getElementById(`photo-card-${scrollToId}`) || document.getElementById(`photo-stack-${scrollToId}`);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -242,6 +250,49 @@ const App: React.FC = () => {
             return { ...p, maxRating };
         });
     }, [photos, config]);
+
+    useEffect(() => {
+        const grouped: GalleryItem[] = [];
+        const groupsProcessed: { [key: string]: PhotoStack } = {};
+
+        photosWithMaxRating.forEach(photo => {
+            if (photo.groupId) {
+                if (!groupsProcessed[photo.groupId]) {
+                    // FIX: Use 'in' operator to check for 'type' property to safely access it on GalleryItem union type.
+                    const existingStack = galleryItems.find(item => 'type' in item && item.type === 'stack' && item.groupId === photo.groupId) as PhotoStack | undefined;
+
+                    groupsProcessed[photo.groupId] = {
+                        type: 'stack',
+                        groupId: photo.groupId,
+                        photos: [],
+                        isExpanded: existingStack?.isExpanded || false,
+                        selectedPhotoId: existingStack?.selectedPhotoId || null,
+                    };
+                    grouped.push(groupsProcessed[photo.groupId]);
+                }
+                groupsProcessed[photo.groupId].photos.push(photo);
+            } else {
+                grouped.push(photo);
+            }
+        });
+
+        Object.values(groupsProcessed).forEach(stack => {
+            if (stack.selectedPhotoId === null && stack.photos.length > 0) {
+                // Find first rated photo in stack to be the cover, or default to first photo.
+                const firstRated = stack.photos.find(p => p.userRating && p.userRating > 0);
+                stack.selectedPhotoId = firstRated ? firstRated.id : stack.photos[0].id;
+            } else if (stack.selectedPhotoId !== null) {
+                // Ensure selected photo is still in the group
+                const isSelectedPhotoPresent = stack.photos.some(p => p.id === stack.selectedPhotoId);
+                if (!isSelectedPhotoPresent && stack.photos.length > 0) {
+                    stack.selectedPhotoId = stack.photos[0].id;
+                }
+            }
+        });
+
+        setGalleryItems(grouped);
+    }, [photosWithMaxRating]);
+
 
     const ratedPhotosCount = useMemo(() => photos.filter(p => p.userRating && p.userRating > 0).length, [photos]);
     const starsUsed = useMemo(() => photos.reduce((sum, p) => sum + (p.userRating || 0), 0), [photos]);
@@ -344,7 +395,7 @@ const App: React.FC = () => {
         }
     }, [sessionId, userId]);
 
-    const sortedPhotos = useMemo(() => {
+    const sortedPhotosForImmersive = useMemo(() => {
         let photosCopy = [...photosWithMaxRating];
         if (filterFlags) {
             photosCopy = photosCopy.filter(p => p.isFlagged !== false);
@@ -363,11 +414,31 @@ const App: React.FC = () => {
                 return (a.order ?? a.id) - (b.order ?? b.id);
             });
         } else {
-            // Sort by the new 'order' property, falling back to 'id' for compatibility
             photosCopy.sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id));
         }
         return photosCopy;
     }, [photosWithMaxRating, sortBy, votingPhase, filterFlags]);
+
+    const sortedGalleryItems = useMemo(() => {
+        let itemsCopy = [...galleryItems];
+        if (filterFlags) {
+            itemsCopy = itemsCopy.filter(item => {
+                // FIX: Use 'in' operator as a type guard to differentiate between Photo and PhotoStack.
+                // The `type` property only exists on PhotoStack, so this check correctly narrows the type.
+                if ('type' in item) {
+                    // Show stack if at least one photo in it is flagged
+                    return item.photos.some(p => p.isFlagged !== false);
+                } else {
+                    return item.isFlagged !== false;
+                }
+            });
+        }
+        // Sorting logic is complex with stacks, so we keep the default order for now.
+        // The default order is already sorted by `order` field.
+        return itemsCopy;
+
+    }, [galleryItems, sortBy, votingPhase, filterFlags]);
+
 
     const scrollToPhoto = (photoId: number | null) => {
         if (photoId !== null) {
@@ -375,8 +446,8 @@ const App: React.FC = () => {
         }
     };
 
-    const selectedPhoto = useMemo(() => selectedPhotoId !== null ? sortedPhotos.find(p => p.id === selectedPhotoId) : null, [selectedPhotoId, sortedPhotos]);
-    const selectedPhotoIndex = useMemo(() => selectedPhotoId !== null ? sortedPhotos.findIndex(p => p.id === selectedPhotoId) : -1, [selectedPhotoId, sortedPhotos]);
+    const selectedPhoto = useMemo(() => selectedPhotoId !== null ? sortedPhotosForImmersive.find(p => p.id === selectedPhotoId) : null, [selectedPhotoId, sortedPhotosForImmersive]);
+    const selectedPhotoIndex = useMemo(() => selectedPhotoId !== null ? sortedPhotosForImmersive.findIndex(p => p.id === selectedPhotoId) : -1, [selectedPhotoId, sortedPhotosForImmersive]);
 
     const handleCloseModal = useCallback(() => {
         scrollToPhoto(selectedPhotoId);
@@ -384,19 +455,18 @@ const App: React.FC = () => {
     }, [selectedPhotoId]);
 
     const handleNextPhoto = useCallback(() => {
-        if (selectedPhotoIndex < sortedPhotos.length - 1) {
-            setSelectedPhotoId(sortedPhotos[selectedPhotoIndex + 1].id);
+        if (selectedPhotoIndex < sortedPhotosForImmersive.length - 1) {
+            setSelectedPhotoId(sortedPhotosForImmersive[selectedPhotoIndex + 1].id);
         }
-    }, [selectedPhotoIndex, sortedPhotos]);
+    }, [selectedPhotoIndex, sortedPhotosForImmersive]);
 
     const handlePrevPhoto = useCallback(() => {
         if (selectedPhotoIndex > 0) {
-            setSelectedPhotoId(sortedPhotos[selectedPhotoIndex - 1].id);
+            setSelectedPhotoId(sortedPhotosForImmersive[selectedPhotoIndex - 1].id);
         }
-    }, [selectedPhotoIndex, sortedPhotos]);
+    }, [selectedPhotoIndex, sortedPhotosForImmersive]);
 
     const handleImageClick = useCallback((photo: Photo) => {
-        // Use isTouchDevice for a more reliable check that doesn't change on rotation
         if (isTouchDevice) {
             setImmersivePhotoId(photo.id);
         } else {
@@ -404,7 +474,7 @@ const App: React.FC = () => {
         }
     }, [isTouchDevice]);
 
-    const immersivePhotoIndex = useMemo(() => immersivePhotoId !== null ? sortedPhotos.findIndex(p => p.id === immersivePhotoId) : -1, [immersivePhotoId, sortedPhotos]);
+    const immersivePhotoIndex = useMemo(() => immersivePhotoId !== null ? sortedPhotosForImmersive.findIndex(p => p.id === immersivePhotoId) : -1, [immersivePhotoId, sortedPhotosForImmersive]);
 
     const handleEnterImmersive = useCallback(() => {
         if (selectedPhoto) {
@@ -417,8 +487,6 @@ const App: React.FC = () => {
         const finalPhotoId = lastViewedPhotoId ?? immersivePhotoId;
         setImmersivePhotoId(null);
 
-        // Use isTouchDevice to decide whether to open the modal or scroll.
-        // This prevents the bug where rotating the device opens the modal.
         if (!isTouchDevice && finalPhotoId !== null) {
             setSelectedPhotoId(finalPhotoId);
         } else {
@@ -427,16 +495,16 @@ const App: React.FC = () => {
     }, [isTouchDevice, immersivePhotoId]);
 
     const handleNextImmersive = useCallback(() => {
-        if (immersivePhotoIndex > -1 && immersivePhotoIndex < sortedPhotos.length - 1) {
-            setImmersivePhotoId(sortedPhotos[immersivePhotoIndex + 1].id);
+        if (immersivePhotoIndex > -1 && immersivePhotoIndex < sortedPhotosForImmersive.length - 1) {
+            setImmersivePhotoId(sortedPhotosForImmersive[immersivePhotoIndex + 1].id);
         }
-    }, [immersivePhotoIndex, sortedPhotos]);
+    }, [immersivePhotoIndex, sortedPhotosForImmersive]);
 
     const handlePrevImmersive = useCallback(() => {
         if (immersivePhotoIndex > 0) {
-            setImmersivePhotoId(sortedPhotos[immersivePhotoIndex - 1].id);
+            setImmersivePhotoId(sortedPhotosForImmersive[immersivePhotoIndex - 1].id);
         }
-    }, [immersivePhotoIndex, sortedPhotos]);
+    }, [immersivePhotoIndex, sortedPhotosForImmersive]);
 
     const handleTogglePhase = () => {
         setVotingPhase(p => p === 'voting' ? 'results' : 'voting');
@@ -446,6 +514,17 @@ const App: React.FC = () => {
         setSettings(settings);
         localStorage.setItem('userSettings', JSON.stringify(settings));
         setIsSettingsModalOpen(false);
+    };
+
+    const handleStackStateChange = (groupId: string, changes: Partial<PhotoStack>) => {
+        setGalleryItems(currentItems =>
+            currentItems.map(item => {
+                if ('type' in item && item.type === 'stack' && item.groupId === groupId) {
+                    return { ...item, ...changes };
+                }
+                return item;
+            })
+        );
     };
 
     const StatsInfo = ({isCompact = false}) => {
@@ -521,6 +600,7 @@ const App: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
+            <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
             {isArticleModalOpen && introArticle && (
                 <ArticleModal content={introArticle} onClose={() => setIsArticleModalOpen(false)} />
@@ -596,19 +676,41 @@ const App: React.FC = () => {
                     ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
                 }>
-                    {sortedPhotos.map(photo => (
-                        <div key={photo.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                            <PhotoCard
-                                photo={photo}
-                                onRate={handleRate}
-                                onImageClick={handleImageClick}
-                                displayVotes={votingPhase === 'results'}
-                                layoutMode={settings.layout}
-                                gridAspectRatio={settings.gridAspectRatio}
-                                onToggleFlag={handleToggleFlag}
-                            />
-                        </div>
-                    ))}
+                    {sortedGalleryItems.map(item => {
+                        // FIX: Use 'in' operator as a type guard to differentiate between Photo and PhotoStack.
+                        // The `type` property only exists on PhotoStack, so this check correctly narrows the type.
+                        if ('type' in item) {
+                            return (
+                                <div key={item.groupId} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                    <PhotoStackComponent
+                                        stack={item}
+                                        onRate={handleRate}
+                                        onImageClick={handleImageClick}
+                                        onToggleFlag={handleToggleFlag}
+                                        onStateChange={handleStackStateChange}
+                                        displayVotes={votingPhase === 'results'}
+                                        layoutMode={settings.layout}
+                                        gridAspectRatio={settings.gridAspectRatio}
+                                        showToast={setToastMessage}
+                                    />
+                                </div>
+                            );
+                        } else {
+                            return (
+                                <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                    <PhotoCard
+                                        photo={item}
+                                        onRate={handleRate}
+                                        onImageClick={handleImageClick}
+                                        displayVotes={votingPhase === 'results'}
+                                        layoutMode={settings.layout}
+                                        gridAspectRatio={settings.gridAspectRatio}
+                                        onToggleFlag={handleToggleFlag}
+                                    />
+                                </div>
+                            );
+                        }
+                    })}
                 </div>
             </main>
 
@@ -622,7 +724,7 @@ const App: React.FC = () => {
                     onNext={handleNextPhoto}
                     onPrev={handlePrevPhoto}
                     onEnterImmersive={handleEnterImmersive}
-                    hasNext={selectedPhotoIndex < sortedPhotos.length - 1}
+                    hasNext={selectedPhotoIndex < sortedPhotosForImmersive.length - 1}
                     hasPrev={selectedPhotoIndex > 0}
                     config={config}
                     ratedPhotosCount={ratedPhotosCount}
@@ -632,7 +734,7 @@ const App: React.FC = () => {
 
             {immersivePhotoId !== null && (
                 <ImmersiveView
-                    allPhotos={sortedPhotos}
+                    allPhotos={sortedPhotosForImmersive}
                     photoId={immersivePhotoId}
                     onClose={handleCloseImmersive}
                     onNext={handleNextImmersive}

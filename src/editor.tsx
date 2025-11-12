@@ -7,12 +7,13 @@ import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
 import exifr from 'exifr';
 import './index.css';
-import { Config, FirebasePhotoData, FirebasePhoto } from './types';
+import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups } from './types';
 
 type Status = 'loading' | 'success' | 'error' | 'not_found';
 type SessionData = {
     config: Config;
     photos: FirebasePhotoData;
+    groups?: FirebaseDataGroups;
 };
 
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
@@ -91,6 +92,7 @@ const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: stri
 const EditorApp: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [sessionData, setSessionData] = useState<SessionData | null>(null);
+    const [newGroupName, setNewGroupName] = useState('');
     const [status, setStatus] = useState<Status>('loading');
     const [isSaving, setIsSaving] = useState(false);
 
@@ -117,27 +119,33 @@ const EditorApp: React.FC = () => {
             const snapshot = await get(sessionRef);
             if (snapshot.exists()) {
                 const data = snapshot.val();
+                let hasBeenMigrated = false;
 
-                // --- Automatic Migration Logic ---
-                const photosArray = data.photos?.photos || [];
-                if (photosArray.length > 0 && photosArray[0].order === undefined) {
-                    alert('Обнаружена сессия старого формата. Будет произведена автоматическая миграция: фотографиям будет присвоен порядковый номер для сортировки. Сессия будет сохранена.');
-
-                    const migratedPhotos = photosArray.map((photo: FirebasePhoto, index: number) => ({
-                        ...photo,
-                        order: index,
-                    }));
-
-                    const migratedPhotosData = { ...data.photos, photos: migratedPhotos };
-
-                    await set(ref(db, `sessions/${id}/photos`), migratedPhotosData);
-
-                    // Use migrated data for the current session
-                    data.photos = migratedPhotosData;
+                // --- Automatic Migration for 'groups' object ---
+                if (data.groups === undefined) {
+                    data.groups = {};
+                    hasBeenMigrated = true;
                 }
-                // --- End of Migration Logic ---
 
-                setSessionData({ config: data.config, photos: data.photos });
+                // --- Automatic Migration for photo 'order' field ---
+                const photosArray = data.photos?.photos || [];
+                if (photosArray.length > 0) {
+                    const photosNeedOrderMigration = photosArray.some((p: FirebasePhoto) => p.order === undefined);
+
+                    if (photosNeedOrderMigration) {
+                        data.photos.photos = photosArray.map((photo: FirebasePhoto, index: number) => ({
+                            ...photo,
+                            order: photo.order ?? index,
+                        }));
+                        hasBeenMigrated = true;
+                    }
+                }
+
+                if (hasBeenMigrated) {
+                    alert('Обнаружена сессия старого формата. Данные были обновлены в редакторе. Нажмите "Сохранить", чтобы применить изменения.');
+                }
+
+                setSessionData({ config: data.config, photos: data.photos, groups: data.groups || {} });
                 setStatus('success');
             } else {
                 setStatus('not_found');
@@ -147,6 +155,7 @@ const EditorApp: React.FC = () => {
             setStatus('error');
         }
     }, []);
+
 
     useEffect(() => {
         if (sessionId) {
@@ -158,7 +167,6 @@ const EditorApp: React.FC = () => {
         if (!sessionId || !sessionData) return;
         setIsSaving(true);
 
-        // Create a new photos array with updated `order` property
         const photosWithOrder = sessionData.photos.photos.map((photo, index) => ({
             ...photo,
             order: index,
@@ -173,17 +181,15 @@ const EditorApp: React.FC = () => {
         };
 
         try {
-            const configRef = ref(db, `sessions/${sessionId}/config`);
-            const photosRef = ref(db, `sessions/${sessionId}/photos`);
+            const updates: { [key: string]: any } = {};
+            updates[`/sessions/${sessionId}/config`] = finalSessionData.config;
+            updates[`/sessions/${sessionId}/photos`] = finalSessionData.photos;
+            updates[`/sessions/${sessionId}/groups`] = finalSessionData.groups || {};
 
-            // We use the `finalSessionData` which has the updated `order`
-            const configPromise = set(configRef, finalSessionData.config);
-            const photosPromise = set(photosRef, finalSessionData.photos);
-
-            await Promise.all([configPromise, photosPromise]);
+            await update(ref(db), updates);
 
             alert('Изменения успешно сохранены!');
-            await fetchData(sessionId); // Refresh data after save
+            await fetchData(sessionId);
         } catch (error: any) {
             console.error("Ошибка сохранения:", error);
             alert(`Не удалось сохранить изменения. Подробности в консоли: ${error.message}`);
@@ -226,7 +232,12 @@ const EditorApp: React.FC = () => {
     const handlePhotoChange = (index: number, field: keyof FirebasePhoto, value: string | boolean) => {
         if (sessionData) {
             const newPhotos = [...sessionData.photos.photos];
-            newPhotos[index] = { ...newPhotos[index], [field]: value };
+            const updatedPhoto = { ...newPhotos[index], [field]: value };
+            if (field === 'groupId' && value === '') {
+                delete updatedPhoto.groupId;
+            }
+            newPhotos[index] = updatedPhoto;
+
             setSessionData({
                 ...sessionData,
                 photos: { ...sessionData.photos, photos: newPhotos },
@@ -274,6 +285,39 @@ const EditorApp: React.FC = () => {
             });
         }
     };
+
+    const handleAddGroup = () => {
+        const trimmedName = newGroupName.trim();
+        if (!trimmedName || !sessionData) return;
+
+        const newGroupId = `group-${crypto.randomUUID()}`;
+        const newGroups = { ...sessionData.groups, [newGroupId]: trimmedName };
+
+        setSessionData({ ...sessionData, groups: newGroups });
+        setNewGroupName('');
+    };
+
+    const handleDeleteGroup = (groupId: string) => {
+        if (!sessionData || !window.confirm(`Вы уверены, что хотите удалить группу? Все фотографии в ней будут откреплены.`)) return;
+
+        const newGroups = { ...sessionData.groups };
+        delete newGroups[groupId];
+
+        const newPhotos = sessionData.photos.photos.map(p => {
+            if (p.groupId === groupId) {
+                const { groupId: _, ...rest } = p;
+                return rest;
+            }
+            return p;
+        });
+
+        setSessionData({
+            ...sessionData,
+            groups: newGroups,
+            photos: { ...sessionData.photos, photos: newPhotos }
+        });
+    };
+
 
     const handleExtractExif = async () => {
         if (!sessionData || !window.confirm('Это действие попытается извлечь описания из метаданных EXIF/IPTC для всех фотографий и перезапишет текущие описания. Продолжить?')) {
@@ -441,9 +485,10 @@ const EditorApp: React.FC = () => {
         if (status === 'error') return <div className="text-red-400 text-center">Ошибка загрузки данных.</div>;
         if (status === 'not_found' || !sessionData) return <div className="text-yellow-400 text-center">Сессия "{sessionId}" не найдена.</div>;
 
+        const availableGroups = sessionData.groups ? Object.entries(sessionData.groups) : [];
+
         return (
             <div className="space-y-8">
-                {/* Config Editor */}
                 <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Настройки сессии</summary>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
@@ -469,7 +514,6 @@ const EditorApp: React.FC = () => {
                     </div>
                 </details>
 
-                {/* Intro Article Editor */}
                 <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Вступительная статья (Markdown)</summary>
                     <textarea
@@ -480,7 +524,34 @@ const EditorApp: React.FC = () => {
                     />
                 </details>
 
-                {/* Photos Editor */}
+                <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
+                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Группы фотографий</summary>
+                    <div className="mt-4 space-y-4">
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                                className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-800 text-white"
+                                placeholder="Название новой группы"
+                            />
+                            <button onClick={handleAddGroup} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                                <Plus className="w-5 h-5"/> Добавить
+                            </button>
+                        </div>
+                        {availableGroups.length > 0 && (
+                            <div className="space-y-2">
+                                {availableGroups.map(([id, name]) => (
+                                    <div key={id} className="flex items-center justify-between p-2 bg-gray-700/50 rounded">
+                                        <span className="text-gray-300">{name}</span>
+                                        <button onClick={() => handleDeleteGroup(id)} className="p-1 text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4"/></button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </details>
+
                 <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <h2 className="text-xl font-semibold text-gray-300">Фотографии ({sessionData.photos.photos.length})</h2>
@@ -504,25 +575,39 @@ const EditorApp: React.FC = () => {
                                 <div className="flex-shrink-0 self-center flex md:flex-col items-center gap-2 drag-handle cursor-grab active:cursor-grabbing">
                                     <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
                                     <div className="text-gray-500">☰</div>
-                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length-1} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
+                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
                                 </div>
-                                <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0"/>
+                                <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0 self-center" />
                                 <div className="flex-grow space-y-2">
                                     <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="URL"/>
                                     <textarea value={photo.caption} onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)} rows={2} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="Описание"/>
-                                    <div className="flex items-center">
-                                        <input type="checkbox" id={`ooc-${photo.id}`} checked={!!photo.isOutOfCompetition} onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"/>
-                                        <label htmlFor={`ooc-${photo.id}`} className="ml-2 block text-sm text-gray-300">Вне конкурса</label>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <select
+                                            value={photo.groupId || ''}
+                                            onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)}
+                                            className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
+                                            disabled={availableGroups.length === 0}
+                                        >
+                                            <option value="">Без группы</option>
+                                            {availableGroups.map(([id, name]) => (
+                                                <option key={id} value={id}>{name}</option>
+                                            ))}
+                                        </select>
+
+                                        <div className="flex items-center">
+                                            <input type="checkbox" id={`ooc-${photo.id}`} checked={!!photo.isOutOfCompetition} onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"/>
+                                            <label htmlFor={`ooc-${photo.id}`} className="ml-2 block text-sm text-gray-300">Вне конкурса</label>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="flex flex-row md:flex-col gap-2 flex-shrink-0 self-center">
-                                    <button onClick={() => handleDeletePhoto(index)} className="p-2 bg-red-800 rounded hover:bg-red-700"><Trash2 className="w-4 h-4"/></button>
+                                <div className="self-center">
+                                    <button onClick={() => handleDeletePhoto(index)} className="p-2 text-red-500 hover:text-red-400"><Trash2 className="w-5 h-5"/></button>
                                 </div>
                             </div>
                         ))}
                     </div>
-                    <button onClick={handleAddPhoto} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-                        <Plus className="w-5 h-5"/> Добавить фото
+                    <button onClick={handleAddPhoto} className="w-full mt-4 inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white transition-colors">
+                        <Plus className="w-5 h-5"/> Добавить фотографию
                     </button>
                 </div>
 
@@ -535,7 +620,7 @@ const EditorApp: React.FC = () => {
         );
     };
 
-    return <AdminLayout title={`Редактор: ${sessionId || ''}`}>{renderContent()}</AdminLayout>;
+    return <AdminLayout title={`Редактор: ${sessionId}`}>{renderContent()}</AdminLayout>;
 };
 
 const rootElement = document.getElementById('root');
