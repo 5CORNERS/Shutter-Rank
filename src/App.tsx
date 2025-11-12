@@ -258,8 +258,7 @@ const App: React.FC = () => {
         photosWithMaxRating.forEach(photo => {
             if (photo.groupId) {
                 if (!groupsProcessed[photo.groupId]) {
-                    // FIX: Use 'in' operator to check for 'type' property to safely access it on GalleryItem union type.
-                    const existingStack = galleryItems.find(item => 'type' in item && item.type === 'stack' && item.groupId === photo.groupId) as PhotoStack | undefined;
+                    const existingStack = galleryItems.find(item => 'photos' in item && item.groupId === photo.groupId) as PhotoStack | undefined;
 
                     groupsProcessed[photo.groupId] = {
                         type: 'stack',
@@ -272,7 +271,7 @@ const App: React.FC = () => {
                 }
                 groupsProcessed[photo.groupId].photos.push(photo);
             } else {
-                grouped.push(photo);
+                grouped.push({ ...photo, type: 'photo' });
             }
         });
 
@@ -423,9 +422,7 @@ const App: React.FC = () => {
         let itemsCopy = [...galleryItems];
         if (filterFlags) {
             itemsCopy = itemsCopy.filter(item => {
-                // FIX: Use 'in' operator as a type guard to differentiate between Photo and PhotoStack.
-                // The `type` property only exists on PhotoStack, so this check correctly narrows the type.
-                if ('type' in item) {
+                if ('photos' in item) {
                     // Show stack if at least one photo in it is flagged
                     return item.photos.some(p => p.isFlagged !== false);
                 } else {
@@ -519,7 +516,7 @@ const App: React.FC = () => {
     const handleStackStateChange = (groupId: string, changes: Partial<PhotoStack>) => {
         setGalleryItems(currentItems =>
             currentItems.map(item => {
-                if ('type' in item && item.type === 'stack' && item.groupId === groupId) {
+                if ('photos' in item && item.groupId === groupId) {
                     return { ...item, ...changes };
                 }
                 return item;
@@ -677,9 +674,7 @@ const App: React.FC = () => {
                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
                 }>
                     {sortedGalleryItems.map(item => {
-                        // FIX: Use 'in' operator as a type guard to differentiate between Photo and PhotoStack.
-                        // The `type` property only exists on PhotoStack, so this check correctly narrows the type.
-                        if ('type' in item) {
+                        if ('photos' in item) {
                             return (
                                 <div key={item.groupId} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
                                     <PhotoStackComponent
