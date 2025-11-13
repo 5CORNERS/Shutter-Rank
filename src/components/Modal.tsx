@@ -30,12 +30,14 @@ interface ModalProps {
     groupInfo: { id: string; name: string } | null;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
+    onSelectOtherFromGroup: (groupId: string) => void;
 }
 
 export const Modal: React.FC<ModalProps> = ({
                                                 photo, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
                                                 onRate, onToggleFlag, hasNext, hasPrev, config, ratedPhotosCount,
-                                                starsUsed, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected
+                                                starsUsed, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected,
+                                                onSelectOtherFromGroup
                                             }) => {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -94,9 +96,17 @@ export const Modal: React.FC<ModalProps> = ({
 
                 <div className="group/controls bg-gradient-to-t from-gray-900 via-gray-800/80 to-gray-800/60 hover:from-black hover:to-gray-900/80 transition-colors duration-300 rounded-b-lg">
                     {groupInfo && (
-                        <div className="flex items-center gap-3 text-sm text-gray-400 border-t border-gray-700/50 px-4 py-2" onClick={e => e.stopPropagation()}>
-                            <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
-                            <span className="truncate">Группа: «{groupInfo.name}»</span>
+                        <div className="flex items-center justify-between gap-3 text-sm text-gray-400 border-t border-gray-700/50 px-4 py-2" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center gap-3 truncate">
+                                <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
+                                <span className="truncate">Группа: «{groupInfo.name}»</span>
+                            </div>
+                            <button
+                                onClick={() => onSelectOtherFromGroup(groupInfo.id)}
+                                className="flex-shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-900/50 hover:bg-indigo-900/80 px-3 py-1 rounded-full"
+                            >
+                                Изменить выбор
+                            </button>
                         </div>
                     )}
                     <div className={`p-3 text-center text-gray-300 ${groupInfo ? '' : 'border-t border-gray-700/50'}`}>

@@ -34,6 +34,7 @@ interface ImmersiveViewProps {
     groupInfo: { id: string; name: string } | null;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
+    onSelectOtherFromGroup: (groupId: string) => void;
 }
 
 type AnimationState = 'idle' | 'dragging' | 'animating';
@@ -101,7 +102,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                                 totalStarsLimit,
                                                                 groupInfo,
                                                                 onGroupSelectionChange,
-                                                                isPhotoInGroupSelected
+                                                                isPhotoInGroupSelected,
+                                                                onSelectOtherFromGroup
                                                             }) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
@@ -471,12 +473,20 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover/controls:opacity-100 transition-opacity pointer-events-none" />
                     {groupInfo && (
                         <div
-                            className="px-4 pt-2 flex items-center gap-3 text-sm text-gray-200"
+                            className="px-4 pt-2 pb-1 flex items-center justify-between gap-3 text-sm text-gray-200"
                             onClick={handleControlInteraction}
                             onTouchStart={handleControlTouchStart}
                         >
-                            <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
-                            <span className="truncate">Группа: «{groupInfo.name}»</span>
+                            <div className="flex items-center gap-3 truncate">
+                                <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
+                                <span className="truncate">Группа: «{groupInfo.name}»</span>
+                            </div>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onSelectOtherFromGroup(groupInfo.id); }}
+                                className="flex-shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-900/50 hover:bg-indigo-900/80 px-3 py-1 rounded-full"
+                            >
+                                Изменить выбор
+                            </button>
                         </div>
                     )}
                     <div className="px-4 pb-2 text-left text-gray-200 relative">

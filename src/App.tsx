@@ -747,6 +747,7 @@ const App: React.FC = () => {
                     groupInfo={selectedPhotoGroupInfo}
                     onGroupSelectionChange={handleGroupSelectionChange}
                     isPhotoInGroupSelected={selectedPhoto.groupId ? groupSelections[selectedPhoto.groupId] === selectedPhoto.id : false}
+                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                 />
             )}
 
@@ -767,6 +768,7 @@ const App: React.FC = () => {
                     groupInfo={immersivePhotoGroupInfo}
                     onGroupSelectionChange={handleGroupSelectionChange}
                     isPhotoInGroupSelected={immersivePhotoGroupInfo ? groupSelections[immersivePhotoGroupInfo.id] === immersivePhotoId : false}
+                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                 />
             )}
         </div>
