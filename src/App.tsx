@@ -217,10 +217,13 @@ const App: React.FC = () => {
     }, [photos, status, sessionId]);
 
     useEffect(() => {
-        // Lock body scroll when any modal is open
-        const isModalOpen = !!activeExpandedGroup || !!selectedPhotoId || immersivePhotoId !== null;
-        document.body.style.overflow = isModalOpen ? 'hidden' : 'auto';
-    }, [activeExpandedGroup, selectedPhotoId, immersivePhotoId]);
+        const isAnyModalOpen = isSettingsModalOpen || isArticleModalOpen || isRatingInfoModalOpen || !!activeExpandedGroup || !!selectedPhotoId || immersivePhotoId !== null;
+        if (isAnyModalOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'auto';
+        }
+    }, [isSettingsModalOpen, isArticleModalOpen, isRatingInfoModalOpen, activeExpandedGroup, selectedPhotoId, immersivePhotoId]);
 
     const scrollToPhoto = useCallback((photoId: number | null) => {
         if (photoId !== null) {
@@ -425,9 +428,9 @@ const App: React.FC = () => {
     }, [galleryItems, filterFlags]);
 
     const photosForViewer = useMemo(() => {
-        // If a group is expanded, viewer navigation is limited to that group
-        if (activeExpandedGroup) {
-            const activeGroup = sortedGalleryItems.find(item => item.type === 'stack' && item.groupId === activeExpandedGroup);
+        // If a photo viewer is opened from a group, navigation is limited to that group
+        if (photoViewerOpenedFromGroupId) {
+            const activeGroup = sortedGalleryItems.find(item => item.type === 'stack' && item.groupId === photoViewerOpenedFromGroupId);
             if (activeGroup && activeGroup.type === 'stack') {
                 return activeGroup.photos;
             }
@@ -439,20 +442,20 @@ const App: React.FC = () => {
             }
             return item;
         }).filter((photo): photo is Photo => !!photo);
-    }, [sortedGalleryItems, activeExpandedGroup]);
+    }, [sortedGalleryItems, photoViewerOpenedFromGroupId]);
 
 
     const selectedPhoto = useMemo(() => selectedPhotoId !== null ? photosForViewer.find(p => p.id === selectedPhotoId) : null, [selectedPhotoId, photosForViewer]);
     const selectedPhotoIndex = useMemo(() => selectedPhotoId !== null ? photosForViewer.findIndex(p => p.id === selectedPhotoId) : -1, [selectedPhotoId, photosForViewer]);
 
     const handleCloseModal = useCallback((openedFromGroupId?: string | null) => {
+        setSelectedPhotoId(null);
+        setPhotoViewerOpenedFromGroupId(null);
         if (openedFromGroupId) {
             setActiveExpandedGroup(openedFromGroupId);
         } else {
             scrollToPhoto(selectedPhotoId);
         }
-        setSelectedPhotoId(null);
-        setPhotoViewerOpenedFromGroupId(null);
     }, [selectedPhotoId, scrollToPhoto]);
 
     const handleNextPhoto = useCallback(() => {
@@ -491,6 +494,7 @@ const App: React.FC = () => {
     const handleCloseImmersive = useCallback((lastViewedPhotoId?: number, openedFromGroupId?: string | null) => {
         const finalPhotoId = lastViewedPhotoId ?? immersivePhotoId;
         setImmersivePhotoId(null);
+        setPhotoViewerOpenedFromGroupId(null);
 
         if (openedFromGroupId) {
             setActiveExpandedGroup(openedFromGroupId);
@@ -499,7 +503,6 @@ const App: React.FC = () => {
         } else {
             scrollToPhoto(finalPhotoId);
         }
-        setPhotoViewerOpenedFromGroupId(null);
     }, [isTouchDevice, immersivePhotoId, scrollToPhoto]);
 
     const handleNextImmersive = useCallback(() => {
@@ -635,9 +638,6 @@ const App: React.FC = () => {
                 <RatingInfoModal onClose={() => setIsRatingInfoModalOpen(false)} />
             )}
 
-            {(activeExpandedGroup && <div className="fixed inset-0 bg-black/60 z-[99] animate-fadeIn" />)}
-
-
             <div className={`fixed top-0 left-0 right-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700/50 shadow-lg transition-transform duration-300 ease-in-out px-4 py-2 flex justify-between items-center ${!!selectedPhoto ? 'z-[51]' : 'z-40'} ${showStickyHeader ? 'translate-y-0' : '-translate-y-full'}`}>
                 <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a>
                 <StatsInfo isCompact={true} />
@@ -707,7 +707,7 @@ const App: React.FC = () => {
                                         stack={item}
                                         groupName={groupName}
                                         onRate={handleRate}
-                                        onImageClick={(photo) => handleImageClick(photo, item.groupId)}
+                                        onImageClick={handleImageClick}
                                         onToggleFlag={handleToggleFlag}
                                         isExpanded={activeExpandedGroup === item.groupId}
                                         onExpand={() => setActiveExpandedGroup(item.groupId)}
@@ -715,7 +715,7 @@ const App: React.FC = () => {
                                         onSelectionChange={handleGroupSelectionChange}
                                         displayVotes={votingPhase === 'results'}
                                         layoutMode={settings.layout}
-                                        gridAspectRatio={isTouchDevice ? '1/1' : settings.gridAspectRatio}
+                                        gridAspectRatio={settings.gridAspectRatio}
                                         showToast={setToastMessage}
                                         filterFlags={filterFlags}
                                         isTouchDevice={isTouchDevice}
@@ -746,7 +746,7 @@ const App: React.FC = () => {
             {!isTouchDevice && selectedPhoto && (
                 <Modal
                     photo={selectedPhoto}
-                    onClose={() => handleCloseModal(photoViewerOpenedFromGroupId)}
+                    onClose={handleCloseModal}
                     displayVotes={votingPhase === 'results'}
                     onRate={handleRate}
                     onToggleFlag={handleToggleFlag}
@@ -769,7 +769,7 @@ const App: React.FC = () => {
                 <ImmersiveView
                     allPhotos={photosForViewer}
                     photoId={immersivePhotoId}
-                    onClose={(id) => handleCloseImmersive(id, photoViewerOpenedFromGroupId)}
+                    onClose={handleCloseImmersive}
                     onNext={handleNextImmersive}
                     onPrev={handlePrevImmersive}
                     onRate={handleRate}

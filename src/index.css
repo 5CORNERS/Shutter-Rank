@@ -92,3 +92,14 @@
 .group-modal-container.exiting {
     animation: modal-scale-out 0.2s ease-in forwards;
 }
+
+/* New Selection Control */
+.selection-control-check {
+    transition: transform 0.2s ease-in-out;
+}
+.selection-control-bg:not(.selected) .selection-control-check {
+    transform: scale(0);
+}
+.selection-control-bg.selected .selection-control-check {
+    transform: scale(1);
+}
