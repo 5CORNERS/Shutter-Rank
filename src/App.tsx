@@ -41,6 +41,8 @@ const App: React.FC = () => {
 
     const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
     const [immersivePhotoId, setImmersivePhotoId] = useState<number | null>(null);
+    const [photoViewerOpenedFromGroupId, setPhotoViewerOpenedFromGroupId] = useState<string | null>(null);
+
     const [sortBy, setSortBy] = useState<SortMode>('id');
     const [votingPhase, setVotingPhase] = useState<VotingPhase>('voting');
     const [status, setStatus] = useState<AppStatus>('loading');
@@ -215,9 +217,10 @@ const App: React.FC = () => {
     }, [photos, status, sessionId]);
 
     useEffect(() => {
-        // Lock body scroll when group modal is open
-        document.body.style.overflow = activeExpandedGroup ? 'hidden' : 'auto';
-    }, [activeExpandedGroup]);
+        // Lock body scroll when any modal is open
+        const isModalOpen = !!activeExpandedGroup || !!selectedPhotoId || immersivePhotoId !== null;
+        document.body.style.overflow = isModalOpen ? 'hidden' : 'auto';
+    }, [activeExpandedGroup, selectedPhotoId, immersivePhotoId]);
 
     const scrollToPhoto = useCallback((photoId: number | null) => {
         if (photoId !== null) {
@@ -442,9 +445,14 @@ const App: React.FC = () => {
     const selectedPhoto = useMemo(() => selectedPhotoId !== null ? photosForViewer.find(p => p.id === selectedPhotoId) : null, [selectedPhotoId, photosForViewer]);
     const selectedPhotoIndex = useMemo(() => selectedPhotoId !== null ? photosForViewer.findIndex(p => p.id === selectedPhotoId) : -1, [selectedPhotoId, photosForViewer]);
 
-    const handleCloseModal = useCallback(() => {
-        scrollToPhoto(selectedPhotoId);
+    const handleCloseModal = useCallback((openedFromGroupId?: string | null) => {
+        if (openedFromGroupId) {
+            setActiveExpandedGroup(openedFromGroupId);
+        } else {
+            scrollToPhoto(selectedPhotoId);
+        }
         setSelectedPhotoId(null);
+        setPhotoViewerOpenedFromGroupId(null);
     }, [selectedPhotoId, scrollToPhoto]);
 
     const handleNextPhoto = useCallback(() => {
@@ -459,11 +467,15 @@ const App: React.FC = () => {
         setSelectedPhotoId(photosForViewer[prevIndex].id);
     }, [selectedPhotoIndex, photosForViewer]);
 
-    const handleImageClick = useCallback((photo: Photo) => {
+    const handleImageClick = useCallback((photo: Photo, fromGroupId?: string) => {
         if (isTouchDevice) {
             setImmersivePhotoId(photo.id);
         } else {
             setSelectedPhotoId(photo.id);
+        }
+        if (fromGroupId) {
+            setPhotoViewerOpenedFromGroupId(fromGroupId);
+            setActiveExpandedGroup(null);
         }
     }, [isTouchDevice]);
 
@@ -476,15 +488,18 @@ const App: React.FC = () => {
         }
     }, [selectedPhoto]);
 
-    const handleCloseImmersive = useCallback((lastViewedPhotoId?: number) => {
+    const handleCloseImmersive = useCallback((lastViewedPhotoId?: number, openedFromGroupId?: string | null) => {
         const finalPhotoId = lastViewedPhotoId ?? immersivePhotoId;
         setImmersivePhotoId(null);
 
-        if (!isTouchDevice && finalPhotoId !== null) {
+        if (openedFromGroupId) {
+            setActiveExpandedGroup(openedFromGroupId);
+        } else if (!isTouchDevice && finalPhotoId !== null) {
             setSelectedPhotoId(finalPhotoId);
         } else {
             scrollToPhoto(finalPhotoId);
         }
+        setPhotoViewerOpenedFromGroupId(null);
     }, [isTouchDevice, immersivePhotoId, scrollToPhoto]);
 
     const handleNextImmersive = useCallback(() => {
@@ -516,13 +531,6 @@ const App: React.FC = () => {
             localStorage.setItem(`groupSelections_${sessionId}`, JSON.stringify(newSelections));
         }
     }, [groupSelections, sessionId]);
-
-    const handleSelectOtherFromGroup = useCallback((groupId: string) => {
-        // Close any open viewers
-        setSelectedPhotoId(null);
-        setImmersivePhotoId(null);
-        setActiveExpandedGroup(groupId);
-    }, []);
 
     const findGroupForPhoto = useCallback((photoId: number | null): { id: string; name: string } | null => {
         if (photoId === null) return null;
@@ -627,6 +635,9 @@ const App: React.FC = () => {
                 <RatingInfoModal onClose={() => setIsRatingInfoModalOpen(false)} />
             )}
 
+            {(activeExpandedGroup && <div className="fixed inset-0 bg-black/60 z-[99] animate-fadeIn" />)}
+
+
             <div className={`fixed top-0 left-0 right-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700/50 shadow-lg transition-transform duration-300 ease-in-out px-4 py-2 flex justify-between items-center ${!!selectedPhoto ? 'z-[51]' : 'z-40'} ${showStickyHeader ? 'translate-y-0' : '-translate-y-full'}`}>
                 <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a>
                 <StatsInfo isCompact={true} />
@@ -696,7 +707,7 @@ const App: React.FC = () => {
                                         stack={item}
                                         groupName={groupName}
                                         onRate={handleRate}
-                                        onImageClick={handleImageClick}
+                                        onImageClick={(photo) => handleImageClick(photo, item.groupId)}
                                         onToggleFlag={handleToggleFlag}
                                         isExpanded={activeExpandedGroup === item.groupId}
                                         onExpand={() => setActiveExpandedGroup(item.groupId)}
@@ -704,9 +715,10 @@ const App: React.FC = () => {
                                         onSelectionChange={handleGroupSelectionChange}
                                         displayVotes={votingPhase === 'results'}
                                         layoutMode={settings.layout}
-                                        gridAspectRatio={settings.gridAspectRatio}
+                                        gridAspectRatio={isTouchDevice ? '1/1' : settings.gridAspectRatio}
                                         showToast={setToastMessage}
                                         filterFlags={filterFlags}
+                                        isTouchDevice={isTouchDevice}
                                     />
                                 </div>
                             );
@@ -734,7 +746,7 @@ const App: React.FC = () => {
             {!isTouchDevice && selectedPhoto && (
                 <Modal
                     photo={selectedPhoto}
-                    onClose={handleCloseModal}
+                    onClose={() => handleCloseModal(photoViewerOpenedFromGroupId)}
                     displayVotes={votingPhase === 'results'}
                     onRate={handleRate}
                     onToggleFlag={handleToggleFlag}
@@ -747,9 +759,9 @@ const App: React.FC = () => {
                     ratedPhotosCount={ratedPhotosCount}
                     starsUsed={starsUsed}
                     groupInfo={selectedPhotoGroupInfo}
-                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                     onGroupSelectionChange={handleGroupSelectionChange}
                     isPhotoInGroupSelected={selectedPhoto.groupId ? groupSelections[selectedPhoto.groupId] === selectedPhoto.id : false}
+                    openedFromGroupId={photoViewerOpenedFromGroupId}
                 />
             )}
 
@@ -757,7 +769,7 @@ const App: React.FC = () => {
                 <ImmersiveView
                     allPhotos={photosForViewer}
                     photoId={immersivePhotoId}
-                    onClose={handleCloseImmersive}
+                    onClose={(id) => handleCloseImmersive(id, photoViewerOpenedFromGroupId)}
                     onNext={handleNextImmersive}
                     onPrev={handlePrevImmersive}
                     onRate={handleRate}
@@ -768,9 +780,9 @@ const App: React.FC = () => {
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     totalStarsLimit={config.totalStarsLimit}
                     groupInfo={immersivePhotoGroupInfo}
-                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                     onGroupSelectionChange={handleGroupSelectionChange}
                     isPhotoInGroupSelected={immersivePhotoGroupInfo ? groupSelections[immersivePhotoGroupInfo.id] === immersivePhotoId : false}
+                    openedFromGroupId={photoViewerOpenedFromGroupId}
                 />
             )}
         </div>

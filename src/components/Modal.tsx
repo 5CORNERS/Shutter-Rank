@@ -5,7 +5,7 @@ import { RatingControls } from './RatingControls';
 
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> = ({isSelected, onSelect}) => {
     return (
-        <div className="absolute top-4 left-4 z-10 pointer-events-auto" onClick={onSelect} >
+        <div className="absolute top-4 left-4 z-10 pointer-events-auto" onClick={(e) => { e.stopPropagation(); onSelect(); }} >
             <div className={`w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-200 cursor-pointer ${isSelected ? 'bg-green-500 border-2 border-white shadow-lg' : 'bg-gray-800/60 backdrop-blur-sm border-2 border-white/80'}`}>
                 {isSelected && <Check className="w-5 h-5 text-white" />}
                 {!isSelected && <div className="w-3 h-3 rounded-full bg-white/50"></div>}
@@ -16,7 +16,7 @@ const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> =
 
 interface ModalProps {
     photo: Photo;
-    onClose: () => void;
+    onClose: (openedFromGroupId?: string | null) => void;
     displayVotes: boolean;
     onNext: () => void;
     onPrev: () => void;
@@ -29,19 +29,19 @@ interface ModalProps {
     ratedPhotosCount: number;
     starsUsed: number;
     groupInfo: { id: string; name: string } | null;
-    onSelectOtherFromGroup: (groupId: string) => void;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
+    openedFromGroupId: string | null;
 }
 
 export const Modal: React.FC<ModalProps> = ({
                                                 photo, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
                                                 onRate, onToggleFlag, hasNext, hasPrev, config, ratedPhotosCount,
-                                                starsUsed, groupInfo, onSelectOtherFromGroup, onGroupSelectionChange, isPhotoInGroupSelected
+                                                starsUsed, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected, openedFromGroupId
                                             }) => {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose();
+            if (event.key === 'Escape') onClose(openedFromGroupId);
             else if (event.key === 'ArrowRight') onNext();
             else if (event.key === 'ArrowLeft') onPrev();
             else if (event.key.toLowerCase() === 'f' || (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))) {
@@ -53,13 +53,12 @@ export const Modal: React.FC<ModalProps> = ({
             }
         };
 
-        document.body.style.overflow = 'hidden';
+        // Body overflow is managed in App.tsx
         window.addEventListener('keydown', handleKeyDown);
         return () => {
-            document.body.style.overflow = 'auto';
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [onClose, onNext, onPrev, photo, onRate, onToggleFlag]);
+    }, [onClose, onNext, onPrev, photo, onRate, onToggleFlag, openedFromGroupId]);
 
     const getScoreColor = (score: number) => {
         if (score > 0) return 'text-green-400';
@@ -75,14 +74,14 @@ export const Modal: React.FC<ModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={onClose} role="dialog">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">
             <div className="absolute top-4 right-4 z-[51] flex items-center gap-4">
                 {displayVotes && (
                     <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 px-3 py-1 rounded-md`}>
                         Рейтинг: {photo.votes}
                     </div>
                 )}
-                <button onClick={onClose} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Закрыть"><X className="w-6 h-6" /></button>
+                <button onClick={() => onClose(openedFromGroupId)} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Закрыть"><X className="w-6 h-6" /></button>
             </div>
 
             {hasPrev && <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-[51] p-2 rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronLeft className="w-8 h-8" /></button>}
@@ -102,7 +101,7 @@ export const Modal: React.FC<ModalProps> = ({
                                 <span className="truncate">Фото из группы: «{groupInfo.name}»</span>
                             </div>
                             <button
-                                onClick={() => onSelectOtherFromGroup(groupInfo.id)}
+                                onClick={() => onClose(groupInfo.id)}
                                 className="ml-auto flex-shrink-0 text-xs bg-gray-700 hover:bg-gray-600 text-indigo-300 px-2 py-1 rounded-md transition-colors"
                             >
                                 Изменить выбор

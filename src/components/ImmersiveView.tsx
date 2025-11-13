@@ -20,7 +20,7 @@ const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.Mouse
 interface ImmersiveViewProps {
     allPhotos: Photo[];
     photoId: number;
-    onClose: (lastViewedPhotoId: number) => void;
+    onClose: (lastViewedPhotoId: number, openedFromGroupId?: string | null) => void;
     onNext: () => void;
     onPrev: () => void;
     onRate: (photoId: number, rating: number) => void;
@@ -31,9 +31,9 @@ interface ImmersiveViewProps {
     ratedPhotoLimit: number;
     totalStarsLimit: number;
     groupInfo: { id: string; name: string } | null;
-    onSelectOtherFromGroup: (groupId: string) => void;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
+    openedFromGroupId: string | null;
 }
 
 type AnimationState = 'idle' | 'dragging' | 'animating';
@@ -100,9 +100,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                                 ratedPhotoLimit,
                                                                 totalStarsLimit,
                                                                 groupInfo,
-                                                                onSelectOtherFromGroup,
                                                                 onGroupSelectionChange,
-                                                                isPhotoInGroupSelected
+                                                                isPhotoInGroupSelected,
+                                                                openedFromGroupId
                                                             }) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
@@ -163,8 +163,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     }, []);
 
     const handleClose = useCallback(() => {
-        onClose(currentPhotoIdRef.current);
-    }, [onClose]);
+        onClose(currentPhotoIdRef.current, openedFromGroupId);
+    }, [onClose, openedFromGroupId]);
 
     useEffect(() => {
         const element = containerRef.current;
@@ -481,7 +481,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                 <span className="truncate">Фото из группы: «{groupInfo.name}»</span>
                             </div>
                             <button
-                                onClick={() => onSelectOtherFromGroup(groupInfo.id)}
+                                onClick={() => handleClose()}
                                 className="ml-auto flex-shrink-0 text-xs bg-gray-700 hover:bg-gray-600 text-indigo-300 px-2 py-1 rounded-md transition-colors"
                             >
                                 Изменить выбор

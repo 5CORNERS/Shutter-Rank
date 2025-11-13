@@ -9,7 +9,7 @@ interface PhotoStackProps {
     stack: PhotoStack;
     groupName: string;
     onRate: (photoId: number, rating: number) => void;
-    onImageClick: (photo: Photo) => void;
+    onImageClick: (photo: Photo, fromGroupId?: string) => void;
     onToggleFlag: (photoId: number) => void;
     isExpanded: boolean;
     onExpand: () => void;
@@ -20,12 +20,13 @@ interface PhotoStackProps {
     gridAspectRatio: GridAspectRatio;
     showToast: (message: string) => void;
     filterFlags: boolean;
+    isTouchDevice: boolean;
 }
 
 const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
     return (
         <div className="absolute top-2 right-2 z-10 pointer-events-auto" >
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-200 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white' : 'bg-gray-900/40 backdrop-blur-sm border-white/80'}`}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white' : 'bg-gray-900/40 backdrop-blur-sm border-white/80'}`}>
                 {isSelected && <Check className="w-5 h-5 text-white" />}
                 {!isSelected && <div className="w-2.5 h-2.5 rounded-full bg-white/50"></div>}
             </div>
@@ -34,14 +35,15 @@ const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
-                                                                   stack, groupName, onRate, onImageClick, onToggleFlag, isExpanded, onExpand, onClose, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags
+                                                                   stack, groupName, onRate, onImageClick, onToggleFlag, isExpanded, onExpand, onClose, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags, isTouchDevice
                                                                }) => {
     const [isExiting, setIsExiting] = useState(false);
 
     const coverPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId) || stack.photos[0];
     const selectedPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId);
 
-    const handleSelectPhoto = (photoId: number) => {
+    const handleSelectPhoto = (e: React.MouseEvent, photoId: number) => {
+        e.stopPropagation();
         const newSelectedId = stack.selectedPhotoId === photoId ? null : photoId;
         onSelectionChange(stack.groupId, newSelectedId);
     };
@@ -113,13 +115,30 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
     const ExpandedViewModal = () => {
         const photosToShow = filterFlags ? stack.photos.filter(p => p.isFlagged !== false) : stack.photos;
 
+        const gridColsMap: { [key: number]: string } = {
+            1: 'grid-cols-1',
+            2: 'grid-cols-2',
+            3: 'grid-cols-2 sm:grid-cols-3',
+            4: 'grid-cols-2 md:grid-cols-4',
+        };
+        const gridColsClass = gridColsMap[photosToShow.length] || 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
+
+        const maxWidthMap: { [key: number]: string } = {
+            1: 'max-w-sm',
+            2: 'max-w-2xl',
+            3: 'max-w-4xl',
+            4: 'max-w-6xl',
+        };
+        const maxWidthClass = maxWidthMap[photosToShow.length] || 'max-w-7xl';
+
+
         return ReactDOM.createPortal(
             <div
                 className={`fixed inset-0 z-[100] flex items-center justify-center p-4 group-modal-overlay ${isExiting ? 'exiting' : ''}`}
                 onClick={handleClose}
             >
                 <div
-                    className={`relative w-full max-w-6xl max-h-[90vh] bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-xl shadow-2xl flex flex-col group-modal-container ${isExiting ? 'exiting' : ''}`}
+                    className={`relative w-full ${maxWidthClass} max-h-[90vh] bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-xl shadow-2xl flex flex-col group-modal-container ${isExiting ? 'exiting' : ''}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50">
@@ -139,24 +158,26 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         </button>
                     </header>
                     <div className="flex-grow p-4 overflow-y-auto">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        <div className={`grid ${gridColsClass} gap-4`}>
                             {photosToShow.map(photo => {
                                 const isSelected = stack.selectedPhotoId === photo.id;
                                 const isDimmed = stack.selectedPhotoId !== null && !isSelected;
                                 return (
-                                    <div key={photo.id} className="relative cursor-pointer" onClick={() => handleSelectPhoto(photo.id)}>
+                                    <div key={photo.id} className="relative cursor-pointer" onClick={() => onImageClick(photo, stack.groupId)}>
                                         <PhotoCard
                                             photo={photo}
                                             onRate={onRate}
-                                            onImageClick={onImageClick}
+                                            onImageClick={() => onImageClick(photo, stack.groupId)}
                                             onToggleFlag={onToggleFlag}
                                             displayVotes={false}
-                                            layoutMode={layoutMode}
-                                            gridAspectRatio={gridAspectRatio}
+                                            layoutMode={isTouchDevice ? 'grid' : layoutMode}
+                                            gridAspectRatio={isTouchDevice ? '1/1' : gridAspectRatio}
                                             showRatingControls={false}
                                             isDimmed={isDimmed}
                                         />
-                                        <SelectionControl isSelected={isSelected} />
+                                        <div onClick={(e) => handleSelectPhoto(e, photo.id)}>
+                                            <SelectionControl isSelected={isSelected} />
+                                        </div>
                                     </div>
                                 )
                             })}
