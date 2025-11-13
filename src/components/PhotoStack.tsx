@@ -26,9 +26,8 @@ interface PhotoStackProps {
 const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
     return (
         <div className="absolute top-2 right-2 z-10 pointer-events-auto" >
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white' : 'bg-gray-900/40 backdrop-blur-sm border-white/80'}`}>
-                {isSelected && <Check className="w-5 h-5 text-white" />}
-                {!isSelected && <div className="w-2.5 h-2.5 rounded-full bg-white/50"></div>}
+            <div className={`selection-control-bg w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-900/40 backdrop-blur-sm border-white/80'}`}>
+                <Check className="w-5 h-5 text-white selection-control-check" />
             </div>
         </div>
     )
@@ -104,8 +103,8 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         gridAspectRatio={gridAspectRatio}
                     />
                 </div>
-                <div className="absolute top-2 right-2 z-[3] bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-base font-bold flex items-center gap-2 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
-                    <Layers size={18} />
+                <div className="absolute top-2 right-2 z-[3] bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-lg font-bold flex items-center gap-2 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
+                    <Layers size={20} />
                     <span>{stack.photos.length}</span>
                 </div>
             </div>
@@ -123,22 +122,15 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
         };
         const gridColsClass = gridColsMap[photosToShow.length] || 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
 
-        const maxWidthMap: { [key: number]: string } = {
-            1: 'max-w-sm',
-            2: 'max-w-2xl',
-            3: 'max-w-4xl',
-            4: 'max-w-6xl',
-        };
-        const maxWidthClass = maxWidthMap[photosToShow.length] || 'max-w-7xl';
-
+        const adaptiveMaxWidth = photosToShow.length <= 4 ? `max-w-screen-${['sm','md','lg','xl'][photosToShow.length - 1]}` : 'max-w-[105rem]';
 
         return ReactDOM.createPortal(
             <div
-                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 group-modal-overlay ${isExiting ? 'exiting' : ''}`}
+                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm group-modal-overlay ${isExiting ? 'exiting' : ''}`}
                 onClick={handleClose}
             >
                 <div
-                    className={`relative w-full ${maxWidthClass} max-h-[90vh] bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-xl shadow-2xl flex flex-col group-modal-container ${isExiting ? 'exiting' : ''}`}
+                    className={`relative w-full ${adaptiveMaxWidth} max-h-[90vh] bg-[#111827] border border-gray-700/50 rounded-xl shadow-2xl flex flex-col group-modal-container ${isExiting ? 'exiting' : ''}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50">
@@ -163,7 +155,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                                 const isSelected = stack.selectedPhotoId === photo.id;
                                 const isDimmed = stack.selectedPhotoId !== null && !isSelected;
                                 return (
-                                    <div key={photo.id} className="relative cursor-pointer" onClick={() => onImageClick(photo, stack.groupId)}>
+                                    <div key={photo.id} className="relative cursor-pointer" onClick={(e) => { e.stopPropagation(); onImageClick(photo, stack.groupId); }}>
                                         <PhotoCard
                                             photo={photo}
                                             onRate={onRate}

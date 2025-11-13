@@ -1,14 +1,13 @@
 import React, { useEffect } from 'react';
 import { Photo, Config } from '../types';
-import { X, ChevronLeft, ChevronRight, Maximize, Star, Flag, Layers, Check } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Star, Flag, Layers, Check } from 'lucide-react';
 import { RatingControls } from './RatingControls';
 
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> = ({isSelected, onSelect}) => {
     return (
-        <div className="absolute top-4 left-4 z-10 pointer-events-auto" onClick={(e) => { e.stopPropagation(); onSelect(); }} >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-200 cursor-pointer ${isSelected ? 'bg-green-500 border-2 border-white shadow-lg' : 'bg-gray-800/60 backdrop-blur-sm border-2 border-white/80'}`}>
-                {isSelected && <Check className="w-5 h-5 text-white" />}
-                {!isSelected && <div className="w-3 h-3 rounded-full bg-white/50"></div>}
+        <div className="absolute top-4 right-4 z-10 pointer-events-auto" onClick={(e) => { e.stopPropagation(); onSelect(); }} >
+            <div className={`selection-control-bg w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg cursor-pointer ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-800/60 backdrop-blur-sm border-white/80'}`}>
+                <Check className="w-5 h-5 text-white selection-control-check" />
             </div>
         </div>
     )
@@ -53,7 +52,6 @@ export const Modal: React.FC<ModalProps> = ({
             }
         };
 
-        // Body overflow is managed in App.tsx
         window.addEventListener('keydown', handleKeyDown);
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
@@ -75,7 +73,7 @@ export const Modal: React.FC<ModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">
-            <div className="absolute top-4 right-4 z-[51] flex items-center gap-4">
+            <div className="absolute top-6 right-6 z-[51] flex items-center gap-4">
                 {displayVotes && (
                     <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 px-3 py-1 rounded-md`}>
                         Рейтинг: {photo.votes}
@@ -90,6 +88,15 @@ export const Modal: React.FC<ModalProps> = ({
             <div className="relative max-w-5xl w-full max-h-[90vh] bg-gray-900 rounded-lg shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex-grow p-4 overflow-hidden flex items-center justify-center relative group cursor-pointer" onClick={onEnterImmersive}>
                     <img src={photo.url} alt={`Фото ${photo.id}`} className="object-contain w-full h-full max-h-[calc(90vh-140px)]" />
+                    {!photo.isOutOfCompetition && !groupInfo && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
+                            className="absolute top-4 left-4 z-10 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors"
+                            title="Отметить (F)"
+                        >
+                            <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                        </button>
+                    )}
                     {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
                 </div>
 
@@ -100,12 +107,6 @@ export const Modal: React.FC<ModalProps> = ({
                                 <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
                                 <span className="truncate">Фото из группы: «{groupInfo.name}»</span>
                             </div>
-                            <button
-                                onClick={() => onClose(groupInfo.id)}
-                                className="ml-auto flex-shrink-0 text-xs bg-gray-700 hover:bg-gray-600 text-indigo-300 px-2 py-1 rounded-md transition-colors"
-                            >
-                                Изменить выбор
-                            </button>
                         </div>
                     )}
                     <div className={`p-3 text-center text-gray-300 ${groupInfo ? '' : 'border-t border-gray-700/50'}`}>
@@ -114,15 +115,6 @@ export const Modal: React.FC<ModalProps> = ({
 
                     <div className="p-3 flex flex-wrap justify-between items-center gap-4">
                         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                            {!photo.isOutOfCompetition && (
-                                <button
-                                    onClick={() => onToggleFlag(photo.id)}
-                                    className="p-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-                                    title="Отметить (F)"
-                                >
-                                    <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
-                                </button>
-                            )}
                             <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} />
                         </div>
                         <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">

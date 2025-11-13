@@ -5,12 +5,11 @@ import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag, Layers, Check } from
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.MouseEvent) => void;}> = ({isSelected, onSelect}) => {
     return (
         <div
-            className="absolute top-4 left-4 z-20 pointer-events-auto"
+            className="absolute top-4 right-4 z-20 pointer-events-auto"
             onClick={onSelect}
         >
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-200 cursor-pointer ${isSelected ? 'bg-green-500 border-2 border-white shadow-lg' : 'bg-gray-800/60 backdrop-blur-sm border-2 border-white/80'}`}>
-                {isSelected && <Check className="w-5 h-5 text-white" />}
-                {!isSelected && <div className="w-3 h-3 rounded-full bg-white/50"></div>}
+            <div className={`selection-control-bg w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg cursor-pointer ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-800/60 backdrop-blur-sm border-white/80'}`}>
+                <Check className="w-5 h-5 text-white selection-control-check" />
             </div>
         </div>
     )
@@ -362,7 +361,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
 
     if (!photo) return null;
 
-    const handleBackgroundClick = () => {
+    const handleBackgroundClick = (e: React.MouseEvent) => {
         if (!isTouchDevice) {
             setControlsVisible(v => !v);
         }
@@ -403,7 +402,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         >
             <div
                 ref={filmStripRef}
-                className="h-full flex relative z-[1]"
+                className="h-full flex relative z-0"
                 style={{
                     width: `calc(300vw + ${PHOTO_GAP * 2}px)`,
                 }}
@@ -413,159 +412,136 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={currentIndex < allPhotos.length - 1} />
             </div>
 
-            {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
+            {/* Controls are moved to a separate layer with higher z-index */}
+            <div className="absolute inset-0 pointer-events-none z-10">
 
-            {/* Navigation Arrows */}
-            {hasMultiplePhotos && !isTouchDevice && (
-                <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 transition-opacity duration-300 ${arrowsVisible ? 'opacity-100' : 'opacity-0'}`}>
-                    <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Предыдущее фото">
-                        <ChevronLeft className="w-10 h-10" />
-                    </button>
-                </div>
-            )}
-            {hasMultiplePhotos && !isTouchDevice && (
-                <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 transition-opacity duration-300 ${arrowsVisible ? 'opacity-100' : 'opacity-0'}`}>
-                    <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Следующее фото">
-                        <ChevronRight className="w-10 h-10" />
-                    </button>
-                </div>
-            )}
+                {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
 
-            {/* Controls Container (visibility toggles) */}
-            <div
-                className={`absolute inset-0 transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-            >
-                <div
-                    className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/60 to-transparent p-4 flex justify-between items-start gap-4"
-                    onClick={handleControlInteraction}
-                    onTouchStart={handleControlTouchStart}
-                >
-                    <div className="absolute top-4 left-4 flex items-center gap-2 pl-10">
-                        <div className="bg-black/50 text-white text-sm font-mono px-2 py-1 rounded">
-                            {photo.id}
-                        </div>
-                        {isTouchDevice && !isOutOfComp && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
-                                className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20"
-                                aria-label="Отметить фото"
-                            >
-                                <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
-                            </button>
-                        )}
-                    </div>
-                    <div className="flex-grow"></div>
-                    <div className="flex items-center gap-4">
-                        {displayVotes && (
-                            <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 px-3 py-1 rounded-md`}>
-                                Рейтинг: {photo.votes}
-                            </div>
-                        )}
-                        <button onClick={handleClose} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Закрыть">
-                            <X className="w-6 h-6" />
+                {!isOutOfComp && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
+                        className="absolute top-4 left-4 z-20 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
+                        title="Отметить (F)"
+                    >
+                        <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                    </button>
+                )}
+
+
+                {/* Navigation Arrows */}
+                {hasMultiplePhotos && !isTouchDevice && (
+                    <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-20 transition-opacity duration-300 pointer-events-auto ${arrowsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                        <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Предыдущее фото">
+                            <ChevronLeft className="w-10 h-10" />
                         </button>
                     </div>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent pt-12 group/controls"
-                     onMouseEnter={() => !isTouchDevice && setControlsVisible(true)}>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover/controls:opacity-100 transition-opacity pointer-events-none" />
-                    {groupInfo && (
-                        <div
-                            className="px-4 pt-2 pb-1 flex items-center justify-center gap-3 text-sm text-gray-200"
-                            onClick={handleControlInteraction}
-                            onTouchStart={handleControlTouchStart}
-                        >
-                            <div className="flex items-center gap-3 truncate">
-                                <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
-                                <span className="truncate">Фото из группы: «{groupInfo.name}»</span>
-                            </div>
-                            <button
-                                onClick={() => handleClose()}
-                                className="ml-auto flex-shrink-0 text-xs bg-gray-700 hover:bg-gray-600 text-indigo-300 px-2 py-1 rounded-md transition-colors"
-                            >
-                                Изменить выбор
-                            </button>
-                        </div>
-                    )}
-                    <div className="px-4 pb-2 text-left text-gray-200 relative">
-                        <p>{photo.caption}</p>
+                )}
+                {hasMultiplePhotos && !isTouchDevice && (
+                    <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-20 transition-opacity duration-300 pointer-events-auto ${arrowsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                        <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white" aria-label="Следующее фото">
+                            <ChevronRight className="w-10 h-10" />
+                        </button>
                     </div>
+                )}
+
+                {/* Controls Container (visibility toggles) */}
+                <div
+                    className={`absolute inset-0 transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                >
                     <div
-                        className="p-4 flex flex-nowrap justify-between items-center gap-4 relative"
+                        className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start gap-4 pointer-events-auto"
                         onClick={handleControlInteraction}
                         onTouchStart={handleControlTouchStart}
-                        onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
                     >
-                        <div className="flex items-center flex-shrink-0">
-                            {!isTouchDevice && !isOutOfComp && (
-                                <button
-                                    onClick={() => onToggleFlag(photo.id)}
-                                    className="p-2 mr-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-                                    title="Отметить (F)"
-                                >
-                                    <Flag className="w-7 h-7" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
-                                </button>
-                            )}
-                            {!isOutOfComp && (
-                                <>
-                                    {[1, 2, 3, 4, 5].map((star) => {
-                                        const isFilled = (photo.userRating || 0) >= star;
-                                        const isHighlighted = !isTouchDevice && (hoverRating || 0) >= star;
-                                        const isLocked = star > maxRating;
-
-                                        let starColor = 'text-gray-500';
-                                        if (isFilled) {
-                                            starColor = 'text-yellow-400';
-                                        } else if (isHighlighted) {
-                                            starColor = isLocked ? 'text-red-500' : 'text-yellow-400';
-                                        }
-
-                                        const titleText = isLocked
-                                            ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}`
-                                            : `Оценить в ${star} ${getStarNounAccusative(star)}`;
-
-                                        return (
-                                            <button
-                                                key={star}
-                                                onClick={() => handleRate(star)}
-                                                onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
-                                                className={`p-2 rounded-full transition-all transform hover:scale-125`}
-                                                aria-label={titleText}
-                                                title={titleText}
-                                            >
-                                                <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
-                                            </button>
-                                        )
-                                    })}
-                                    <div className='w-[44px] h-[44px] flex items-center justify-center transition-opacity' style={{opacity: photo.userRating && photo.userRating > 0 ? 1 : 0}}>
-                                        <button onClick={() => handleRate(0)} className={`p-2 rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`} aria-label="Сбросить оценку">
-                                            <XCircle className="w-6 h-6" />
-                                        </button>
-                                    </div>
-                                </>
-                            )}
+                        <div className="bg-black/50 text-white text-sm font-mono px-2 py-1 rounded ml-16">
+                            {photo.id}
                         </div>
-                        <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
-                            <div className="flex items-center gap-x-1" title="Оценено фотографий">
-                                <span className="font-semibold text-green-400">{ratedPhotosCount}</span>
-                                <span className="text-gray-500">/{ratedPhotoLimit}</span>
+                        <div className="flex items-center gap-4">
+                            {displayVotes && (
+                                <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 px-3 py-1 rounded-md`}>
+                                    Рейтинг: {photo.votes}
+                                </div>
+                            )}
+                            <button onClick={handleClose} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Закрыть">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-12 group/controls pointer-events-auto"
+                         onMouseEnter={() => !isTouchDevice && setControlsVisible(true)}>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover/controls:opacity-100 transition-opacity pointer-events-none" />
+
+                        <div className="px-4 pb-2 text-left text-white relative shadow-text">
+                            <p>{photo.caption}</p>
+                        </div>
+                        <div
+                            className="p-4 flex flex-nowrap justify-between items-center gap-4 relative"
+                            onClick={handleControlInteraction}
+                            onTouchStart={handleControlTouchStart}
+                            onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
+                        >
+                            <div className="flex items-center flex-shrink-0">
+                                {!isOutOfComp && (
+                                    <>
+                                        {[1, 2, 3, 4, 5].map((star) => {
+                                            const isFilled = (photo.userRating || 0) >= star;
+                                            const isHighlighted = !isTouchDevice && (hoverRating || 0) >= star;
+                                            const isLocked = star > maxRating;
+
+                                            let starColor = 'text-gray-500';
+                                            if (isFilled) {
+                                                starColor = 'text-yellow-400';
+                                            } else if (isHighlighted) {
+                                                starColor = isLocked ? 'text-red-500' : 'text-yellow-400';
+                                            }
+
+                                            const titleText = isLocked
+                                                ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}`
+                                                : `Оценить в ${star} ${getStarNounAccusative(star)}`;
+
+                                            return (
+                                                <button
+                                                    key={star}
+                                                    onClick={() => handleRate(star)}
+                                                    onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
+                                                    className={`p-2 rounded-full transition-all transform hover:scale-125`}
+                                                    aria-label={titleText}
+                                                    title={titleText}
+                                                >
+                                                    <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
+                                                </button>
+                                            )
+                                        })}
+                                        <div className='w-[44px] h-[44px] flex items-center justify-center transition-opacity' style={{opacity: photo.userRating && photo.userRating > 0 ? 1 : 0}}>
+                                            <button onClick={() => handleRate(0)} className={`p-2 rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`} aria-label="Сбросить оценку">
+                                                <XCircle className="w-6 h-6" />
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
-                            <div className="w-px h-4 bg-gray-600"></div>
-                            <div className="flex items-center gap-x-1" title="Израсходовано звёзд">
-                                <span className="font-semibold text-yellow-400">{starsUsed}</span>
-                                <span className="text-gray-500">/{totalStarsLimit}</span>
+                            <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
+                                <div className="flex items-center gap-x-1" title="Оценено фотографий">
+                                    <span className="font-semibold text-green-400">{ratedPhotosCount}</span>
+                                    <span className="text-gray-500">/{ratedPhotoLimit}</span>
+                                </div>
+                                <div className="w-px h-4 bg-gray-600"></div>
+                                <div className="flex items-center gap-x-1" title="Израсходовано звёзд">
+                                    <span className="font-semibold text-yellow-400">{starsUsed}</span>
+                                    <span className="text-gray-500">/{totalStarsLimit}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            {showHint && isTouchDevice && (
-                <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/80 text-sm bg-black/50 px-3 py-1 rounded-full pointer-events-none animate-fade-in">
-                    Смахните вверх или вниз, чтобы закрыть
-                </div>
-            )}
+                {showHint && isTouchDevice && (
+                    <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/80 text-sm bg-black/50 px-3 py-1 rounded-full pointer-events-none animate-fade-in">
+                        Смахните вверх или вниз, чтобы закрыть
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
