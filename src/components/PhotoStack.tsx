@@ -36,7 +36,6 @@ const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                                                                    stack, groupName, onRate, onImageClick, onToggleFlag, isExpanded, onExpand, onClose, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags, isTouchDevice
                                                                }) => {
-    const [isExiting, setIsExiting] = useState(false);
 
     const coverPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId) || stack.photos[0];
     const selectedPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId);
@@ -62,18 +61,10 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
         }
     };
 
-    const handleClose = () => {
-        setIsExiting(true);
-        setTimeout(() => {
-            onClose();
-            setIsExiting(false);
-        }, 200); // match animation duration
-    };
-
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
-                handleClose();
+                onClose();
             }
         };
 
@@ -84,8 +75,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isExpanded]);
+    }, [isExpanded, onClose]);
 
 
     const CollapsedView = () => {
@@ -126,11 +116,11 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
 
         return ReactDOM.createPortal(
             <div
-                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm group-modal-overlay ${isExiting ? 'exiting' : ''}`}
-                onClick={handleClose}
+                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={onClose}
             >
                 <div
-                    className={`relative w-full ${adaptiveMaxWidth} max-h-[90vh] bg-[#111827] border border-gray-700/50 rounded-xl shadow-2xl flex flex-col group-modal-container ${isExiting ? 'exiting' : ''}`}
+                    className={`relative w-full ${adaptiveMaxWidth} max-h-[90vh] bg-[#111827] border border-gray-700/50 rounded-xl shadow-2xl flex flex-col transition-all duration-200 ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50">
@@ -143,11 +133,11 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         <div className={`flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                             <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" disabled={!selectedPhoto} />
                         </div>
-                        <button onClick={handleClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
+                        <button onClick={onClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
                             <X size={24} />
                         </button>
                     </header>
-                    <div className="flex-grow overflow-y-auto p-4">
+                    <div className="flex-grow overflow-y-auto p-6">
                         <div className={`grid ${gridColsClass} gap-4`}>
                             {photosToShow.map(photo => {
                                 const isSelected = stack.selectedPhotoId === photo.id;
@@ -182,7 +172,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
     return (
         <div id={`photo-stack-wrapper-${stack.groupId}`}>
             <CollapsedView />
-            {isExpanded && <ExpandedViewModal />}
+            <ExpandedViewModal />
         </div>
     )
 };

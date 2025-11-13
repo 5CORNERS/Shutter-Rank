@@ -106,6 +106,7 @@ const ImageWrapper: React.FC<{
             left: `${left}px`,
             width: `${width}px`,
             height: `${height}px`,
+            zIndex: 30, // Ensure controls are on top
         });
     }, []);
 
@@ -508,13 +509,10 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     className={`absolute inset-0 transition-opacity duration-300 z-20 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 >
                     <div
-                        className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start gap-4 pointer-events-auto"
+                        className="absolute top-0 left-0 right-0 p-4 flex justify-end items-start gap-4 pointer-events-auto"
                         onClick={handleControlInteraction}
                         onTouchStart={handleControlTouchStart}
                     >
-                        <div className="bg-black/50 text-white text-sm font-mono px-2 py-1 rounded ml-16">
-                            {photo.id}
-                        </div>
                         <div className="flex items-center gap-4">
                             {displayVotes && (
                                 <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 px-3 py-1 rounded-md`}>
