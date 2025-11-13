@@ -1,7 +1,17 @@
 import React, { useEffect } from 'react';
 import { Photo, Config } from '../types';
-import { X, ChevronLeft, ChevronRight, Maximize, Star, Flag, Layers } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Maximize, Star, Flag, Layers, Check } from 'lucide-react';
 import { RatingControls } from './RatingControls';
+
+const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> = ({isSelected, onSelect}) => {
+    return (
+        <div className="absolute top-4 left-4 z-10 pointer-events-auto" onClick={onSelect} >
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-black/20 transition-all duration-200 cursor-pointer ${isSelected ? 'bg-green-500 border-2 border-white shadow-lg' : 'bg-gray-800/60 backdrop-blur-sm border-2 border-gray-400/80'}`}>
+                {isSelected && <Check className="w-5 h-5 text-white" />}
+            </div>
+        </div>
+    )
+}
 
 interface ModalProps {
     photo: Photo;
@@ -18,13 +28,14 @@ interface ModalProps {
     ratedPhotosCount: number;
     starsUsed: number;
     groupInfo: { id: string; name: string } | null;
-    onSelectOtherFromGroup: (groupId: string) => void;
+    onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
+    isPhotoInGroupSelected: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
                                                 photo, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
                                                 onRate, onToggleFlag, hasNext, hasPrev, config, ratedPhotosCount,
-                                                starsUsed, groupInfo, onSelectOtherFromGroup
+                                                starsUsed, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected
                                             }) => {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -54,6 +65,13 @@ export const Modal: React.FC<ModalProps> = ({
         return 'text-gray-400';
     };
 
+    const handleSelect = () => {
+        if (groupInfo) {
+            const newSelectedId = isPhotoInGroupSelected ? null : photo.id;
+            onGroupSelectionChange(groupInfo.id, newSelectedId);
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={onClose} role="dialog">
             <div className="absolute top-4 right-4 z-[51] flex items-center gap-4">
@@ -71,9 +89,7 @@ export const Modal: React.FC<ModalProps> = ({
             <div className="relative max-w-5xl w-full max-h-[90vh] bg-gray-900 rounded-lg shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex-grow p-4 overflow-hidden flex items-center justify-center relative group cursor-zoom-in" onClick={onEnterImmersive}>
                     <img src={photo.url} alt={`Фото ${photo.id}`} className="object-contain w-full h-full max-h-[calc(90vh-140px)]" />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <Maximize className="w-16 h-16 text-white/80" />
-                    </div>
+                    {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
                 </div>
 
                 <div className="group/controls bg-gradient-to-t from-gray-900 via-gray-800/80 to-gray-800/60 hover:from-black hover:to-gray-900/80 transition-colors duration-300 rounded-b-lg">
@@ -81,12 +97,6 @@ export const Modal: React.FC<ModalProps> = ({
                         <div className="flex items-center gap-3 text-sm text-gray-400 border-t border-gray-700/50 px-4 py-2" onClick={e => e.stopPropagation()}>
                             <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
                             <span className="truncate">Группа: «{groupInfo.name}»</span>
-                            <button
-                                onClick={() => onSelectOtherFromGroup(groupInfo.id)}
-                                className="ml-auto flex-shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1 rounded-full"
-                            >
-                                Выбрать эту
-                            </button>
                         </div>
                     )}
                     <div className={`p-3 text-center text-gray-300 ${groupInfo ? '' : 'border-t border-gray-700/50'}`}>

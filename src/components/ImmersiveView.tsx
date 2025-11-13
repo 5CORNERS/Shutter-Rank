@@ -1,6 +1,22 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import { Photo } from '../types';
-import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag, Layers } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag, Layers, Check } from 'lucide-react';
+
+// FIX: Updated the 'onSelect' prop to accept a MouseEvent to resolve the type error.
+const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.MouseEvent) => void;}> = ({isSelected, onSelect}) => {
+    return (
+        <div
+            className="absolute top-4 left-4 z-20 pointer-events-auto"
+            onClick={onSelect}
+            // onTouchStart={(e) => { e.stopPropagation(); onSelect(); }}
+        >
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-black/20 transition-all duration-200 cursor-pointer ${isSelected ? 'bg-green-500 border-2 border-white shadow-lg' : 'bg-gray-800/60 backdrop-blur-sm border-2 border-gray-400/80'}`}>
+                {isSelected && <Check className="w-5 h-5 text-white" />}
+            </div>
+        </div>
+    )
+}
+
 
 interface ImmersiveViewProps {
     allPhotos: Photo[];
@@ -16,7 +32,8 @@ interface ImmersiveViewProps {
     ratedPhotoLimit: number;
     totalStarsLimit: number;
     groupInfo: { id: string; name: string } | null;
-    onSelectOtherFromGroup: (groupId: string) => void;
+    onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
+    isPhotoInGroupSelected: boolean;
 }
 
 type AnimationState = 'idle' | 'dragging' | 'animating';
@@ -83,7 +100,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                                 ratedPhotoLimit,
                                                                 totalStarsLimit,
                                                                 groupInfo,
-                                                                onSelectOtherFromGroup
+                                                                onGroupSelectionChange,
+                                                                isPhotoInGroupSelected
                                                             }) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
@@ -358,6 +376,14 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         touchOriginIsControl.current = true;
     };
 
+    const handleSelect = (e: React.SyntheticEvent) => {
+        e.stopPropagation();
+        if (groupInfo) {
+            const newSelectedId = isPhotoInGroupSelected ? null : photo.id;
+            onGroupSelectionChange(groupInfo.id, newSelectedId);
+        }
+    };
+
     const isOutOfComp = !!photo.isOutOfCompetition;
     const maxRating = photo.maxRating ?? 3;
 
@@ -376,7 +402,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         >
             <div
                 ref={filmStripRef}
-                className="h-full flex"
+                className="h-full flex relative z-[1]"
                 style={{
                     width: `calc(300vw + ${PHOTO_GAP * 2}px)`,
                 }}
@@ -385,6 +411,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 <ImageWrapper photo={photo} isVisible={true} />
                 <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={currentIndex < allPhotos.length - 1} />
             </div>
+
+            {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
 
             {/* Navigation Arrows */}
             {hasMultiplePhotos && !isTouchDevice && (
@@ -411,7 +439,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     onClick={handleControlInteraction}
                     onTouchStart={handleControlTouchStart}
                 >
-                    <div className="absolute top-4 left-4 flex items-center gap-2">
+                    <div className="absolute top-4 left-4 flex items-center gap-2 pl-10">
                         <div className="bg-black/50 text-white text-sm font-mono px-2 py-1 rounded">
                             {photo.id}
                         </div>
@@ -449,12 +477,6 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                         >
                             <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
                             <span className="truncate">Группа: «{groupInfo.name}»</span>
-                            <button
-                                onClick={() => onSelectOtherFromGroup(groupInfo.id)}
-                                className="ml-auto flex-shrink-0 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1 rounded-full"
-                            >
-                                Изменить выбор
-                            </button>
                         </div>
                     )}
                     <div className="px-4 pb-2 text-left text-gray-200 relative">

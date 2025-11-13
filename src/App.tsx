@@ -1,8 +1,3 @@
-
-
-
-
-
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
@@ -57,6 +52,7 @@ const App: React.FC = () => {
     const [filterFlags, setFilterFlags] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [activeExpandedGroup, setActiveExpandedGroup] = useState<string | null>(null);
+    const [groupSelections, setGroupSelections] = useState<Record<string, number | null>>({});
 
     const { isDesktop, isTouchDevice } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +126,10 @@ const App: React.FC = () => {
                         gridAspectRatio: loadedConfig.defaultGridAspectRatio || '4/3'
                     });
                 }
+
+                const groupSelectionsKey = `groupSelections_${sessionId}`;
+                const savedSelections = localStorage.getItem(groupSelectionsKey);
+                setGroupSelections(savedSelections ? JSON.parse(savedSelections) : {});
 
                 const initialPhotos = photosData.photos;
                 const initialVotes = data.votes || {};
@@ -214,6 +214,11 @@ const App: React.FC = () => {
         localStorage.setItem(`userFlags_${sessionId}`, JSON.stringify(userFlags));
     }, [photos, status, sessionId]);
 
+    useEffect(() => {
+        // Lock body scroll when group modal is open
+        document.body.style.overflow = activeExpandedGroup ? 'hidden' : 'auto';
+    }, [activeExpandedGroup]);
+
     const scrollToPhoto = useCallback((photoId: number | null) => {
         if (photoId !== null) {
             // Delay to allow DOM to update after state change (e.g., stack expansion)
@@ -271,14 +276,12 @@ const App: React.FC = () => {
         photosWithMaxRating.forEach(photo => {
             if (photo.groupId) {
                 if (!groupsProcessed[photo.groupId]) {
-                    const existingStack = galleryItems.find(item => 'photos' in item && item.groupId === photo.groupId) as PhotoStack | undefined;
-
                     groupsProcessed[photo.groupId] = {
                         type: 'stack',
                         groupId: photo.groupId,
                         photos: [],
-                        isExpanded: existingStack?.isExpanded || false,
-                        selectedPhotoId: existingStack?.selectedPhotoId || null,
+                        isExpanded: false,
+                        selectedPhotoId: groupSelections[photo.groupId] || null,
                     };
                     grouped.push(groupsProcessed[photo.groupId]);
                 }
@@ -289,22 +292,14 @@ const App: React.FC = () => {
         });
 
         Object.values(groupsProcessed).forEach(stack => {
-            if (stack.selectedPhotoId === null && stack.photos.length > 0) {
-                // Find first rated photo in stack to be the cover, or default to first photo.
-                const firstRated = stack.photos.find(p => p.userRating && p.userRating > 0);
-                stack.selectedPhotoId = firstRated ? firstRated.id : stack.photos[0].id;
-            } else if (stack.selectedPhotoId !== null) {
-                // Ensure selected photo is still in the group
-                const isSelectedPhotoPresent = stack.photos.some(p => p.id === stack.selectedPhotoId);
-                if (!isSelectedPhotoPresent && stack.photos.length > 0) {
-                    stack.selectedPhotoId = stack.photos[0].id;
-                }
+            // Ensure selectedPhotoId from localStorage is still valid
+            if (stack.selectedPhotoId && !stack.photos.some(p => p.id === stack.selectedPhotoId)) {
+                stack.selectedPhotoId = null;
             }
         });
 
         setGalleryItems(grouped);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [photosWithMaxRating]);
+    }, [photosWithMaxRating, groupSelections]);
 
 
     const ratedPhotosCount = useMemo(() => photos.filter(p => p.userRating && p.userRating > 0).length, [photos]);
@@ -514,38 +509,20 @@ const App: React.FC = () => {
         setIsSettingsModalOpen(false);
     };
 
-    const handleStackStateChange = useCallback((groupId: string, changes: Partial<PhotoStack>) => {
-        if (changes.isExpanded) {
-            setActiveExpandedGroup(groupId);
-        } else if (changes.isExpanded === false) {
-            setActiveExpandedGroup(null);
+    const handleGroupSelectionChange = useCallback((groupId: string, photoId: number | null) => {
+        const newSelections = { ...groupSelections, [groupId]: photoId };
+        setGroupSelections(newSelections);
+        if (sessionId) {
+            localStorage.setItem(`groupSelections_${sessionId}`, JSON.stringify(newSelections));
         }
-
-        setGalleryItems(currentItems =>
-            currentItems.map(item => {
-                if (item.type === 'stack' && item.groupId === groupId) {
-                    return { ...item, ...changes };
-                }
-                return item;
-            })
-        );
-    }, []);
+    }, [groupSelections, sessionId]);
 
     const handleSelectOtherFromGroup = useCallback((groupId: string) => {
-        const groupStack = galleryItems.find(item => item.type === 'stack' && item.groupId === groupId) as PhotoStack | undefined;
-
         // Close any open viewers
         setSelectedPhotoId(null);
         setImmersivePhotoId(null);
-
-        if (groupStack) {
-            handleStackStateChange(groupId, { isExpanded: true });
-            const photoToScrollTo = groupStack.photos.find(p => p.id === groupStack.selectedPhotoId) || groupStack.photos[0];
-            if (photoToScrollTo) {
-                scrollToPhoto(photoToScrollTo.id);
-            }
-        }
-    }, [galleryItems, handleStackStateChange, scrollToPhoto]);
+        setActiveExpandedGroup(groupId);
+    }, []);
 
     const findGroupForPhoto = useCallback((photoId: number | null): { id: string; name: string } | null => {
         if (photoId === null) return null;
@@ -634,13 +611,6 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
             <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
-            {activeExpandedGroup && (
-                <div
-                    className="fixed inset-0 bg-black/70 z-10 animate-fadeIn"
-                    onClick={() => handleStackStateChange(activeExpandedGroup, { isExpanded: false })}
-                />
-            )}
-
             {isArticleModalOpen && introArticle && (
                 <ArticleModal content={introArticle} onClose={() => setIsArticleModalOpen(false)} />
             )}
@@ -718,16 +688,18 @@ const App: React.FC = () => {
                     {sortedGalleryItems.map(item => {
                         if (item.type === 'stack') {
                             const groupName = groups[item.groupId] || '';
-                            const isExpandedAndActive = item.isExpanded && activeExpandedGroup === item.groupId;
                             return (
-                                <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''} ${isExpandedAndActive ? 'col-span-full' : ''} ${isExpandedAndActive ? 'relative z-20' : ''}`}>
+                                <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''}`}>
                                     <PhotoStackComponent
                                         stack={item}
                                         groupName={groupName}
                                         onRate={handleRate}
                                         onImageClick={handleImageClick}
                                         onToggleFlag={handleToggleFlag}
-                                        onStateChange={handleStackStateChange}
+                                        onExpand={() => setActiveExpandedGroup(item.groupId)}
+                                        isExpanded={activeExpandedGroup === item.groupId}
+                                        onClose={() => setActiveExpandedGroup(null)}
+                                        onSelectionChange={handleGroupSelectionChange}
                                         displayVotes={votingPhase === 'results'}
                                         layoutMode={settings.layout}
                                         gridAspectRatio={settings.gridAspectRatio}
@@ -773,7 +745,8 @@ const App: React.FC = () => {
                     ratedPhotosCount={ratedPhotosCount}
                     starsUsed={starsUsed}
                     groupInfo={selectedPhotoGroupInfo}
-                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
+                    onGroupSelectionChange={handleGroupSelectionChange}
+                    isPhotoInGroupSelected={selectedPhoto.groupId ? groupSelections[selectedPhoto.groupId] === selectedPhoto.id : false}
                 />
             )}
 
@@ -792,7 +765,8 @@ const App: React.FC = () => {
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     totalStarsLimit={config.totalStarsLimit}
                     groupInfo={immersivePhotoGroupInfo}
-                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
+                    onGroupSelectionChange={handleGroupSelectionChange}
+                    isPhotoInGroupSelected={immersivePhotoGroupInfo ? groupSelections[immersivePhotoGroupInfo.id] === immersivePhotoId : false}
                 />
             )}
         </div>

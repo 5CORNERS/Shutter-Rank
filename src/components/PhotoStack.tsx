@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { Photo, PhotoStack, LayoutMode, GridAspectRatio } from '../types';
 import { PhotoCard } from './PhotoCard';
 import { RatingControls } from './RatingControls';
-import { Layers, Check, X, Info } from 'lucide-react';
+import { Layers, Check, X } from 'lucide-react';
 
 interface PhotoStackProps {
     stack: PhotoStack;
@@ -10,7 +11,10 @@ interface PhotoStackProps {
     onRate: (photoId: number, rating: number) => void;
     onImageClick: (photo: Photo) => void;
     onToggleFlag: (photoId: number) => void;
-    onStateChange: (groupId: string, changes: Partial<PhotoStack>) => void;
+    isExpanded: boolean;
+    onExpand: () => void;
+    onClose: () => void;
+    onSelectionChange: (groupId: string, photoId: number | null) => void;
     displayVotes: boolean;
     layoutMode: LayoutMode;
     gridAspectRatio: GridAspectRatio;
@@ -21,56 +25,77 @@ interface PhotoStackProps {
 const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
     return (
         <div className="absolute top-2 right-2 z-10 pointer-events-auto" >
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center ring-1 ring-inset ring-black/20 transition-all duration-200 ${isSelected ? 'bg-green-500 border-2 border-white shadow-lg' : 'bg-gray-800/60 backdrop-blur-sm border-2 border-gray-400/80'}`}>
-                {isSelected && <Check className="w-4 h-4 text-white" />}
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-200 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white' : 'bg-gray-900/40 backdrop-blur-sm border-gray-400/80'}`}>
+                {isSelected && <Check className="w-5 h-5 text-white" />}
             </div>
         </div>
     )
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
-                                                                   stack, groupName, onRate, onImageClick, onToggleFlag, onStateChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags
+                                                                   stack, groupName, onRate, onImageClick, onToggleFlag, isExpanded, onExpand, onClose, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags
                                                                }) => {
+    const [isExiting, setIsExiting] = useState(false);
+
+    // Use the selected photo from props, or find the first one if none selected (for cover)
     const coverPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId) || stack.photos[0];
     const selectedPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId);
 
-    const handleExpand = () => {
-        onStateChange(stack.groupId, { isExpanded: true });
-    };
-
-    const handleCollapse = () => {
-        onStateChange(stack.groupId, { isExpanded: false });
-    };
-
     const handleSelectPhoto = (photoId: number) => {
         const newSelectedId = stack.selectedPhotoId === photoId ? null : photoId;
-        onStateChange(stack.groupId, { selectedPhotoId: newSelectedId });
+        onSelectionChange(stack.groupId, newSelectedId);
     };
 
     const handleRateCover = (photoId: number, rating: number) => {
         if (stack.selectedPhotoId === null) {
-            handleExpand();
+            onExpand();
             showToast("Сначала выберите одну фотографию из группы");
         } else {
             onRate(photoId, rating);
         }
     };
 
-    const handleRateFromHeader = (photoId: number, rating: number) => {
+    const handleRateFromHeader = (rating: number) => {
         if (stack.selectedPhotoId) {
             onRate(stack.selectedPhotoId, rating);
         }
     };
 
+    const handleClose = () => {
+        setIsExiting(true);
+        setTimeout(() => {
+            onClose();
+            setIsExiting(false);
+        }, 200); // match animation duration
+    };
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                handleClose();
+            }
+        };
+
+        if (isExpanded) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isExpanded]);
+
+
     const CollapsedView = () => {
         if (!coverPhoto) return null;
         return (
-            <div id={`photo-stack-${coverPhoto.id}`} className="relative group" onClick={handleExpand}>
+            <div id={`photo-stack-${coverPhoto.id}`} className="relative group" onClick={onExpand}>
                 <div className="relative z-[1] photo-stack-visual">
                     <PhotoCard
                         photo={coverPhoto}
                         onRate={handleRateCover}
-                        onImageClick={handleExpand}
+                        onImageClick={onExpand}
                         onToggleFlag={onToggleFlag}
                         displayVotes={displayVotes}
                         layoutMode={layoutMode}
@@ -85,60 +110,68 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
         );
     }
 
-    const ExpandedView = () => {
+    const ExpandedViewModal = () => {
         const photosToShow = filterFlags ? stack.photos.filter(p => p.isFlagged !== false) : stack.photos;
-        return (
-            <div className="bg-gray-800/50 border-2 border-indigo-500/30 rounded-lg p-3 sm:p-4 space-y-4">
-                <div className="flex flex-wrap justify-between items-center gap-2">
-                    <div className="flex-grow">
-                        <h3 className="text-base sm:text-lg font-bold text-gray-200">Выберите лучшее фото в группе «{groupName}»</h3>
-                        {selectedPhoto && displayVotes && (
-                            <div className="text-sm text-gray-400">Общий рейтинг выбранного фото: <span className="font-bold text-green-400">{selectedPhoto.votes}</span></div>
-                        )}
-                    </div>
-                    {selectedPhoto && (
-                        <div className="animate-fadeIn">
-                            <RatingControls photo={selectedPhoto} onRate={handleRateFromHeader} size="small" />
+
+        return ReactDOM.createPortal(
+            <div
+                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 group-modal-overlay ${isExiting ? 'exiting' : ''}`}
+                onClick={handleClose}
+            >
+                <div
+                    className={`relative w-full max-w-6xl max-h-[90vh] bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 rounded-xl shadow-2xl flex flex-col group-modal-container ${isExiting ? 'exiting' : ''}`}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50">
+                        <div className="flex-grow">
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-200">Выберите фото в группе «{groupName}»</h3>
+                            {selectedPhoto && displayVotes && (
+                                <div className="text-sm text-gray-400">Общий рейтинг: <span className="font-bold text-green-400">{selectedPhoto.votes}</span></div>
+                            )}
                         </div>
-                    )}
-                    <button onClick={handleCollapse} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
-                        <X size={20} />
-                    </button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {photosToShow.map(photo => {
-                        const isSelected = stack.selectedPhotoId === photo.id;
-                        const isDimmed = stack.selectedPhotoId !== null && !isSelected;
-                        return (
-                            <div key={photo.id} className="relative cursor-pointer" onClick={() => handleSelectPhoto(photo.id)}>
-                                <PhotoCard
-                                    photo={photo}
-                                    onRate={onRate}
-                                    onImageClick={onImageClick}
-                                    onToggleFlag={onToggleFlag}
-                                    displayVotes={false} // Votes are shown in header
-                                    layoutMode="grid" // Force grid inside stack
-                                    gridAspectRatio="1/1"
-                                    showRatingControls={false} // Ratings are in header
-                                    isDimmed={isDimmed}
-                                />
-                                <SelectionControl isSelected={isSelected} />
+                        {selectedPhoto ? (
+                            <div className="animate-fadeIn flex-shrink-0">
+                                <RatingControls photo={selectedPhoto} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" />
                             </div>
-                        )
-                    })}
+                        ) : <div className="h-[38px] flex-shrink-0"></div>}
+                        <button onClick={handleClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
+                            <X size={24} />
+                        </button>
+                    </header>
+                    <div className="flex-grow p-4 overflow-y-auto">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            {photosToShow.map(photo => {
+                                const isSelected = stack.selectedPhotoId === photo.id;
+                                const isDimmed = stack.selectedPhotoId !== null && !isSelected;
+                                return (
+                                    <div key={photo.id} className="relative cursor-pointer" onClick={() => handleSelectPhoto(photo.id)}>
+                                        <PhotoCard
+                                            photo={photo}
+                                            onRate={onRate}
+                                            onImageClick={onImageClick}
+                                            onToggleFlag={onToggleFlag}
+                                            displayVotes={false}
+                                            layoutMode={layoutMode}
+                                            gridAspectRatio={gridAspectRatio}
+                                            showRatingControls={false}
+                                            isDimmed={isDimmed}
+                                        />
+                                        <SelectionControl isSelected={isSelected} />
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         )
     }
 
     return (
         <div id={`photo-stack-wrapper-${stack.groupId}`}>
-            {!stack.isExpanded && <CollapsedView />}
-            <div className={`transition-all duration-500 ease-in-out grid overflow-hidden ${stack.isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-                <div className="overflow-hidden">
-                    {stack.isExpanded && <ExpandedView />}
-                </div>
-            </div>
+            <CollapsedView />
+            {isExpanded && <ExpandedViewModal />}
         </div>
     )
 };
