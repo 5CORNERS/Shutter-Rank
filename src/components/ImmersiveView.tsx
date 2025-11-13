@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag, Layers, Check } from
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.MouseEvent) => void;}> = ({isSelected, onSelect}) => {
     return (
         <div
-            className="absolute top-4 right-4 z-10 pointer-events-auto"
+            className="absolute top-2 right-2 z-10 pointer-events-auto"
             onClick={onSelect}
         >
             <div className={`selection-control-bg w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg cursor-pointer ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-800/60 backdrop-blur-sm border-white/80'}`}>
@@ -91,7 +91,7 @@ const ImageWrapper: React.FC<{
             style={{ marginRight: `${PHOTO_GAP}px` }}
         >
             {photo && (
-                <>
+                <div className="relative w-full h-full flex items-center justify-center">
                     <img
                         src={photo.url}
                         alt={photo.caption}
@@ -103,7 +103,7 @@ const ImageWrapper: React.FC<{
                         <>
                             <button
                                 onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
-                                className="absolute top-4 left-4 z-10 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
+                                className="absolute top-2 left-2 z-10 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
                                 title="Отметить (F)"
                             >
                                 <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
@@ -111,7 +111,7 @@ const ImageWrapper: React.FC<{
                             {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
                         </>
                     )}
-                </>
+                </div>
             )}
         </div>
     )
@@ -428,7 +428,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         >
             <div
                 ref={filmStripRef}
-                className="h-full flex relative z-0"
+                className="h-full flex z-0"
                 style={{
                     width: `calc(300vw + ${PHOTO_GAP * 2}px)`,
                 }}
@@ -480,7 +480,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                         </div>
                     </div>
 
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-12 group/controls pointer-events-auto"
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-16 group/controls pointer-events-auto"
                          onMouseEnter={() => !isTouchDevice && setControlsVisible(true)}>
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover/controls:opacity-100 transition-opacity pointer-events-none" />
 
