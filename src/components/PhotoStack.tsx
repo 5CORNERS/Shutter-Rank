@@ -126,30 +126,28 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
 
         return ReactDOM.createPortal(
             <div
-                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm group-modal-overlay ${isExiting ? 'exiting' : ''}`}
+                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm group-modal-overlay ${isExiting ? 'exiting' : ''}`}
                 onClick={handleClose}
             >
                 <div
                     className={`relative w-full ${adaptiveMaxWidth} max-h-[90vh] bg-[#111827] border border-gray-700/50 rounded-xl shadow-2xl flex flex-col group-modal-container ${isExiting ? 'exiting' : ''}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50">
+                    <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50 pl-[0.8rem]">
                         <div className="flex-grow">
                             <h3 className="text-lg sm:text-xl font-bold text-gray-200">Выберите фото в группе «{groupName}»</h3>
                             {selectedPhoto && displayVotes && (
                                 <div className="text-sm text-gray-400">Общий рейтинг: <span className="font-bold text-green-400">{selectedPhoto.votes}</span></div>
                             )}
                         </div>
-                        {selectedPhoto ? (
-                            <div className="animate-fadeIn flex-shrink-0">
-                                <RatingControls photo={selectedPhoto} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" />
-                            </div>
-                        ) : <div className="h-[38px] flex-shrink-0"></div>}
+                        <div className={`flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0'}`}>
+                            <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" />
+                        </div>
                         <button onClick={handleClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
                             <X size={24} />
                         </button>
                     </header>
-                    <div className="flex-grow p-4 overflow-y-auto">
+                    <div className="flex-grow p-4 overflow-y-auto pr-[0.8rem] pl-[0.6rem] pb-[0.6rem]">
                         <div className={`grid ${gridColsClass} gap-4`}>
                             {photosToShow.map(photo => {
                                 const isSelected = stack.selectedPhotoId === photo.id;

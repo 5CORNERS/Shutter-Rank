@@ -46,7 +46,7 @@ export const Modal: React.FC<ModalProps> = ({
             else if (event.key.toLowerCase() === 'f' || (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))) {
                 event.preventDefault();
                 if (!photo.isOutOfCompetition) onToggleFlag(photo.id);
-            } else if (!event.ctrlKey && !event.metaKey && /^[0-5]$/.test(event.key)) {
+            } else if (!groupInfo && !event.ctrlKey && !event.metaKey && /^[0-5]$/.test(event.key)) {
                 event.preventDefault();
                 if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(event.key, 10));
             }
@@ -56,7 +56,7 @@ export const Modal: React.FC<ModalProps> = ({
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [onClose, onNext, onPrev, photo, onRate, onToggleFlag, openedFromGroupId]);
+    }, [onClose, onNext, onPrev, photo, onRate, onToggleFlag, openedFromGroupId, groupInfo]);
 
     const getScoreColor = (score: number) => {
         if (score > 0) return 'text-green-400';
@@ -73,7 +73,7 @@ export const Modal: React.FC<ModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">
-            <div className="absolute top-6 right-6 z-[51] flex items-center gap-4">
+            <div className="absolute top-10 right-10 z-[51] flex items-center gap-4">
                 {displayVotes && (
                     <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 px-3 py-1 rounded-md`}>
                         Рейтинг: {photo.votes}
@@ -88,7 +88,7 @@ export const Modal: React.FC<ModalProps> = ({
             <div className="relative max-w-5xl w-full max-h-[90vh] bg-gray-900 rounded-lg shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex-grow p-4 overflow-hidden flex items-center justify-center relative group cursor-pointer" onClick={onEnterImmersive}>
                     <img src={photo.url} alt={`Фото ${photo.id}`} className="object-contain w-full h-full max-h-[calc(90vh-140px)]" />
-                    {!photo.isOutOfCompetition && !groupInfo && (
+                    {!photo.isOutOfCompetition && (
                         <button
                             onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
                             className="absolute top-4 left-4 z-10 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors"
@@ -113,25 +113,27 @@ export const Modal: React.FC<ModalProps> = ({
                         <p>{photo.caption}</p>
                     </div>
 
-                    <div className="p-3 flex flex-wrap justify-between items-center gap-4">
-                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                            <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} />
-                        </div>
-                        <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
-                            <span className="text-gray-400">Фото №{photo.id}</span>
-                            <div className="w-px h-4 bg-gray-600"></div>
-                            <div className="flex items-center gap-x-1" title="Оценено фотографий">
-                                <span className="font-semibold text-green-400">{ratedPhotosCount}</span>
-                                <span className="text-gray-500">/{config?.ratedPhotoLimit}</span>
+                    { !groupInfo && (
+                        <div className="p-3 flex flex-wrap justify-between items-center gap-4">
+                            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} />
                             </div>
-                            <div className="w-px h-4 bg-gray-600"></div>
-                            <div className="flex items-center gap-x-1" title="Израсходовано звёзд">
-                                <Star size={14} className="text-yellow-400" />
-                                <span className="font-semibold text-yellow-400">{starsUsed}</span>
-                                <span className="text-gray-500">/{config?.totalStarsLimit}</span>
+                            <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
+                                <span className="text-gray-400">Фото №{photo.id}</span>
+                                <div className="w-px h-4 bg-gray-600"></div>
+                                <div className="flex items-center gap-x-1" title="Оценено фотографий">
+                                    <span className="font-semibold text-green-400">{ratedPhotosCount}</span>
+                                    <span className="text-gray-500">/{config?.ratedPhotoLimit}</span>
+                                </div>
+                                <div className="w-px h-4 bg-gray-600"></div>
+                                <div className="flex items-center gap-x-1" title="Израсходовано звёзд">
+                                    <Star size={14} className="text-yellow-400" />
+                                    <span className="font-semibold text-yellow-400">{starsUsed}</span>
+                                    <span className="text-gray-500">/{config?.totalStarsLimit}</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </div>
         </div>

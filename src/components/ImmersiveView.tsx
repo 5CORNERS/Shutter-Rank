@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag, Layers, Check } from
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.MouseEvent) => void;}> = ({isSelected, onSelect}) => {
     return (
         <div
-            className="absolute top-4 right-4 z-20 pointer-events-auto"
+            className="absolute top-4 right-4 z-10 pointer-events-auto"
             onClick={onSelect}
         >
             <div className={`selection-control-bg w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg cursor-pointer ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-800/60 backdrop-blur-sm border-white/80'}`}>
@@ -68,22 +68,54 @@ const getStarNounGenitive = (count: number): string => {
 }
 
 
-const ImageWrapper: React.FC<{ photo?: Photo; isVisible: boolean }> = React.memo(({ photo, isVisible }) => (
-    <div
-        className="w-screen h-full flex-shrink-0 flex items-center justify-center"
-        style={{ marginRight: `${PHOTO_GAP}px` }}
-    >
-        {photo && (
-            <img
-                src={photo.url}
-                alt={photo.caption}
-                className="object-contain max-w-full max-h-full"
-                draggable="false"
-                loading={isVisible ? 'eager' : 'lazy'}
-            />
-        )}
-    </div>
-));
+const ImageWrapper: React.FC<{
+    photo?: Photo;
+    isVisible: boolean;
+    groupInfo: { id: string; name: string } | null;
+    isPhotoInGroupSelected: boolean;
+    onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
+    onToggleFlag: (photoId: number) => void;
+}> = React.memo(({ photo, isVisible, groupInfo, isPhotoInGroupSelected, onGroupSelectionChange, onToggleFlag }) => {
+
+    const handleSelect = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (groupInfo && photo) {
+            const newSelectedId = isPhotoInGroupSelected ? null : photo.id;
+            onGroupSelectionChange(groupInfo.id, newSelectedId);
+        }
+    };
+
+    return (
+        <div
+            className="w-screen h-full flex-shrink-0 flex items-center justify-center relative"
+            style={{ marginRight: `${PHOTO_GAP}px` }}
+        >
+            {photo && (
+                <>
+                    <img
+                        src={photo.url}
+                        alt={photo.caption}
+                        className="object-contain max-w-full max-h-full"
+                        draggable="false"
+                        loading={isVisible ? 'eager' : 'lazy'}
+                    />
+                    { isVisible && !photo.isOutOfCompetition && (
+                        <>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
+                                className="absolute top-4 left-4 z-10 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
+                                title="Отметить (F)"
+                            >
+                                <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                            </button>
+                            {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
+                        </>
+                    )}
+                </>
+            )}
+        </div>
+    )
+});
 
 export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                                 allPhotos,
@@ -161,7 +193,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         }
     }, []);
 
-    const handleClose = useCallback(() => {
+    const handleClose = useCallback((e?: React.MouseEvent) => {
+        e?.stopPropagation();
         onClose(currentPhotoIdRef.current, openedFromGroupId);
     }, [onClose, openedFromGroupId]);
 
@@ -187,19 +220,20 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
 
         const handleFullscreenChange = () => {
             if (document.fullscreenElement === null) {
-                handleClose();
+                onClose(currentPhotoIdRef.current, openedFromGroupId);
             }
         };
 
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    }, [handleClose]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                handleClose();
+                // Fullscreen API handles this, which triggers onClose
             } else if (e.key === 'ArrowRight') {
                 onNext();
             } else if (e.key === 'ArrowLeft') {
@@ -210,7 +244,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             } else if (e.key.toLowerCase() === 'f' || (e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) {
                 e.preventDefault();
                 if (!photo.isOutOfCompetition) onToggleFlag(photo.id);
-            } else if (!e.ctrlKey && !e.metaKey && /^[0-5]$/.test(e.key)) {
+            } else if (!groupInfo && !e.ctrlKey && !e.metaKey && /^[0-5]$/.test(e.key)) {
                 e.preventDefault();
                 if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(e.key, 10));
             }
@@ -220,7 +254,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             document.removeEventListener('keydown', handleKeyDown);
             if (activityTimer.current) clearTimeout(activityTimer.current);
         }
-    }, [handleClose, onNext, onPrev, isTouchDevice, photo, onRate, onToggleFlag]);
+    }, [onNext, onPrev, isTouchDevice, photo, onRate, onToggleFlag, groupInfo]);
 
     useEffect(() => {
         if (showHint) {
@@ -330,7 +364,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
 
         // Prioritize vertical swipe for closing, but it must be a clear vertical gesture.
         if (dragState.axis === 'V' && Math.abs(deltaY) > SWIPE_THRESHOLD_Y) {
-            handleClose();
+            onClose(currentPhotoIdRef.current, openedFromGroupId);
             return;
         }
 
@@ -376,14 +410,6 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         touchOriginIsControl.current = true;
     };
 
-    const handleSelect = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (groupInfo) {
-            const newSelectedId = isPhotoInGroupSelected ? null : photo.id;
-            onGroupSelectionChange(groupInfo.id, newSelectedId);
-        }
-    };
-
     const isOutOfComp = !!photo.isOutOfCompetition;
     const maxRating = photo.maxRating ?? 3;
 
@@ -407,27 +433,13 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     width: `calc(300vw + ${PHOTO_GAP * 2}px)`,
                 }}
             >
-                <ImageWrapper photo={hasMultiplePhotos ? prevPhoto : undefined} isVisible={currentIndex > 0} />
-                <ImageWrapper photo={photo} isVisible={true} />
-                <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={currentIndex < allPhotos.length - 1} />
+                <ImageWrapper photo={hasMultiplePhotos ? prevPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleFlag={()=>{}} />
+                <ImageWrapper photo={photo} isVisible={true} groupInfo={groupInfo} isPhotoInGroupSelected={isPhotoInGroupSelected} onGroupSelectionChange={onGroupSelectionChange} onToggleFlag={onToggleFlag} />
+                <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleFlag={()=>{}} />
             </div>
 
             {/* Controls are moved to a separate layer with higher z-index */}
             <div className="absolute inset-0 pointer-events-none z-10">
-
-                {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
-
-                {!isOutOfComp && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
-                        className="absolute top-4 left-4 z-20 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
-                        title="Отметить (F)"
-                    >
-                        <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
-                    </button>
-                )}
-
-
                 {/* Navigation Arrows */}
                 {hasMultiplePhotos && !isTouchDevice && (
                     <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-20 transition-opacity duration-300 pointer-events-auto ${arrowsVisible ? 'opacity-100' : 'opacity-0'}`}>
@@ -446,7 +458,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
 
                 {/* Controls Container (visibility toggles) */}
                 <div
-                    className={`absolute inset-0 transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                    className={`absolute inset-0 transition-opacity duration-300 z-20 ${controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 >
                     <div
                         className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start gap-4 pointer-events-auto"
@@ -482,7 +494,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                             onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
                         >
                             <div className="flex items-center flex-shrink-0">
-                                {!isOutOfComp && (
+                                {!isOutOfComp && !groupInfo && (
                                     <>
                                         {[1, 2, 3, 4, 5].map((star) => {
                                             const isFilled = (photo.userRating || 0) >= star;
