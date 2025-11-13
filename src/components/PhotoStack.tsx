@@ -133,21 +133,21 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                     className={`relative w-full ${adaptiveMaxWidth} max-h-[90vh] bg-[#111827] border border-gray-700/50 rounded-xl shadow-2xl flex flex-col group-modal-container ${isExiting ? 'exiting' : ''}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50" style={{ paddingLeft: '0.3rem' }}>
+                    <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50">
                         <div className="flex-grow">
-                            <h3 className="text-lg sm:text-xl font-bold text-gray-200" style={{ paddingLeft: '0.3rem' }}>Выберите фото в группе «{groupName}»</h3>
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-200">Выберите фото в группе «{groupName}»</h3>
                             {selectedPhoto && displayVotes && (
-                                <div className="text-sm text-gray-400" style={{ paddingLeft: '0.3rem' }}>Общий рейтинг: <span className="font-bold text-green-400">{selectedPhoto.votes}</span></div>
+                                <div className="text-sm text-gray-400">Общий рейтинг: <span className="font-bold text-green-400">{selectedPhoto.votes}</span></div>
                             )}
                         </div>
-                        <div className={`flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0'}`}>
-                            <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" />
+                        <div className={`flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" disabled={!selectedPhoto} />
                         </div>
                         <button onClick={handleClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
                             <X size={24} />
                         </button>
                     </header>
-                    <div className="flex-grow overflow-y-auto" style={{ paddingBottom: '.3rem', paddingLeft: '.3rem', paddingRight: '.5rem' }}>
+                    <div className="flex-grow overflow-y-auto p-4">
                         <div className={`grid ${gridColsClass} gap-4`}>
                             {photosToShow.map(photo => {
                                 const isSelected = stack.selectedPhotoId === photo.id;

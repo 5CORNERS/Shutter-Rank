@@ -31,10 +31,6 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
     const [hoverRating, setHoverRating] = useState(0);
     const isTouchDevice = 'ontouchstart' in window;
 
-    if (disabled) {
-        return null;
-    }
-
     const handleRate = (rating: number) => {
         // The check for maxRating is now in App.tsx handleRate
         // This function can be called with a rating > maxRating to trigger the info modal
@@ -72,14 +68,15 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
                 return (
                     <button
                         key={star}
-                        onClick={() => handleRate(star)}
+                        onClick={() => !disabled && handleRate(star)}
                         onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
-                        className={`${buttonPadding} rounded-full transition-all transform hover:scale-125`}
+                        disabled={disabled}
+                        className={`${buttonPadding} rounded-full transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none`}
                         aria-label={`Оценить в ${star} ${getStarNounAccusative(star)}`}
                         title={titleText}
                     >
                         <Star
-                            className={`${starSizeClass} transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`}
+                            className={`${starSizeClass} transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''} ${disabled ? 'opacity-50' : ''}`}
                             fill={isFilled ? 'currentColor' : 'none'}
                             strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}
                         />
@@ -88,11 +85,12 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
             })}
             <div className={`flex items-center justify-center transition-opacity ${resetVisibilityClass}`} style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
                 <button
-                    onClick={() => onRate(photo.id, 0)}
-                    className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`}
+                    onClick={() => !disabled && onRate(photo.id, 0)}
+                    disabled={disabled}
+                    className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none`}
                     aria-label="Сбросить оценку"
                 >
-                    <XCircle className={xCircleSizeClass} />
+                    <XCircle className={`${xCircleSizeClass} ${disabled ? 'opacity-50' : ''}`} />
                 </button>
             </div>
         </div>

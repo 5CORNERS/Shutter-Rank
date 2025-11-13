@@ -76,6 +76,51 @@ const ImageWrapper: React.FC<{
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     onToggleFlag: (photoId: number) => void;
 }> = React.memo(({ photo, isVisible, groupInfo, isPhotoInGroupSelected, onGroupSelectionChange, onToggleFlag }) => {
+    const imgRef = useRef<HTMLImageElement>(null);
+    const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
+
+    const calculateControlsPosition = useCallback(() => {
+        const img = imgRef.current;
+        if (!img || !img.complete || img.naturalWidth === 0 || !img.parentElement) return;
+
+        const parentRect = img.parentElement.getBoundingClientRect();
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const parentRatio = parentRect.width / parentRect.height;
+
+        let width, height, top, left;
+        if (imgRatio > parentRatio) {
+            width = parentRect.width;
+            height = width / imgRatio;
+            top = (parentRect.height - height) / 2;
+            left = 0;
+        } else {
+            height = parentRect.height;
+            width = height * imgRatio;
+            left = (parentRect.width - width) / 2;
+            top = 0;
+        }
+
+        setControlsContainerStyle({
+            position: 'absolute',
+            top: `${top}px`,
+            left: `${left}px`,
+            width: `${width}px`,
+            height: `${height}px`,
+        });
+    }, []);
+
+    useLayoutEffect(() => {
+        // Recalculate on photo change
+        calculateControlsPosition();
+    }, [photo, calculateControlsPosition]);
+
+    useEffect(() => {
+        // Recalculate on window resize
+        const handleResize = () => calculateControlsPosition();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [calculateControlsPosition]);
+
 
     const handleSelect = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -93,6 +138,8 @@ const ImageWrapper: React.FC<{
             {photo && (
                 <div className="relative w-full h-full flex items-center justify-center">
                     <img
+                        ref={imgRef}
+                        onLoad={calculateControlsPosition}
                         src={photo.url}
                         alt={photo.caption}
                         className="object-contain max-w-full max-h-full"
@@ -100,7 +147,7 @@ const ImageWrapper: React.FC<{
                         loading={isVisible ? 'eager' : 'lazy'}
                     />
                     { isVisible && !photo.isOutOfCompetition && (
-                        <>
+                        <div style={controlsContainerStyle} className="pointer-events-none">
                             <button
                                 onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
                                 className="absolute top-2 left-2 z-10 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
@@ -109,7 +156,7 @@ const ImageWrapper: React.FC<{
                                 <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
                             </button>
                             {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
-                        </>
+                        </div>
                     )}
                 </div>
             )}
