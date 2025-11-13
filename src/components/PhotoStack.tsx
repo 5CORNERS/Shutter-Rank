@@ -116,14 +116,14 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
 
         return ReactDOM.createPortal(
             <div
-                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-sm transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-md transition-opacity duration-300 ease-out ${isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 onClick={onClose}
             >
                 <div
-                    className={`relative w-full ${adaptiveMaxWidth} max-h-[90vh] bg-[#111827] border border-gray-700/50 rounded-xl shadow-2xl flex flex-col transition-all duration-200 ${isExpanded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+                    className={`relative w-full ${adaptiveMaxWidth} max-h-[90vh] bg-gray-900 ring-1 ring-white/10 shadow-2xl shadow-indigo-500/20 rounded-xl flex flex-col transform-gpu transition-all duration-300 ease-out ${isExpanded ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 p-4 border-b border-gray-700/50">
+                    <header className="flex-shrink-0 flex flex-wrap justify-between items-center gap-2 px-6 py-4 border-b border-gray-700/50">
                         <div className="flex-grow">
                             <h3 className="text-lg sm:text-xl font-bold text-gray-200">Выберите фото в группе «{groupName}»</h3>
                             {selectedPhoto && displayVotes && (
@@ -138,7 +138,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         </button>
                     </header>
                     <div className="flex-grow overflow-y-auto p-6">
-                        <div className={`grid ${gridColsClass} gap-4`}>
+                        <div className={`grid ${gridColsClass} gap-6`}>
                             {photosToShow.map(photo => {
                                 const isSelected = stack.selectedPhotoId === photo.id;
                                 const isDimmed = stack.selectedPhotoId !== null && !isSelected;

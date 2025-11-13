@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { Photo, Config } from '../types';
 import { X, ChevronLeft, ChevronRight, Star, Flag, Layers, Check } from 'lucide-react';
 import { RatingControls } from './RatingControls';
@@ -31,13 +31,60 @@ interface ModalProps {
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
     openedFromGroupId: string | null;
+    onOpenGroup: (groupId: string) => void;
 }
 
 export const Modal: React.FC<ModalProps> = ({
                                                 photo, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
                                                 onRate, onToggleFlag, hasNext, hasPrev, config, ratedPhotosCount,
-                                                starsUsed, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected, openedFromGroupId
+                                                starsUsed, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected, openedFromGroupId, onOpenGroup
                                             }) => {
+    const imgRef = useRef<HTMLImageElement>(null);
+    const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
+
+    const calculateControlsPosition = useCallback(() => {
+        const img = imgRef.current;
+        if (!img || !img.complete || img.naturalWidth === 0 || !img.parentElement) return;
+
+        const parentRect = img.parentElement.getBoundingClientRect();
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const parentRatio = parentRect.width / parentRect.height;
+
+        let width, height, top, left;
+
+        if (imgRatio > parentRatio) {
+            width = parentRect.width;
+            height = width / imgRatio;
+            top = (parentRect.height - height) / 2;
+            left = 0;
+        } else {
+            height = parentRect.height;
+            width = height * imgRatio;
+            left = (parentRect.width - width) / 2;
+            top = 0;
+        }
+
+        // We need to account for the parent's padding (p-4)
+        const padding = 16; // 1rem = 16px
+        setControlsContainerStyle({
+            position: 'absolute',
+            top: `${top + padding}px`,
+            left: `${left + padding}px`,
+            width: `${width}px`,
+            height: `${height}px`,
+        });
+    }, []);
+
+    useLayoutEffect(() => {
+        calculateControlsPosition();
+    }, [photo, calculateControlsPosition]);
+
+    useEffect(() => {
+        const handleResize = () => calculateControlsPosition();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [calculateControlsPosition]);
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') onClose(openedFromGroupId);
@@ -71,6 +118,8 @@ export const Modal: React.FC<ModalProps> = ({
         }
     };
 
+    const isFromMainFeed = openedFromGroupId === null;
+
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">
             <div className="absolute top-10 right-10 z-[51] flex items-center gap-4">
@@ -87,17 +136,19 @@ export const Modal: React.FC<ModalProps> = ({
 
             <div className="relative max-w-5xl w-full max-h-[90vh] bg-gray-900 rounded-lg shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
                 <div className="flex-grow p-4 overflow-hidden flex items-center justify-center relative group cursor-pointer" onClick={onEnterImmersive}>
-                    <img src={photo.url} alt={`Фото ${photo.id}`} className="object-contain w-full h-full max-h-[calc(90vh-140px)]" />
-                    {!photo.isOutOfCompetition && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
-                            className="absolute top-4 left-4 z-10 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors"
-                            title="Отметить (F)"
-                        >
-                            <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
-                        </button>
-                    )}
-                    {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
+                    <img ref={imgRef} src={photo.url} alt={`Фото ${photo.id}`} className="object-contain w-full h-full max-h-[calc(90vh-140px)]" onLoad={calculateControlsPosition}/>
+                    <div style={controlsContainerStyle} className="absolute pointer-events-none z-20">
+                        {!photo.isOutOfCompetition && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
+                                className="absolute top-4 left-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
+                                title="Отметить (F)"
+                            >
+                                <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                            </button>
+                        )}
+                        {groupInfo && !isFromMainFeed && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
+                    </div>
                 </div>
 
                 <div className="group/controls bg-gradient-to-t from-gray-900 via-gray-800/80 to-gray-800/60 hover:from-black hover:to-gray-900/80 transition-colors duration-300 rounded-b-lg">
@@ -106,6 +157,11 @@ export const Modal: React.FC<ModalProps> = ({
                             <div className="flex items-center gap-3 truncate">
                                 <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
                                 <span className="truncate">Фото из группы: «{groupInfo.name}»</span>
+                                {isFromMainFeed && (
+                                    <button onClick={() => onOpenGroup(groupInfo.id)} className="ml-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                                        Открыть группу
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
@@ -119,8 +175,6 @@ export const Modal: React.FC<ModalProps> = ({
                                 <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} />
                             </div>
                             <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
-                                <span className="text-gray-400">Фото №{photo.id}</span>
-                                <div className="w-px h-4 bg-gray-600"></div>
                                 <div className="flex items-center gap-x-1" title="Оценено фотографий">
                                     <span className="font-semibold text-green-400">{ratedPhotosCount}</span>
                                     <span className="text-gray-500">/{config?.ratedPhotoLimit}</span>

@@ -505,6 +505,14 @@ const App: React.FC = () => {
         }
     }, [isTouchDevice, immersivePhotoId, scrollToPhoto]);
 
+    const handleOpenGroupFromViewer = useCallback((groupId: string) => {
+        setSelectedPhotoId(null);
+        setImmersivePhotoId(null);
+        setPhotoViewerOpenedFromGroupId(null); // Reset this
+        setActiveExpandedGroup(groupId);
+    }, []);
+
+
     const handleNextImmersive = useCallback(() => {
         if (photosForViewer.length === 0 || immersivePhotoIndex === -1) return;
         const nextIndex = (immersivePhotoIndex + 1) % photosForViewer.length;
@@ -762,6 +770,7 @@ const App: React.FC = () => {
                     onGroupSelectionChange={handleGroupSelectionChange}
                     isPhotoInGroupSelected={selectedPhoto.groupId ? groupSelections[selectedPhoto.groupId] === selectedPhoto.id : false}
                     openedFromGroupId={photoViewerOpenedFromGroupId}
+                    onOpenGroup={handleOpenGroupFromViewer}
                 />
             )}
 
@@ -783,6 +792,7 @@ const App: React.FC = () => {
                     onGroupSelectionChange={handleGroupSelectionChange}
                     isPhotoInGroupSelected={immersivePhotoGroupInfo ? groupSelections[immersivePhotoGroupInfo.id] === immersivePhotoId : false}
                     openedFromGroupId={photoViewerOpenedFromGroupId}
+                    onOpenGroup={handleOpenGroupFromViewer}
                 />
             )}
         </div>
