@@ -25,8 +25,9 @@ interface PhotoStackProps {
 const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
     return (
         <div className="absolute top-2 right-2 z-10 pointer-events-auto" >
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-200 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white' : 'bg-gray-900/40 backdrop-blur-sm border-gray-400/80'}`}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-200 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white' : 'bg-gray-900/40 backdrop-blur-sm border-white/80'}`}>
                 {isSelected && <Check className="w-5 h-5 text-white" />}
+                {!isSelected && <div className="w-2.5 h-2.5 rounded-full bg-white/50"></div>}
             </div>
         </div>
     )
@@ -37,7 +38,6 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                                                                }) => {
     const [isExiting, setIsExiting] = useState(false);
 
-    // Use the selected photo from props, or find the first one if none selected (for cover)
     const coverPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId) || stack.photos[0];
     const selectedPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId);
 

@@ -683,6 +683,8 @@ const App: React.FC = () => {
 
                 <div className={settings.layout === 'grid'
                     ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+                    // FIXME: The 'columns-X' approach has known issues with React rendering order.
+                    // Consider a flexbox/grid wrapper for each column if items jump around.
                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
                 }>
                     {sortedGalleryItems.map(item => {
@@ -696,8 +698,8 @@ const App: React.FC = () => {
                                         onRate={handleRate}
                                         onImageClick={handleImageClick}
                                         onToggleFlag={handleToggleFlag}
-                                        onExpand={() => setActiveExpandedGroup(item.groupId)}
                                         isExpanded={activeExpandedGroup === item.groupId}
+                                        onExpand={() => setActiveExpandedGroup(item.groupId)}
                                         onClose={() => setActiveExpandedGroup(null)}
                                         onSelectionChange={handleGroupSelectionChange}
                                         displayVotes={votingPhase === 'results'}
@@ -745,9 +747,9 @@ const App: React.FC = () => {
                     ratedPhotosCount={ratedPhotosCount}
                     starsUsed={starsUsed}
                     groupInfo={selectedPhotoGroupInfo}
+                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                     onGroupSelectionChange={handleGroupSelectionChange}
                     isPhotoInGroupSelected={selectedPhoto.groupId ? groupSelections[selectedPhoto.groupId] === selectedPhoto.id : false}
-                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                 />
             )}
 
@@ -766,9 +768,9 @@ const App: React.FC = () => {
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     totalStarsLimit={config.totalStarsLimit}
                     groupInfo={immersivePhotoGroupInfo}
+                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                     onGroupSelectionChange={handleGroupSelectionChange}
                     isPhotoInGroupSelected={immersivePhotoGroupInfo ? groupSelections[immersivePhotoGroupInfo.id] === immersivePhotoId : false}
-                    onSelectOtherFromGroup={handleSelectOtherFromGroup}
                 />
             )}
         </div>
