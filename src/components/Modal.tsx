@@ -89,7 +89,7 @@ export const Modal: React.FC<ModalProps> = ({
             {hasNext && <button onClick={(e) => { e.stopPropagation(); onNext(); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-[51] p-2 rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronRight className="w-8 h-8" /></button>}
 
             <div className="relative max-w-5xl w-full max-h-[90vh] bg-gray-900 rounded-lg shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
-                <div className="flex-grow p-4 overflow-hidden flex items-center justify-center relative group cursor-zoom-in" onClick={onEnterImmersive}>
+                <div className="flex-grow p-4 overflow-hidden flex items-center justify-center relative group" onClick={onEnterImmersive}>
                     <img src={photo.url} alt={`Фото ${photo.id}`} className="object-contain w-full h-full max-h-[calc(90vh-140px)]" />
                     {groupInfo && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
                 </div>
