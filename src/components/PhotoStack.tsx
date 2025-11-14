@@ -3,11 +3,12 @@ import ReactDOM from 'react-dom';
 import { Photo, PhotoStack, LayoutMode, GridAspectRatio } from '../types';
 import { PhotoCard } from './PhotoCard';
 import { RatingControls } from './RatingControls';
-import { Layers, Check, X, XCircle } from 'lucide-react';
+import { Layers, Check, X } from 'lucide-react';
 
 interface PhotoStackProps {
     stack: PhotoStack;
     groupName: string;
+    groupCaption?: string;
     onRate: (photoId: number, rating: number) => void;
     onImageClick: (photo: Photo, fromGroupId?: string) => void;
     onToggleFlag: (photoId: number) => void;
@@ -34,7 +35,7 @@ const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
-                                                                   stack, groupName, onRate, onImageClick, onToggleFlag, isExpanded, onExpand, onClose, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags, isTouchDevice
+                                                                   stack, groupName, groupCaption, onRate, onImageClick, onToggleFlag, isExpanded, onExpand, onClose, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags, isTouchDevice
                                                                }) => {
 
     const coverPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId) || stack.photos[0];
@@ -113,6 +114,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
         const gridColsClass = gridColsMap[photosToShow.length] || 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
 
         const adaptiveMaxWidth = photosToShow.length <= 4 ? `max-w-screen-${['sm','md','lg','xl'][photosToShow.length - 1]}` : 'max-w-[105rem]';
+        const captionToShow = groupCaption || selectedPhoto?.caption;
 
         return ReactDOM.createPortal(
             <div
@@ -132,11 +134,6 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         </div>
                         <div className={`flex items-center flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                             <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" disabled={!selectedPhoto} />
-                            <div className={`transition-opacity duration-300 ${selectedPhoto?.userRating ? 'opacity-100' : 'opacity-0'}`}>
-                                <button onClick={() => handleRateFromHeader(0)} className="p-1.5 ml-1 rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10" aria-label="Сбросить оценку">
-                                    <XCircle className="w-5 h-5"/>
-                                </button>
-                            </div>
                         </div>
                         <button onClick={onClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
                             <X size={24} />
@@ -168,6 +165,11 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                             })}
                         </div>
                     </div>
+                    {captionToShow && (
+                        <footer className="flex-shrink-0 border-t border-gray-700/50 px-6 py-3 text-center text-sm text-gray-400">
+                            <p>{captionToShow}</p>
+                        </footer>
+                    )}
                 </div>
             </div>,
             document.body

@@ -32,8 +32,6 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
     const isTouchDevice = 'ontouchstart' in window;
 
     const handleRate = (rating: number) => {
-        // The check for maxRating is now in App.tsx handleRate
-        // This function can be called with a rating > maxRating to trigger the info modal
         onRate(photo.id, rating);
     };
 
@@ -41,10 +39,6 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
     const xCircleSizeClass = size === 'large' ? 'w-6 h-6' : 'w-5 h-5';
     const buttonPadding = size === 'large' ? 'p-2' : 'p-1.5';
     const hasRating = (photo.userRating || 0) > 0;
-
-    const resetVisibilityClass = hasRating
-        ? (size === 'large' ? 'opacity-100' : 'sm:opacity-0 group-hover:opacity-100')
-        : 'opacity-0';
 
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
@@ -83,15 +77,17 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
                     </button>
                 );
             })}
-            <div className={`flex items-center justify-center transition-opacity ${resetVisibilityClass}`} style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
-                <button
-                    onClick={() => !disabled && onRate(photo.id, 0)}
-                    disabled={disabled}
-                    className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none`}
-                    aria-label="Сбросить оценку"
-                >
-                    <XCircle className={`${xCircleSizeClass} ${disabled ? 'opacity-50' : ''}`} />
-                </button>
+            <div className={`flex items-center justify-center`} style={{ width: size === 'large' ? '44px': '38px', height: size === 'large' ? '44px' : '38px' }}>
+                {hasRating && (
+                    <button
+                        onClick={() => !disabled && onRate(photo.id, 0)}
+                        disabled={disabled}
+                        className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none`}
+                        aria-label="Сбросить оценку"
+                    >
+                        <XCircle className={`${xCircleSizeClass} ${disabled ? 'opacity-50' : ''}`} />
+                    </button>
+                )}
             </div>
         </div>
     );
