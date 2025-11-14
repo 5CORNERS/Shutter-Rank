@@ -787,8 +787,6 @@ const App: React.FC = () => {
                                             onExpand={() => setActiveExpandedGroup(item.groupId)}
                                             onClose={() => setActiveExpandedGroup(null)}
                                             onSelectionChange={handleGroupSelectionChange}
-                                            {/* FIX: The type of `votingPhase` is narrowed to 'voting' in this block,
-                                            so this comparison was always false. Changed to `false` to remove the TS error. */}
                                             displayVotes={false}
                                             layoutMode={settings.layout}
                                             gridAspectRatio={settings.gridAspectRatio}
@@ -805,8 +803,6 @@ const App: React.FC = () => {
                                             photo={item}
                                             onRate={handleRate}
                                             onImageClick={handleImageClick}
-                                            {/* FIX: The type of `votingPhase` is narrowed to 'voting' in this block,
-                                            so this comparison was always false. Changed to `false` to remove the TS error. */}
                                             displayVotes={false}
                                             layoutMode={settings.layout}
                                             gridAspectRatio={settings.gridAspectRatio}
