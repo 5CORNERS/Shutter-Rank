@@ -417,9 +417,10 @@ const App: React.FC = () => {
 
     const sortedGalleryItems = useMemo(() => {
         let itemsCopy = [...galleryItems];
+
         if (filterFlags) {
             itemsCopy = itemsCopy.filter(item => {
-                if ('photos' in item) {
+                if (item.type === 'stack') {
                     // Show stack if at least one photo in it is flagged
                     return item.photos.some(p => p.isFlagged !== false);
                 } else {
@@ -427,11 +428,45 @@ const App: React.FC = () => {
                 }
             });
         }
-        // Sorting logic is complex with stacks, so we keep the default order for now.
-        // The default order is already sorted by `order` field.
+
+        if (sortBy === 'id') {
+            // The default order is already sorted by the `order` field from initial load.
+            return itemsCopy;
+        }
+
+        // sortBy === 'score'
+        const getScore = (item: GalleryItem): number => {
+            if (votingPhase === 'voting') {
+                if (item.type === 'photo') {
+                    return item.userRating || 0;
+                } else { // stack
+                    const selected = item.photos.find(p => p.id === item.selectedPhotoId);
+                    return selected?.userRating || 0;
+                }
+            } else { // results phase
+                if (item.type === 'photo') {
+                    return item.votes || 0;
+                } else { // stack
+                    return Math.max(0, ...item.photos.map(p => p.votes || 0));
+                }
+            }
+        };
+
+        itemsCopy.sort((a, b) => {
+            const scoreB = getScore(b);
+            const scoreA = getScore(a);
+            if (scoreB !== scoreA) {
+                return scoreB - scoreA;
+            }
+            // Fallback to original order for items with the same score
+            const orderA = a.type === 'photo' ? (a.order ?? a.id) : (a.photos[0]?.order ?? a.photos[0]?.id ?? 0);
+            const orderB = b.type === 'photo' ? (b.order ?? b.id) : (b.photos[0]?.order ?? b.photos[0]?.id ?? 0);
+            return orderA - orderB;
+        });
+
         return itemsCopy;
 
-    }, [galleryItems, filterFlags]);
+    }, [galleryItems, filterFlags, sortBy, votingPhase]);
 
     const photosForViewer = useMemo(() => {
         // If a photo viewer is opened from a group, navigation is limited to that group
@@ -823,6 +858,9 @@ const App: React.FC = () => {
                         sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
                                 const groupData = groups[item.groupId];
+                                const sortedPhotosInGroup = item.photos.slice().sort((a, b) =>
+                                    sortBy === 'score' ? (b.votes || 0) - (a.votes || 0) : (a.order ?? a.id) - (b.order ?? b.id)
+                                );
                                 return (
                                     <React.Fragment key={`group-results-${item.groupId}`}>
                                         <div className="col-span-full mt-8 mb-4">
@@ -830,7 +868,7 @@ const App: React.FC = () => {
                                                 Группа: {groupData?.name || 'Без названия'}
                                             </h2>
                                         </div>
-                                        {item.photos.map(photo => (
+                                        {sortedPhotosInGroup.map(photo => (
                                             <div key={photo.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
                                                 <PhotoCard
                                                     photo={photo}
