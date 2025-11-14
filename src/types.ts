@@ -14,8 +14,13 @@ export interface Photo extends FirebasePhoto {
     maxRating?: number;
 }
 
+export interface GroupData {
+    name: string;
+    caption?: string;
+}
+
 export interface FirebaseDataGroups {
-    [groupId: string]: string;
+    [groupId: string]: GroupData;
 }
 
 export interface PhotoStack {

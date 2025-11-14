@@ -27,7 +27,7 @@ interface ModalProps {
     config: Config | null;
     ratedPhotosCount: number;
     starsUsed: number;
-    groupInfo: { id: string; name: string; count: number } | null;
+    groupInfo: { id: string; name: string; caption?: string; count: number } | null;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
     openedFromGroupId: string | null;
@@ -107,6 +107,7 @@ export const Modal: React.FC<ModalProps> = ({
 
     const isFromMainFeed = openedFromGroupId === null;
     const showRatingPanel = !groupInfo || (groupInfo && isPhotoInGroupSelected);
+    const captionToShow = groupInfo?.caption || photo.caption;
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">
@@ -160,7 +161,7 @@ export const Modal: React.FC<ModalProps> = ({
                         </div>
                     )}
                     <div className={`p-3 text-center text-gray-300 ${groupInfo ? '' : 'border-t border-gray-700/50'}`}>
-                        <p>{photo.caption}</p>
+                        <p>{captionToShow}</p>
                     </div>
 
                     <div className={`transition-opacity duration-300 ${showRatingPanel ? 'opacity-100' : 'opacity-0 h-0 p-0 overflow-hidden'}`}>

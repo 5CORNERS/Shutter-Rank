@@ -601,19 +601,19 @@ const App: React.FC = () => {
         }
     }, [groupSelections, sessionId, photos, handleRate, handleRatingTransfer]);
 
-    const findGroupDetails = useCallback((photoId: number | null): { id: string; name: string; count: number } | null => {
+    const findGroupDetails = useCallback((photoId: number | null): { id: string; name: string; caption?: string; count: number } | null => {
         if (photoId === null) return null;
 
         const photo = photos.find(p => p.id === photoId);
         if (!photo || !photo.groupId) return null;
 
-        const groupName = groups[photo.groupId];
-        if (!groupName) return null;
+        const groupData = groups[photo.groupId];
+        if (!groupData) return null;
 
         const stack = galleryItems.find(item => item.type === 'stack' && item.groupId === photo.groupId) as PhotoStack | undefined;
         const count = stack ? stack.photos.length : 0;
 
-        return { id: photo.groupId, name: groupName, count };
+        return { id: photo.groupId, name: groupData.name, caption: groupData.caption, count };
     }, [photos, groups, galleryItems]);
 
     const selectedPhotoGroupInfo = useMemo(() => findGroupDetails(selectedPhotoId), [selectedPhotoId, findGroupDetails]);
@@ -772,12 +772,13 @@ const App: React.FC = () => {
                 }>
                     {sortedGalleryItems.map(item => {
                         if (item.type === 'stack') {
-                            const groupName = groups[item.groupId] || '';
+                            const groupData = groups[item.groupId];
                             return (
                                 <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''}`}>
                                     <PhotoStackComponent
                                         stack={item}
-                                        groupName={groupName}
+                                        groupName={groupData?.name || ''}
+                                        groupCaption={groupData?.caption}
                                         onRate={handleRate}
                                         onImageClick={handleImageClick}
                                         onToggleFlag={handleToggleFlag}

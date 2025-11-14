@@ -28,7 +28,7 @@ interface ImmersiveViewProps {
     starsUsed: number;
     ratedPhotoLimit: number;
     totalStarsLimit: number;
-    groupInfo: { id: string; name: string; count: number } | null;
+    groupInfo: { id: string; name: string; caption?: string; count: number } | null;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
     openedFromGroupId: string | null;
@@ -458,6 +458,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const showTopAndSideControls = uiMode === 'full' || transientControlsVisible;
     const showBottomControls = uiMode === 'full' || (groupInfo && isPhotoInGroupSelected);
     const showPersistentGroupControls = groupInfo && isFromMainFeed;
+    const captionToShow = groupInfo?.caption || photo.caption;
 
     return (
         <div
@@ -522,7 +523,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                      onMouseEnter={() => !isTouchDevice && uiMode === 'minimal' && setUiMode('full')}
                 >
                     <div className="px-4 pb-2 text-left text-white relative shadow-text">
-                        <p>{photo.caption}</p>
+                        <p>{captionToShow}</p>
                     </div>
                     <div
                         className="p-4 flex flex-nowrap justify-between items-center gap-4 relative"

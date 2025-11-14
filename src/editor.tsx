@@ -7,7 +7,7 @@ import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
 import exifr from 'exifr';
 import './index.css';
-import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups } from './types';
+import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
 
 type Status = 'loading' | 'success' | 'error' | 'not_found';
 type SessionData = {
@@ -121,10 +121,22 @@ const EditorApp: React.FC = () => {
                 const data = snapshot.val();
                 let hasBeenMigrated = false;
 
-                // --- Automatic Migration for 'groups' object ---
-                if (data.groups === undefined) {
+                // --- Automatic Migration for 'groups' object from string to {name, caption} ---
+                if (data.groups) {
+                    const groupIds = Object.keys(data.groups);
+                    if (groupIds.length > 0 && typeof data.groups[groupIds[0]] === 'string') {
+                        const migratedGroups: FirebaseDataGroups = {};
+                        for (const groupId of groupIds) {
+                            migratedGroups[groupId] = {
+                                name: data.groups[groupId],
+                                caption: ''
+                            };
+                        }
+                        data.groups = migratedGroups;
+                        hasBeenMigrated = true;
+                    }
+                } else {
                     data.groups = {};
-                    hasBeenMigrated = true;
                 }
 
                 // --- Automatic Migration for photo 'order' field ---
@@ -191,8 +203,8 @@ const EditorApp: React.FC = () => {
             alert('Изменения успешно сохранены!');
             await fetchData(sessionId);
         } catch (error: any) {
-            console.error("Ошибка сохранения:", error);
-            alert(`Не удалось сохранить изменения. Подробности в консоли: ${error.message}`);
+            console.error("Ошибка сохранения в Firebase:", error);
+            alert(`Не удалось сохранить изменения. Проверьте правила безопасности. Подробности в консоли разработчика (F12).`);
         } finally {
             setIsSaving(false);
         }
@@ -291,11 +303,19 @@ const EditorApp: React.FC = () => {
         if (!trimmedName || !sessionData) return;
 
         const newGroupId = `group-${crypto.randomUUID()}`;
-        const newGroups = { ...sessionData.groups, [newGroupId]: trimmedName };
+        const newGroups: FirebaseDataGroups = { ...sessionData.groups, [newGroupId]: { name: trimmedName, caption: '' } };
 
         setSessionData({ ...sessionData, groups: newGroups });
         setNewGroupName('');
     };
+
+    const handleGroupChange = (groupId: string, field: keyof GroupData, value: string) => {
+        if (!sessionData || !sessionData.groups) return;
+        const newGroups = { ...sessionData.groups };
+        newGroups[groupId] = { ...newGroups[groupId], [field]: value };
+        setSessionData({ ...sessionData, groups: newGroups });
+    };
+
 
     const handleDeleteGroup = (groupId: string) => {
         if (!sessionData || !window.confirm(`Вы уверены, что хотите удалить группу? Все фотографии в ней будут откреплены.`)) return;
@@ -524,10 +544,10 @@ const EditorApp: React.FC = () => {
                     />
                 </details>
 
-                <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
+                <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Группы фотографий</summary>
                     <div className="mt-4 space-y-4">
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 p-3 bg-gray-700/50 rounded-lg">
                             <input
                                 type="text"
                                 value={newGroupName}
@@ -540,11 +560,26 @@ const EditorApp: React.FC = () => {
                             </button>
                         </div>
                         {availableGroups.length > 0 && (
-                            <div className="space-y-2">
-                                {availableGroups.map(([id, name]) => (
-                                    <div key={id} className="flex items-center justify-between p-2 bg-gray-700/50 rounded">
-                                        <span className="text-gray-300">{name}</span>
-                                        <button onClick={() => handleDeleteGroup(id)} className="p-1 text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4"/></button>
+                            <div className="space-y-3">
+                                {availableGroups.map(([id, groupData]) => (
+                                    <div key={id} className="space-y-2 p-3 bg-gray-700/50 rounded-lg">
+                                        <div className="flex items-center justify-between">
+                                            <input
+                                                type="text"
+                                                value={groupData.name}
+                                                onChange={(e) => handleGroupChange(id, 'name', e.target.value)}
+                                                className="flex-grow p-1 border-b border-gray-600 bg-transparent text-gray-200 focus:outline-none focus:border-indigo-500 font-semibold"
+                                                placeholder="Название группы"
+                                            />
+                                            <button onClick={() => handleDeleteGroup(id)} className="ml-2 p-1 text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4"/></button>
+                                        </div>
+                                        <textarea
+                                            value={groupData.caption || ''}
+                                            onChange={(e) => handleGroupChange(id, 'caption', e.target.value)}
+                                            rows={2}
+                                            className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
+                                            placeholder="Описание группы (необязательно)"
+                                        />
                                     </div>
                                 ))}
                             </div>
@@ -589,8 +624,8 @@ const EditorApp: React.FC = () => {
                                             disabled={availableGroups.length === 0}
                                         >
                                             <option value="">Без группы</option>
-                                            {availableGroups.map(([id, name]) => (
-                                                <option key={id} value={id}>{name}</option>
+                                            {availableGroups.map(([id, groupData]) => (
+                                                <option key={id} value={id}>{groupData.name}</option>
                                             ))}
                                         </select>
 
