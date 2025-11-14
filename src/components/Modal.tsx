@@ -44,34 +44,21 @@ export const Modal: React.FC<ModalProps> = ({
 
     const calculateControlsPosition = useCallback(() => {
         const img = imgRef.current;
-        if (!img || !img.complete || img.naturalWidth === 0 || !img.parentElement) return;
+        const parent = img?.parentElement;
+        if (!img || !parent || !img.complete || img.naturalWidth === 0) return;
 
-        const parentRect = img.parentElement.getBoundingClientRect();
-        const imgRatio = img.naturalWidth / img.naturalHeight;
-        const parentRatio = parentRect.width / parentRect.height;
+        const parentRect = parent.getBoundingClientRect();
+        const imgRect = img.getBoundingClientRect();
 
-        let width, height, top, left;
+        const top = imgRect.top - parentRect.top;
+        const left = imgRect.left - parentRect.left;
 
-        if (imgRatio > parentRatio) {
-            width = parentRect.width;
-            height = width / imgRatio;
-            top = (parentRect.height - height) / 2;
-            left = 0;
-        } else {
-            height = parentRect.height;
-            width = height * imgRatio;
-            left = (parentRect.width - width) / 2;
-            top = 0;
-        }
-
-        // We need to account for the parent's padding (p-4)
-        const padding = 16; // 1rem = 16px
         setControlsContainerStyle({
             position: 'absolute',
-            top: `${top + padding}px`,
-            left: `${left + padding}px`,
-            width: `${width}px`,
-            height: `${height}px`,
+            top: `${top}px`,
+            left: `${left}px`,
+            width: `${imgRect.width}px`,
+            height: `${imgRect.height}px`,
         });
     }, []);
 
