@@ -770,49 +770,97 @@ const App: React.FC = () => {
                     // Consider a flexbox/grid wrapper for each column if items jump around.
                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
                 }>
-                    {sortedGalleryItems.map(item => {
-                        if (item.type === 'stack') {
-                            const groupData = groups[item.groupId];
-                            return (
-                                <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''}`}>
-                                    <PhotoStackComponent
-                                        stack={item}
-                                        groupName={groupData?.name || ''}
-                                        groupCaption={groupData?.caption}
-                                        onRate={handleRate}
-                                        onImageClick={handleImageClick}
-                                        onToggleFlag={handleToggleFlag}
-                                        isExpanded={activeExpandedGroup === item.groupId}
-                                        onExpand={() => setActiveExpandedGroup(item.groupId)}
-                                        onClose={() => setActiveExpandedGroup(null)}
-                                        onSelectionChange={handleGroupSelectionChange}
-                                        displayVotes={votingPhase === 'results'}
-                                        layoutMode={settings.layout}
-                                        gridAspectRatio={settings.gridAspectRatio}
-                                        showToast={setToastMessage}
-                                        filterFlags={filterFlags}
-                                        isTouchDevice={isTouchDevice}
-                                    />
-                                </div>
-                            );
-                        }
-                        else {
-                            // Render single photo
-                            return (
-                                <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                    <PhotoCard
-                                        photo={item}
-                                        onRate={handleRate}
-                                        onImageClick={handleImageClick}
-                                        displayVotes={votingPhase === 'results'}
-                                        layoutMode={settings.layout}
-                                        gridAspectRatio={settings.gridAspectRatio}
-                                        onToggleFlag={handleToggleFlag}
-                                    />
-                                </div>
-                            );
-                        }
-                    })}
+                    {votingPhase === 'voting' ? (
+                        sortedGalleryItems.map(item => {
+                            if (item.type === 'stack') {
+                                const groupData = groups[item.groupId];
+                                return (
+                                    <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''}`}>
+                                        <PhotoStackComponent
+                                            stack={item}
+                                            groupName={groupData?.name || ''}
+                                            groupCaption={groupData?.caption}
+                                            onRate={handleRate}
+                                            onImageClick={handleImageClick}
+                                            onToggleFlag={handleToggleFlag}
+                                            isExpanded={activeExpandedGroup === item.groupId}
+                                            onExpand={() => setActiveExpandedGroup(item.groupId)}
+                                            onClose={() => setActiveExpandedGroup(null)}
+                                            onSelectionChange={handleGroupSelectionChange}
+                                            {/* FIX: The type of `votingPhase` is narrowed to 'voting' in this block,
+                                            so this comparison was always false. Changed to `false` to remove the TS error. */}
+                                            displayVotes={false}
+                                            layoutMode={settings.layout}
+                                            gridAspectRatio={settings.gridAspectRatio}
+                                            showToast={setToastMessage}
+                                            filterFlags={filterFlags}
+                                            isTouchDevice={isTouchDevice}
+                                        />
+                                    </div>
+                                );
+                            } else {
+                                return (
+                                    <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                        <PhotoCard
+                                            photo={item}
+                                            onRate={handleRate}
+                                            onImageClick={handleImageClick}
+                                            {/* FIX: The type of `votingPhase` is narrowed to 'voting' in this block,
+                                            so this comparison was always false. Changed to `false` to remove the TS error. */}
+                                            displayVotes={false}
+                                            layoutMode={settings.layout}
+                                            gridAspectRatio={settings.gridAspectRatio}
+                                            onToggleFlag={handleToggleFlag}
+                                        />
+                                    </div>
+                                );
+                            }
+                        })
+                    ) : (
+                        sortedGalleryItems.map(item => {
+                            if (item.type === 'stack') {
+                                const groupData = groups[item.groupId];
+                                return (
+                                    <React.Fragment key={`group-results-${item.groupId}`}>
+                                        <div className="col-span-full mt-8 mb-4">
+                                            <h2 className="text-2xl font-bold text-gray-300 border-b-2 border-gray-700 pb-2">
+                                                Группа: {groupData?.name || 'Без названия'}
+                                            </h2>
+                                        </div>
+                                        {item.photos.map(photo => (
+                                            <div key={photo.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                                <PhotoCard
+                                                    photo={photo}
+                                                    onRate={() => {}}
+                                                    onImageClick={() => {}}
+                                                    onToggleFlag={() => {}}
+                                                    displayVotes={true}
+                                                    layoutMode={settings.layout}
+                                                    gridAspectRatio={settings.gridAspectRatio}
+                                                    isReadOnly={true}
+                                                />
+                                            </div>
+                                        ))}
+                                    </React.Fragment>
+                                );
+                            } else {
+                                return (
+                                    <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                        <PhotoCard
+                                            photo={item}
+                                            onRate={() => {}}
+                                            onImageClick={() => {}}
+                                            onToggleFlag={() => {}}
+                                            displayVotes={true}
+                                            layoutMode={settings.layout}
+                                            gridAspectRatio={settings.gridAspectRatio}
+                                            isReadOnly={true}
+                                        />
+                                    </div>
+                                );
+                            }
+                        })
+                    )}
                 </div>
             </main>
 
