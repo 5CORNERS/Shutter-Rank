@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag, Layers, Check } from
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.MouseEvent) => void;}> = ({isSelected, onSelect}) => {
     return (
         <div
-            className="absolute top-2 right-2 z-10 pointer-events-auto"
+            className="absolute top-4 right-4 z-10 pointer-events-auto"
             onClick={onSelect}
         >
             <div className={`selection-control-bg w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg cursor-pointer ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-800/60 backdrop-blur-sm border-white/80'}`}>
@@ -155,16 +155,16 @@ const ImageWrapper: React.FC<{
                             {!photo.isOutOfCompetition && (
                                 <button
                                     onClick={handleToggleFlagClick}
-                                    className="absolute top-2 left-2 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
+                                    className="absolute top-4 left-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
                                     title="Отметить (F)"
                                 >
                                     <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
                                 </button>
                             )}
                             {groupInfo && isFromMainFeed && (
-                                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-base font-bold flex items-center gap-2 pointer-events-auto">
-                                    <Layers size={18} />
-                                    <span>{groupInfo.count}</span>
+                                <div className="absolute top-4 right-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white pointer-events-auto flex items-center gap-2">
+                                    <Layers size={22} />
+                                    <span className="font-bold text-base pr-1">{groupInfo.count}</span>
                                 </div>
                             )}
                             {groupInfo && !isFromMainFeed && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
@@ -297,6 +297,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             } else if (!groupInfo && !e.ctrlKey && !e.metaKey && /^[0-5]$/.test(e.key)) {
                 e.preventDefault();
                 if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(e.key, 10));
+            } else if (groupInfo && isPhotoInGroupSelected && !e.ctrlKey && !e.metaKey && /^[0-5]$/.test(e.key)) {
+                e.preventDefault();
+                if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(e.key, 10));
             }
         }
         document.addEventListener('keydown', handleKeyDown);
@@ -304,7 +307,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             document.removeEventListener('keydown', handleKeyDown);
             if (activityTimer.current) clearTimeout(activityTimer.current);
         }
-    }, [onNext, onPrev, isTouchDevice, photo, onRate, onToggleFlag, groupInfo]);
+    }, [onNext, onPrev, isTouchDevice, photo, onRate, onToggleFlag, groupInfo, isPhotoInGroupSelected]);
 
     useEffect(() => {
         if (showHint) {
@@ -463,7 +466,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const isFromMainFeed = openedFromGroupId === null;
 
     const showTopAndSideControls = uiMode === 'full' || transientControlsVisible;
-    const showBottomControls = uiMode === 'full';
+    const showBottomControls = uiMode === 'full' || (groupInfo && isPhotoInGroupSelected);
     const showPersistentGroupControls = groupInfo && isFromMainFeed;
 
     return (
@@ -535,7 +538,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                         className="p-4 flex flex-nowrap justify-between items-center gap-4 relative"
                     >
                         <div className="flex items-center flex-shrink-0">
-                            {!isOutOfComp && !groupInfo && (
+                            {!isOutOfComp && (
                                 <>
                                     {[1, 2, 3, 4, 5].map((star) => {
                                         const isFilled = (photo.userRating || 0) >= star;

@@ -119,6 +119,7 @@ export const Modal: React.FC<ModalProps> = ({
     };
 
     const isFromMainFeed = openedFromGroupId === null;
+    const showRatingPanel = !groupInfo || (groupInfo && isPhotoInGroupSelected);
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">
@@ -148,9 +149,9 @@ export const Modal: React.FC<ModalProps> = ({
                             </button>
                         )}
                         {groupInfo && isFromMainFeed && (
-                            <div className="absolute top-4 right-4 z-[3] bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-base font-bold flex items-center gap-2 pointer-events-auto">
-                                <Layers size={18} />
-                                <span>{groupInfo.count}</span>
+                            <div className="absolute top-4 right-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white pointer-events-auto flex items-center gap-2">
+                                <Layers size={22} />
+                                <span className="font-bold text-base pr-1">{groupInfo.count}</span>
                             </div>
                         )}
                         {groupInfo && !isFromMainFeed && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
@@ -175,7 +176,7 @@ export const Modal: React.FC<ModalProps> = ({
                         <p>{photo.caption}</p>
                     </div>
 
-                    { !groupInfo && (
+                    <div className={`transition-opacity duration-300 ${showRatingPanel ? 'opacity-100' : 'opacity-0 h-0 p-0 overflow-hidden'}`}>
                         <div className="p-3 flex flex-wrap justify-between items-center gap-4">
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                                 <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} />
@@ -193,7 +194,7 @@ export const Modal: React.FC<ModalProps> = ({
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>

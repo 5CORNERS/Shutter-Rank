@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { Photo, PhotoStack, LayoutMode, GridAspectRatio } from '../types';
 import { PhotoCard } from './PhotoCard';
 import { RatingControls } from './RatingControls';
-import { Layers, Check, X } from 'lucide-react';
+import { Layers, Check, X, XCircle } from 'lucide-react';
 
 interface PhotoStackProps {
     stack: PhotoStack;
@@ -130,8 +130,13 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                                 <div className="text-sm text-gray-400">Общий рейтинг: <span className="font-bold text-green-400">{selectedPhoto.votes}</span></div>
                             )}
                         </div>
-                        <div className={`flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                        <div className={`flex items-center flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                             <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" disabled={!selectedPhoto} />
+                            <div className={`transition-opacity duration-300 ${selectedPhoto?.userRating ? 'opacity-100' : 'opacity-0'}`}>
+                                <button onClick={() => handleRateFromHeader(0)} className="p-1.5 ml-1 rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10" aria-label="Сбросить оценку">
+                                    <XCircle className="w-5 h-5"/>
+                                </button>
+                            </div>
                         </div>
                         <button onClick={onClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
                             <X size={24} />

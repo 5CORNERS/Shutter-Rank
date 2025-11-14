@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
-import { ref, get, onValue, runTransaction, DataSnapshot, set, remove, TransactionResult } from 'firebase/database';
+import { ref, get, onValue, runTransaction, DataSnapshot, set, remove, TransactionResult, update } from 'firebase/database';
 import { Photo, FirebasePhotoData, Settings, Config, GalleryItem, PhotoStack, FirebaseDataGroups } from './types';
 import { PhotoCard } from './components/PhotoCard';
 import { Modal } from './components/Modal';
@@ -535,13 +535,71 @@ const App: React.FC = () => {
         setIsSettingsModalOpen(false);
     };
 
-    const handleGroupSelectionChange = useCallback((groupId: string, photoId: number | null) => {
-        const newSelections = { ...groupSelections, [groupId]: photoId };
+    const handleRatingTransfer = useCallback(async (fromPhotoId: number, toPhotoId: number) => {
+        if (!sessionId || !userId) return;
+
+        const fromPhoto = photos.find(p => p.id === fromPhotoId);
+        const ratingToTransfer = fromPhoto?.userRating;
+
+        if (!ratingToTransfer) return;
+
+        // 1. Optimistic UI update
+        setPhotos(prev => prev.map(p => {
+            if (p.id === fromPhotoId) return { ...p, userRating: undefined };
+            if (p.id === toPhotoId) return { ...p, userRating: ratingToTransfer };
+            return p;
+        }));
+
+        // 2. Firebase update (not atomic, but best effort on client)
+        const updates: { [key: string]: any } = {};
+        updates[`/sessions/${sessionId}/userVotes/${userId}/${fromPhotoId}`] = null;
+        updates[`/sessions/${sessionId}/userVotes/${userId}/${toPhotoId}`] = ratingToTransfer;
+
+        try {
+            await update(ref(db), updates);
+
+            // Run transactions for aggregate scores
+            await runTransaction(ref(db, `sessions/${sessionId}/votes/${fromPhotoId}`), (v) => (v || 0) - ratingToTransfer);
+            await runTransaction(ref(db, `sessions/${sessionId}/votes/${toPhotoId}`), (v) => (v || 0) + ratingToTransfer);
+        } catch (error) {
+            console.error("Ошибка переноса оценки:", error);
+            // Revert UI on failure
+            setPhotos(prev => prev.map(p => {
+                if (p.id === fromPhotoId) return { ...p, userRating: ratingToTransfer };
+                if (p.id === toPhotoId) return { ...p, userRating: undefined }; // or its original rating if we stored it
+                return p;
+            }));
+        }
+    }, [sessionId, userId, photos]);
+
+    const handleGroupSelectionChange = useCallback((groupId: string, newSelectedId: number | null) => {
+        const oldSelectedId = groupSelections[groupId] || null;
+        if (oldSelectedId === newSelectedId) return;
+
+        const oldSelectedPhoto = oldSelectedId ? photos.find(p => p.id === oldSelectedId) : null;
+        const oldRating = oldSelectedPhoto?.userRating;
+
+        // Case 1: Deselecting a rated photo
+        if (newSelectedId === null && oldSelectedId && oldRating) {
+            if (window.confirm('Группа без выбранной фотографии не может иметь оценку. Снять выделение и сбросить оценку?')) {
+                handleRate(oldSelectedId, 0);
+            } else {
+                return; // User cancelled, do nothing
+            }
+        }
+
+        // Case 2: Selecting a new photo when another was rated
+        if (newSelectedId !== null && oldSelectedId && oldRating) {
+            handleRatingTransfer(oldSelectedId, newSelectedId);
+        }
+
+        // Update selection state
+        const newSelections = { ...groupSelections, [groupId]: newSelectedId };
         setGroupSelections(newSelections);
         if (sessionId) {
             localStorage.setItem(`groupSelections_${sessionId}`, JSON.stringify(newSelections));
         }
-    }, [groupSelections, sessionId]);
+    }, [groupSelections, sessionId, photos, handleRate, handleRatingTransfer]);
 
     const findGroupDetails = useCallback((photoId: number | null): { id: string; name: string; count: number } | null => {
         if (photoId === null) return null;
