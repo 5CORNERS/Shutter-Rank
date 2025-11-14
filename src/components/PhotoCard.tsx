@@ -59,7 +59,9 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
 
     const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 ${!isReadOnly ? 'hover:shadow-indigo-500/30' : ''} ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''} ${isDimmed ? 'opacity-50' : 'opacity-100'}`;
 
-    const controlsVisibilityClass = isReadOnly ? 'opacity-0' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100';
+    const controlsVisibilityClass = isReadOnly
+        ? 'opacity-0'
+        : (hasUserRating ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100');
 
 
     return (

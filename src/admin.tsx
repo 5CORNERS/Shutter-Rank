@@ -10,6 +10,7 @@ import { Config, FirebasePhotoData } from './types';
 
 type Status = 'loading' | 'success' | 'error';
 type SessionInfo = { id: string; name: string };
+type EditingState = { originalId: string; id: string; name: string };
 
 const slugify = (text: string): string => {
     const a = 'àáâäæãåāăąçćčđďèéêëēėęěğǵḧîïíīįìłḿñńǹňôöòóœøōõőṕŕřßśšşșťțûüùúūǘůűųẃẍÿýžźż·/_,:;'
@@ -30,7 +31,7 @@ const AdminApp: React.FC = () => {
     const [sessions, setSessions] = useState<SessionInfo[]>([]);
     const [newSessionName, setNewSessionName] = useState('');
     const [status, setStatus] = useState<Status>('loading');
-    const [editingSession, setEditingSession] = useState<SessionInfo | null>(null);
+    const [editingState, setEditingState] = useState<EditingState | null>(null);
 
     const fetchSessions = useCallback(async () => {
         setStatus('loading');
@@ -147,7 +148,7 @@ const AdminApp: React.FC = () => {
                 await set(originalSessionRef, sessionData);
             }
 
-            setEditingSession(null);
+            setEditingState(null);
             await fetchSessions();
         } catch (error) {
             console.error(`Ошибка обновления сессии ${originalId}:`, error);
@@ -175,13 +176,13 @@ const AdminApp: React.FC = () => {
                         <ul className="space-y-2">
                             {sessions.map(session => (
                                 <li key={session.id} className="p-3 bg-gray-700/50 rounded-lg">
-                                    {editingSession?.id === session.id ? (
+                                    {editingState?.originalId === session.id ? (
                                         <div className="flex flex-col gap-2">
-                                            <input type="text" value={editingSession.name} onChange={e => setEditingSession({...editingSession, name: e.target.value})} className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white" placeholder="Название"/>
-                                            <input type="text" value={editingSession.id} onChange={e => setEditingSession({...editingSession, id: slugify(e.target.value)})} className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white font-mono" placeholder="ID"/>
+                                            <input type="text" value={editingState.name} onChange={e => setEditingState(s => s ? { ...s, name: e.target.value } : null)} className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white" placeholder="Название"/>
+                                            <input type="text" value={editingState.id} onChange={e => setEditingState(s => s ? { ...s, id: slugify(e.target.value) } : null)} className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white font-mono" placeholder="ID"/>
                                             <div className="flex items-center gap-2">
-                                                <button onClick={() => handleUpdateSession(session.id, editingSession)} className="flex items-center gap-1 text-sm text-green-400 hover:text-green-300"><Save className="w-4 h-4"/>Сохранить</button>
-                                                <button onClick={() => setEditingSession(null)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-300"><X className="w-4 h-4"/>Отмена</button>
+                                                <button onClick={() => handleUpdateSession(editingState.originalId, { name: editingState.name, id: editingState.id })} className="flex items-center gap-1 text-sm text-green-400 hover:text-green-300"><Save className="w-4 h-4"/>Сохранить</button>
+                                                <button onClick={() => setEditingState(null)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-300"><X className="w-4 h-4"/>Отмена</button>
                                             </div>
                                         </div>
                                     ) : (
@@ -193,7 +194,7 @@ const AdminApp: React.FC = () => {
                                             <div className="flex items-center gap-3">
                                                 <a href={`/#${session.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-cyan-400 hover:text-cyan-300" title="Открыть"><Eye className="w-4 h-4"/><span>Смотреть</span></a>
                                                 <a href={`/editor.html?session=${session.id}`} className="flex items-center gap-1 text-sm text-yellow-400 hover:text-yellow-300" title="Редактировать"><Edit className="w-4 h-4"/><span>Править</span></a>
-                                                <button onClick={() => setEditingSession(session)} className="flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300" title="Переименовать"><Edit className="w-4 h-4"/><span>Имя/ID</span></button>
+                                                <button onClick={() => setEditingState({ originalId: session.id, name: session.name, id: session.id })} className="flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300" title="Переименовать"><Edit className="w-4 h-4"/><span>Имя/ID</span></button>
                                                 <button onClick={() => handleDeleteSession(session.id)} className="flex items-center gap-1 text-sm text-red-400 hover:text-red-300" title="Удалить"><Trash2 className="w-4 h-4"/><span>Удалить</span></button>
                                             </div>
                                         </div>

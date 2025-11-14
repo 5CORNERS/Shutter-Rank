@@ -82,7 +82,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
                     <button
                         onClick={() => !disabled && onRate(photo.id, 0)}
                         disabled={disabled}
-                        className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none`}
+                        className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none sm:opacity-0 sm:group-hover:opacity-100`}
                         aria-label="Сбросить оценку"
                     >
                         <XCircle className={`${xCircleSizeClass} ${disabled ? 'opacity-50' : ''}`} />
