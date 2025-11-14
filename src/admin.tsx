@@ -4,16 +4,33 @@ import { db } from './firebase';
 import { ref, get, set, remove } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Eye, Edit, Trash2, PlusCircle, AlertTriangle } from 'lucide-react';
+import { Eye, Edit, Trash2, PlusCircle, AlertTriangle, Save, X } from 'lucide-react';
 import './index.css';
 import { Config, FirebasePhotoData } from './types';
 
 type Status = 'loading' | 'success' | 'error';
+type SessionInfo = { id: string; name: string };
+
+const slugify = (text: string): string => {
+    const a = 'àáâäæãåāăąçćčđďèéêëēėęěğǵḧîïíīįìłḿñńǹňôöòóœøōõőṕŕřßśšşșťțûüùúūǘůűųẃẍÿýžźż·/_,:;'
+    const b = 'aaaaaaaaaacccddeeeeeeeegghiiiiiilmnnnnoooooooooprrsssssttuuuuuuuuuwxyyzzz------'
+    const p = new RegExp(a.split('').join('|'), 'g')
+
+    return text.toString().toLowerCase()
+        .replace(/\s+/g, '-') // Replace spaces with -
+        .replace(p, c => b.charAt(a.indexOf(c))) // Replace special characters
+        .replace(/&/g, '-and-') // Replace & with 'and'
+        .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+        .replace(/\-\-+/g, '-') // Replace multiple - with single -
+        .replace(/^-+/, '') // Trim - from start of text
+        .replace(/-+$/, '') // Trim - from end of text
+}
 
 const AdminApp: React.FC = () => {
-    const [sessions, setSessions] = useState<string[]>([]);
+    const [sessions, setSessions] = useState<SessionInfo[]>([]);
     const [newSessionName, setNewSessionName] = useState('');
     const [status, setStatus] = useState<Status>('loading');
+    const [editingSession, setEditingSession] = useState<SessionInfo | null>(null);
 
     const fetchSessions = useCallback(async () => {
         setStatus('loading');
@@ -23,9 +40,12 @@ const AdminApp: React.FC = () => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 if (typeof data === 'object' && data !== null) {
-                    setSessions(Object.keys(data));
+                    const sessionList: SessionInfo[] = Object.keys(data).map(id => ({
+                        id: id,
+                        name: data[id]?.config?.name || id
+                    }));
+                    setSessions(sessionList);
                 } else {
-                    console.warn("Firebase 'sessions' node exists but is not an object:", data);
                     setSessions([]);
                 }
             } else {
@@ -43,17 +63,19 @@ const AdminApp: React.FC = () => {
     }, [fetchSessions]);
 
     const handleCreateSession = async () => {
-        const trimmedName = newSessionName.trim().replace(/[^a-zA-Z0-9-_]/g, '');
+        const trimmedName = newSessionName.trim();
         if (!trimmedName) {
-            alert('Пожалуйста, введите корректное имя сессии (только латинские буквы, цифры, дефис и подчеркивание).');
+            alert('Пожалуйста, введите название сессии.');
             return;
         }
-        if (sessions.includes(trimmedName)) {
-            alert('Сессия с таким именем уже существует.');
+        const newSessionId = slugify(trimmedName);
+        if (sessions.some(s => s.id === newSessionId)) {
+            alert(`Сессия с ID "${newSessionId}" уже существует. Пожалуйста, выберите другое название.`);
             return;
         }
 
         const defaultConfig: Config = {
+            name: trimmedName,
             ratedPhotoLimit: 15,
             totalStarsLimit: 25,
             defaultLayoutDesktop: 'grid',
@@ -67,9 +89,8 @@ const AdminApp: React.FC = () => {
             photos: [],
         };
 
-        const sessionRef = ref(db, `sessions/${trimmedName}`);
         try {
-            await set(sessionRef, {
+            await set(ref(db, `sessions/${newSessionId}`), {
                 config: defaultConfig,
                 photos: defaultPhotos,
                 votes: {},
@@ -85,15 +106,52 @@ const AdminApp: React.FC = () => {
     };
 
     const handleDeleteSession = async (sessionId: string) => {
-        if (window.confirm(`Вы уверены, что хотите безвозвратно удалить сессию "${sessionId}"?`)) {
-            const sessionRef = ref(db, `sessions/${sessionId}`);
+        const session = sessions.find(s => s.id === sessionId);
+        if (window.confirm(`Вы уверены, что хотите безвозвратно удалить сессию "${session?.name || sessionId}"?`)) {
             try {
-                await remove(sessionRef);
+                await remove(ref(db, `sessions/${sessionId}`));
                 await fetchSessions();
             } catch (error) {
                 console.error(`Ошибка удаления сессии ${sessionId}:`, error);
                 alert('Не удалось удалить сессию. Подробности в консоли.');
             }
+        }
+    };
+
+    const handleUpdateSession = async (originalId: string, updatedSession: SessionInfo) => {
+        if (!updatedSession.id || !updatedSession.name) {
+            alert("Имя и ID сессии не могут быть пустыми.");
+            return;
+        }
+
+        try {
+            const originalSessionRef = ref(db, `sessions/${originalId}`);
+            const sessionSnapshot = await get(originalSessionRef);
+            if (!sessionSnapshot.exists()) throw new Error("Original session not found");
+            const sessionData = sessionSnapshot.val();
+
+            // Update the name inside config
+            sessionData.config.name = updatedSession.name;
+
+            // If ID has changed, we need to move the data
+            if (originalId !== updatedSession.id) {
+                if (sessions.some(s => s.id === updatedSession.id)) {
+                    alert(`Сессия с ID "${updatedSession.id}" уже существует.`);
+                    return;
+                }
+                const newSessionRef = ref(db, `sessions/${updatedSession.id}`);
+                await set(newSessionRef, sessionData);
+                await remove(originalSessionRef);
+            } else {
+                // If ID is the same, just update the data
+                await set(originalSessionRef, sessionData);
+            }
+
+            setEditingSession(null);
+            await fetchSessions();
+        } catch (error) {
+            console.error(`Ошибка обновления сессии ${originalId}:`, error);
+            alert('Не удалось обновить сессию. Подробности в консоли.');
         }
     };
 
@@ -115,14 +173,31 @@ const AdminApp: React.FC = () => {
                     <h2 className="text-xl font-semibold mb-3 text-gray-300">Существующие сессии</h2>
                     {sessions.length > 0 ? (
                         <ul className="space-y-2">
-                            {sessions.map(id => (
-                                <li key={id} className="flex flex-wrap items-center justify-between p-3 bg-gray-700/50 rounded-lg">
-                                    <span className="font-mono text-lg text-white">{id}</span>
-                                    <div className="flex items-center gap-3">
-                                        <a href={`/#${id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-cyan-400 hover:text-cyan-300" title="Открыть"><Eye className="w-4 h-4"/><span>Смотреть</span></a>
-                                        <a href={`/editor.html?session=${id}`} className="flex items-center gap-1 text-sm text-yellow-400 hover:text-yellow-300" title="Редактировать"><Edit className="w-4 h-4"/><span>Править</span></a>
-                                        <button onClick={() => handleDeleteSession(id)} className="flex items-center gap-1 text-sm text-red-400 hover:text-red-300" title="Удалить"><Trash2 className="w-4 h-4"/><span>Удалить</span></button>
-                                    </div>
+                            {sessions.map(session => (
+                                <li key={session.id} className="p-3 bg-gray-700/50 rounded-lg">
+                                    {editingSession?.id === session.id ? (
+                                        <div className="flex flex-col gap-2">
+                                            <input type="text" value={editingSession.name} onChange={e => setEditingSession({...editingSession, name: e.target.value})} className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white" placeholder="Название"/>
+                                            <input type="text" value={editingSession.id} onChange={e => setEditingSession({...editingSession, id: slugify(e.target.value)})} className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white font-mono" placeholder="ID"/>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={() => handleUpdateSession(session.id, editingSession)} className="flex items-center gap-1 text-sm text-green-400 hover:text-green-300"><Save className="w-4 h-4"/>Сохранить</button>
+                                                <button onClick={() => setEditingSession(null)} className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-300"><X className="w-4 h-4"/>Отмена</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div>
+                                                <div className="font-bold text-lg text-white">{session.name}</div>
+                                                <div className="font-mono text-xs text-gray-400">{session.id}</div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <a href={`/#${session.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-cyan-400 hover:text-cyan-300" title="Открыть"><Eye className="w-4 h-4"/><span>Смотреть</span></a>
+                                                <a href={`/editor.html?session=${session.id}`} className="flex items-center gap-1 text-sm text-yellow-400 hover:text-yellow-300" title="Редактировать"><Edit className="w-4 h-4"/><span>Править</span></a>
+                                                <button onClick={() => setEditingSession(session)} className="flex items-center gap-1 text-sm text-purple-400 hover:text-purple-300" title="Переименовать"><Edit className="w-4 h-4"/><span>Имя/ID</span></button>
+                                                <button onClick={() => handleDeleteSession(session.id)} className="flex items-center gap-1 text-sm text-red-400 hover:text-red-300" title="Удалить"><Trash2 className="w-4 h-4"/><span>Удалить</span></button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </li>
                             ))}
                         </ul>
@@ -138,7 +213,7 @@ const AdminApp: React.FC = () => {
                             value={newSessionName}
                             onChange={(e) => setNewSessionName(e.target.value)}
                             className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Название сессии (например, paris-2024)"
+                            placeholder="Название сессии (например, Paris 2024)"
                         />
                         <button onClick={handleCreateSession} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors">
                             <PlusCircle className="w-5 h-5"/> Создать

@@ -121,6 +121,12 @@ const EditorApp: React.FC = () => {
                 const data = snapshot.val();
                 let hasBeenMigrated = false;
 
+                // --- Automatic Migration for session 'name' in config ---
+                if (!data.config.name) {
+                    data.config.name = id;
+                    hasBeenMigrated = true;
+                }
+
                 // --- Automatic Migration for 'groups' object from string to {name, caption} ---
                 if (data.groups) {
                     const groupIds = Object.keys(data.groups);
@@ -230,7 +236,7 @@ const EditorApp: React.FC = () => {
         }
     };
 
-    const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
         const parsedValue = type === 'number' ? parseFloat(value) || 0 : value;
         if (sessionData) {
@@ -512,7 +518,11 @@ const EditorApp: React.FC = () => {
                 <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Настройки сессии</summary>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                        {Object.entries(sessionData.config).map(([key, value]) => (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400">Session Name</label>
+                            <input type="text" name="name" value={sessionData.config.name || ''} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
+                        </div>
+                        {Object.entries(sessionData.config).filter(([key]) => key !== 'name').map(([key, value]) => (
                             <div key={key}>
                                 <label className="block text-sm font-medium text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
                                 {typeof value === 'number' ? (
@@ -655,7 +665,9 @@ const EditorApp: React.FC = () => {
         );
     };
 
-    return <AdminLayout title={`Редактор: ${sessionId}`}>{renderContent()}</AdminLayout>;
+    const pageTitle = `Редактор: ${sessionData?.config?.name || sessionId || '...'}`;
+
+    return <AdminLayout title={pageTitle}>{renderContent()}</AdminLayout>;
 };
 
 const rootElement = document.getElementById('root');

@@ -48,6 +48,7 @@ export interface Settings {
 }
 
 export interface Config {
+    name?: string; // Human-readable name
     ratedPhotoLimit: number;
     totalStarsLimit: number;
     defaultLayoutDesktop: LayoutMode;

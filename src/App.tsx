@@ -17,6 +17,7 @@ import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, F
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
 type AppStatus = 'loading' | 'success' | 'error' | 'selecting_session';
+type SessionInfo = { id: string; name: string };
 
 const getUserId = (): string => {
     let userId = localStorage.getItem('shutterRankUserId');
@@ -29,7 +30,7 @@ const getUserId = (): string => {
 
 const App: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
-    const [availableSessions, setAvailableSessions] = useState<string[]>([]);
+    const [availableSessions, setAvailableSessions] = useState<SessionInfo[]>([]);
     const [userId] = useState<string>(getUserId());
 
     const [photos, setPhotos] = useState<Photo[]>([]);
@@ -80,7 +81,12 @@ const App: React.FC = () => {
                     const sessionsRef = ref(db, 'sessions');
                     const snapshot = await get(sessionsRef);
                     if (snapshot.exists()) {
-                        setAvailableSessions(Object.keys(snapshot.val()));
+                        const data = snapshot.val();
+                        const sessionList: SessionInfo[] = Object.keys(data).map(id => ({
+                            id: id,
+                            name: data[id]?.config?.name || id
+                        }));
+                        setAvailableSessions(sessionList);
                     }
                     setStatus('selecting_session');
                 } catch (error) {
@@ -657,11 +663,11 @@ const App: React.FC = () => {
                     {availableSessions.length > 0 ? (
                         availableSessions.map(session => (
                             <a
-                                key={session}
-                                href={`#${session}`}
+                                key={session.id}
+                                href={`#${session.id}`}
                                 className="block w-full text-center px-6 py-3 text-lg font-semibold rounded-lg bg-gray-700 hover:bg-indigo-600 focus:ring-indigo-500 text-white transition-colors"
                             >
-                                {session}
+                                {session.name}
                             </a>
                         ))
                     ) : (
@@ -689,6 +695,7 @@ const App: React.FC = () => {
 
     const showStickyHeader = isScrolled || !!selectedPhoto;
     const hasVotes = ratedPhotosCount > 0;
+    const sessionDisplayName = config.name || sessionId;
 
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
@@ -719,7 +726,7 @@ const App: React.FC = () => {
             <main className={`container mx-auto px-4 py-8`}>
                 <header ref={headerRef} className="text-center mb-8">
                     <div className="flex justify-center items-center gap-3 mb-2">
-                        <h1 className="text-4xl font-bold tracking-tight capitalize">{sessionId ? sessionId.replace(/[-_]/g, ' ') : ''}</h1>
+                        <h1 className="text-4xl font-bold tracking-tight">{sessionDisplayName}</h1>
                         <button onClick={() => setIsSettingsModalOpen(true)} className="text-gray-400 hover:text-white transition-colors" title="Настройки">
                             <SettingsIcon className="w-6 h-6" />
                         </button>

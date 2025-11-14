@@ -10,15 +10,37 @@ import { FirebasePhoto, FirebasePhotoData, Config } from './types';
 
 type Status = 'idle' | 'processing' | 'processed' | 'saving' | 'error';
 
+const slugify = (text: string): string => {
+    const a = 'àáâäæãåāăąçćčđďèéêëēėęěğǵḧîïíīįìłḿñńǹňôöòóœøōõőṕŕřßśšşșťțûüùúūǘůűųẃẍÿýžźż·/_,:;'
+    const b = 'aaaaaaaaaacccddeeeeeeeegghiiiiiilmnnnnoooooooooprrsssssttuuuuuuuuuwxyyzzz------'
+    const p = new RegExp(a.split('').join('|'), 'g')
+
+    return text.toString().toLowerCase()
+        .replace(/\s+/g, '-') // Replace spaces with -
+        .replace(p, c => b.charAt(a.indexOf(c))) // Replace special characters
+        .replace(/&/g, '-and-') // Replace & with 'and'
+        .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+        .replace(/\-\-+/g, '-') // Replace multiple - with single -
+        .replace(/^-+/, '') // Trim - from start of text
+        .replace(/-+$/, '') // Trim - from end of text
+}
+
+
 const PrepareApp: React.FC = () => {
-    const [sessionId, setSessionId] = useState('');
+    const [sessionName, setSessionName] = useState('');
     const [urls, setUrls] = useState('');
     const [intro, setIntro] = useState('');
     const [photos, setPhotos] = useState<FirebasePhoto[]>([]);
     const [status, setStatus] = useState<Status>('idle');
     const [error, setError] = useState('');
+    const [generatedSessionId, setGeneratedSessionId] = useState('');
 
     const handleProcessUrls = () => {
+        if (!sessionName.trim()) {
+            setError('Пожалуйста, введите название сессии.');
+            setStatus('error');
+            return;
+        }
         setStatus('processing');
         const urlArray = urls.split('\n').map(u => u.trim()).filter(Boolean);
         if (urlArray.length === 0) {
@@ -34,6 +56,7 @@ const PrepareApp: React.FC = () => {
             order: index,
         }));
         setPhotos(photoData);
+        setGeneratedSessionId(slugify(sessionName));
         setStatus('processed');
     };
 
@@ -45,9 +68,8 @@ const PrepareApp: React.FC = () => {
     };
 
     const handleSave = async () => {
-        const trimmedId = sessionId.trim().replace(/[^a-zA-Z0-9-_]/g, '');
-        if (!trimmedId) {
-            setError('Пожалуйста, введите корректное имя сессии.');
+        if (!generatedSessionId) {
+            setError('ID сессии не был сгенерирован.');
             setStatus('error');
             return;
         }
@@ -59,12 +81,12 @@ const PrepareApp: React.FC = () => {
 
         setStatus('saving');
         try {
-            const sessionRef = ref(db, `sessions/${trimmedId}`);
+            const sessionRef = ref(db, `sessions/${generatedSessionId}`);
             const snapshot = await get(sessionRef);
             const sessionExists = snapshot.exists();
 
             if (sessionExists) {
-                if (!window.confirm(`Сессия "${trimmedId}" уже существует. Вы уверены, что хотите перезаписать ее данные о фотографиях?`)) {
+                if (!window.confirm(`Сессия "${generatedSessionId}" уже существует. Вы уверены, что хотите перезаписать ее данные о фотографиях?`)) {
                     setStatus('processed');
                     return;
                 }
@@ -80,10 +102,23 @@ const PrepareApp: React.FC = () => {
                 photos: photosWithOrder,
             };
 
+            const configData: Config = {
+                name: sessionName.trim(),
+                ratedPhotoLimit: 15,
+                totalStarsLimit: 25,
+                defaultLayoutDesktop: 'grid',
+                defaultLayoutMobile: 'original',
+                defaultGridAspectRatio: '4/3',
+                unlockFourStarsThresholdPercent: 20,
+                unlockFiveStarsThresholdPercent: 50,
+            };
+
             if (sessionExists) {
-                // For existing sessions, just update photos and votes
-                await set(ref(db, `sessions/${trimmedId}/photos`), photosData);
-                const votesRef = ref(db, `sessions/${trimmedId}/votes`);
+                const existingData = snapshot.val();
+                await set(ref(db, `sessions/${generatedSessionId}/config`), existingData.config ? {...existingData.config, name: sessionName.trim()} : configData);
+                await set(ref(db, `sessions/${generatedSessionId}/photos`), photosData);
+
+                const votesRef = ref(db, `sessions/${generatedSessionId}/votes`);
                 const votesSnapshot = await get(votesRef);
                 const currentVotes = votesSnapshot.val() || {};
                 photosWithOrder.forEach(p => {
@@ -94,24 +129,13 @@ const PrepareApp: React.FC = () => {
                 await set(votesRef, currentVotes);
 
             } else {
-                // For new sessions, create the complete structure
-                const defaultConfig: Config = {
-                    ratedPhotoLimit: 15,
-                    totalStarsLimit: 25,
-                    defaultLayoutDesktop: 'grid',
-                    defaultLayoutMobile: 'original',
-                    defaultGridAspectRatio: '4/3',
-                    unlockFourStarsThresholdPercent: 20,
-                    unlockFiveStarsThresholdPercent: 50,
-                };
-
                 const initialVotes: { [key: number]: number } = {};
                 photosWithOrder.forEach(p => {
                     initialVotes[p.id] = 0;
                 });
 
                 const newSessionData = {
-                    config: defaultConfig,
+                    config: configData,
                     photos: photosData,
                     groups: {},
                     votes: initialVotes,
@@ -121,8 +145,8 @@ const PrepareApp: React.FC = () => {
                 await set(sessionRef, newSessionData);
             }
 
-            alert(`Сессия "${trimmedId}" успешно сохранена с ${photos.length} фотографиями.`);
-            window.location.href = `/editor.html?session=${trimmedId}`;
+            alert(`Сессия "${generatedSessionId}" успешно сохранена с ${photos.length} фотографиями.`);
+            window.location.href = `/editor.html?session=${generatedSessionId}`;
 
         } catch (err) {
             console.error(err);
@@ -150,8 +174,9 @@ const PrepareApp: React.FC = () => {
             return (
                 <div className="space-y-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">ID Сессии</label>
-                        <input type="text" value={sessionId} disabled className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-gray-400" />
+                        <label className="block text-sm font-medium text-gray-300 mb-1">Название сессии</label>
+                        <input type="text" value={sessionName} disabled className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-gray-400" />
+                        <p className="text-xs text-gray-500 mt-1">Сгенерированный ID: <span className="font-mono">{generatedSessionId}</span></p>
                     </div>
                     {photos.map((photo, index) => (
                         <div key={index} className="flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg">
@@ -190,8 +215,8 @@ const PrepareApp: React.FC = () => {
         return (
             <div className="space-y-4">
                 <div>
-                    <label htmlFor="session-id" className="block text-sm font-medium text-gray-300 mb-1">1. ID Сессии</label>
-                    <input type="text" id="session-id" value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white" placeholder="Например, paris-2024" />
+                    <label htmlFor="session-name" className="block text-sm font-medium text-gray-300 mb-1">1. Название сессии</label>
+                    <input type="text" id="session-name" value={sessionName} onChange={(e) => setSessionName(e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white" placeholder="Например, Paris 2024" />
                 </div>
                 <div>
                     <label htmlFor="intro" className="block text-sm font-medium text-gray-300 mb-1">2. Вступительная статья (Markdown)</label>
