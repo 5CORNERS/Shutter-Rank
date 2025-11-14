@@ -27,7 +27,7 @@ interface ModalProps {
     config: Config | null;
     ratedPhotosCount: number;
     starsUsed: number;
-    groupInfo: { id: string; name: string } | null;
+    groupInfo: { id: string; name: string; count: number } | null;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
     openedFromGroupId: string | null;
@@ -122,7 +122,7 @@ export const Modal: React.FC<ModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">
-            <div className="absolute top-10 right-10 z-[51] flex items-center gap-4">
+            <div className="absolute top-4 right-4 z-[51] flex items-center gap-4">
                 {displayVotes && (
                     <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 px-3 py-1 rounded-md`}>
                         Рейтинг: {photo.votes}
@@ -147,11 +147,17 @@ export const Modal: React.FC<ModalProps> = ({
                                 <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
                             </button>
                         )}
+                        {groupInfo && isFromMainFeed && (
+                            <div className="absolute top-4 right-4 z-[3] bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-base font-bold flex items-center gap-2 pointer-events-auto">
+                                <Layers size={18} />
+                                <span>{groupInfo.count}</span>
+                            </div>
+                        )}
                         {groupInfo && !isFromMainFeed && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
                     </div>
                 </div>
 
-                <div className="group/controls bg-gradient-to-t from-gray-900 via-gray-800/80 to-gray-800/60 hover:from-black hover:to-gray-900/80 transition-colors duration-300 rounded-b-lg">
+                <div className="bg-gradient-to-t from-gray-900 via-gray-800/80 to-gray-800/60 rounded-b-lg">
                     {groupInfo && (
                         <div className="flex items-center justify-center gap-3 text-sm text-gray-400 border-t border-gray-700/50 px-4 py-2" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center gap-3 truncate">

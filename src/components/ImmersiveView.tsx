@@ -28,7 +28,7 @@ interface ImmersiveViewProps {
     starsUsed: number;
     ratedPhotoLimit: number;
     totalStarsLimit: number;
-    groupInfo: { id: string; name: string } | null;
+    groupInfo: { id: string; name: string; count: number } | null;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     isPhotoInGroupSelected: boolean;
     openedFromGroupId: string | null;
@@ -71,13 +71,12 @@ const getStarNounGenitive = (count: number): string => {
 const ImageWrapper: React.FC<{
     photo?: Photo;
     isVisible: boolean;
-    groupInfo: { id: string; name: string } | null;
+    groupInfo: { id: string; name: string; count: number } | null;
     isPhotoInGroupSelected: boolean;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     onToggleFlag: (photoId: number) => void;
     isFromMainFeed: boolean;
-    onOpenGroup: (groupId: string) => void;
-}> = React.memo(({ photo, isVisible, groupInfo, isPhotoInGroupSelected, onGroupSelectionChange, onToggleFlag, isFromMainFeed, onOpenGroup }) => {
+}> = React.memo(({ photo, isVisible, groupInfo, isPhotoInGroupSelected, onGroupSelectionChange, onToggleFlag, isFromMainFeed }) => {
     const imgRef = useRef<HTMLImageElement>(null);
     const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
 
@@ -108,7 +107,6 @@ const ImageWrapper: React.FC<{
             left: `${left}px`,
             width: `${width}px`,
             height: `${height}px`,
-            zIndex: 30,
         });
     }, []);
 
@@ -131,6 +129,11 @@ const ImageWrapper: React.FC<{
         }
     };
 
+    const handleToggleFlagClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (photo) onToggleFlag(photo.id);
+    }
+
     return (
         <div
             className="w-screen h-full flex-shrink-0 flex items-center justify-center relative"
@@ -147,15 +150,23 @@ const ImageWrapper: React.FC<{
                         draggable="false"
                         loading={isVisible ? 'eager' : 'lazy'}
                     />
-                    { isVisible && !photo.isOutOfCompetition && (
-                        <div style={controlsContainerStyle} className="pointer-events-none">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
-                                className="absolute top-2 left-2 z-10 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
-                                title="Отметить (F)"
-                            >
-                                <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
-                            </button>
+                    { isVisible && (
+                        <div style={controlsContainerStyle} className="pointer-events-none z-40">
+                            {!photo.isOutOfCompetition && (
+                                <button
+                                    onClick={handleToggleFlagClick}
+                                    className="absolute top-2 left-2 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
+                                    title="Отметить (F)"
+                                >
+                                    <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                                </button>
+                            )}
+                            {groupInfo && isFromMainFeed && (
+                                <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-base font-bold flex items-center gap-2 pointer-events-auto">
+                                    <Layers size={18} />
+                                    <span>{groupInfo.count}</span>
+                                </div>
+                            )}
                             {groupInfo && !isFromMainFeed && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
                         </div>
                     )}
@@ -210,6 +221,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         setHoverRating(0);
         if (uiMode === 'minimal') {
             showTransientControls();
+        } else {
+            setTransientControlsVisible(true);
+            if (activityTimer.current) clearTimeout(activityTimer.current);
         }
     }, [photoId, uiMode, showTransientControls]);
 
@@ -450,7 +464,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
 
     const showTopAndSideControls = uiMode === 'full' || transientControlsVisible;
     const showBottomControls = uiMode === 'full';
-    const showStackButton = groupInfo && isFromMainFeed;
+    const showPersistentGroupControls = groupInfo && isFromMainFeed;
 
     return (
         <div
@@ -460,7 +474,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             onTouchMove={isTouchDevice ? handleTouchMove : undefined}
             onTouchEnd={isTouchDevice ? handleTouchEnd : undefined}
             onClick={handleBackgroundClick}
-            onMouseMove={showTransientControls}
+            onMouseMove={isTouchDevice ? undefined : showTransientControls}
             style={{ touchAction: 'none' }}
         >
             <div
@@ -470,9 +484,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     width: `calc(300vw + ${PHOTO_GAP * 2}px)`,
                 }}
             >
-                <ImageWrapper photo={hasMultiplePhotos ? prevPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleFlag={()=>{}} isFromMainFeed={false} onOpenGroup={() => {}} />
-                <ImageWrapper photo={photo} isVisible={true} groupInfo={groupInfo} isPhotoInGroupSelected={isPhotoInGroupSelected} onGroupSelectionChange={onGroupSelectionChange} onToggleFlag={onToggleFlag} isFromMainFeed={isFromMainFeed} onOpenGroup={onOpenGroup} />
-                <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleFlag={()=>{}} isFromMainFeed={false} onOpenGroup={() => {}} />
+                <ImageWrapper photo={hasMultiplePhotos ? prevPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleFlag={()=>{}} isFromMainFeed={false} />
+                <ImageWrapper photo={photo} isVisible={true} groupInfo={groupInfo} isPhotoInGroupSelected={isPhotoInGroupSelected} onGroupSelectionChange={onGroupSelectionChange} onToggleFlag={onToggleFlag} isFromMainFeed={isFromMainFeed} />
+                <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleFlag={()=>{}} isFromMainFeed={false} />
             </div>
 
             <div className="absolute inset-0 pointer-events-none z-10">
@@ -492,7 +506,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 )}
 
                 <div
-                    className={`absolute top-0 left-0 right-0 p-4 pr-10 flex justify-end items-start gap-4 pointer-events-auto transition-opacity duration-300 ${showTopAndSideControls ? 'opacity-100' : 'opacity-0'}`}
+                    className={`absolute top-4 right-4 flex items-start gap-4 pointer-events-auto transition-opacity duration-300 ${showTopAndSideControls ? 'opacity-100' : 'opacity-0'}`}
                     onClick={handleControlInteraction}
                     onTouchStart={handleControlTouchStart}
                 >
@@ -508,27 +522,17 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     </div>
                 </div>
 
-                <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-16 group/controls pointer-events-auto transition-opacity duration-300 ${showBottomControls ? 'opacity-100' : 'opacity-0'}`}
-                     onMouseEnter={() => !isTouchDevice && setUiMode('full')}>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover/controls:opacity-100 transition-opacity pointer-events-none" />
-
-                    {showStackButton && groupInfo && (
-                        <div className="px-4 pb-2 text-left text-white relative shadow-text">
-                            <button onClick={(e) => { e.stopPropagation(); onOpenGroup(groupInfo.id); }} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
-                                <Layers size={16}/>
-                                Открыть группу «{groupInfo.name}»
-                            </button>
-                        </div>
-                    )}
-
+                <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent pt-16 pointer-events-auto transition-opacity duration-300 ${showBottomControls ? 'opacity-100' : 'opacity-0'}`}
+                     onClick={handleControlInteraction}
+                     onTouchStart={handleControlTouchStart}
+                     onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
+                     onMouseEnter={() => !isTouchDevice && uiMode === 'minimal' && setUiMode('full')}
+                >
                     <div className="px-4 pb-2 text-left text-white relative shadow-text">
                         <p>{photo.caption}</p>
                     </div>
                     <div
                         className="p-4 flex flex-nowrap justify-between items-center gap-4 relative"
-                        onClick={handleControlInteraction}
-                        onTouchStart={handleControlTouchStart}
-                        onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
                     >
                         <div className="flex items-center flex-shrink-0">
                             {!isOutOfComp && !groupInfo && (
@@ -584,13 +588,19 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     </div>
                 </div>
 
-                {showStackButton && groupInfo && (
-                    <div className={`absolute bottom-4 left-4 z-20 pointer-events-auto`}>
-                        <div className="p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white" title={`Фото из группы «${groupInfo.name}»`}>
-                            <Layers className="w-6 h-6" />
-                        </div>
+                {showPersistentGroupControls && groupInfo && (
+                    <div className="absolute bottom-4 left-4 z-20 pointer-events-auto">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onOpenGroup(groupInfo.id); }}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+                            onTouchStart={handleControlTouchStart}
+                        >
+                            <Layers size={16}/>
+                            <span>Открыть группу «{groupInfo.name}»</span>
+                        </button>
                     </div>
                 )}
+
 
                 {showHint && isTouchDevice && (
                     <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/80 text-sm bg-black/50 px-3 py-1 rounded-full pointer-events-none animate-fade-in">

@@ -543,17 +543,23 @@ const App: React.FC = () => {
         }
     }, [groupSelections, sessionId]);
 
-    const findGroupForPhoto = useCallback((photoId: number | null): { id: string; name: string } | null => {
+    const findGroupDetails = useCallback((photoId: number | null): { id: string; name: string; count: number } | null => {
         if (photoId === null) return null;
+
         const photo = photos.find(p => p.id === photoId);
         if (!photo || !photo.groupId) return null;
+
         const groupName = groups[photo.groupId];
         if (!groupName) return null;
-        return { id: photo.groupId, name: groupName };
-    }, [photos, groups]);
 
-    const selectedPhotoGroupInfo = useMemo(() => findGroupForPhoto(selectedPhotoId), [selectedPhotoId, findGroupForPhoto]);
-    const immersivePhotoGroupInfo = useMemo(() => findGroupForPhoto(immersivePhotoId), [immersivePhotoId, findGroupForPhoto]);
+        const stack = galleryItems.find(item => item.type === 'stack' && item.groupId === photo.groupId) as PhotoStack | undefined;
+        const count = stack ? stack.photos.length : 0;
+
+        return { id: photo.groupId, name: groupName, count };
+    }, [photos, groups, galleryItems]);
+
+    const selectedPhotoGroupInfo = useMemo(() => findGroupDetails(selectedPhotoId), [selectedPhotoId, findGroupDetails]);
+    const immersivePhotoGroupInfo = useMemo(() => findGroupDetails(immersivePhotoId), [immersivePhotoId, findGroupDetails]);
 
     const StatsInfo = ({isCompact = false}) => {
         if (!config) return null;
