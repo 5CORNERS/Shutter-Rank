@@ -107,7 +107,7 @@ export const Modal: React.FC<ModalProps> = ({
 
     const isFromMainFeed = openedFromGroupId === null;
     const showRatingPanel = !groupInfo || (groupInfo && isPhotoInGroupSelected);
-    const captionToShow = groupInfo?.caption || photo.caption;
+    const captionToShow = (isFromMainFeed && groupInfo?.caption) ? groupInfo.caption : photo.caption;
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">

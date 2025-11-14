@@ -458,7 +458,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const showTopAndSideControls = uiMode === 'full' || transientControlsVisible;
     const showBottomControls = uiMode === 'full' || (groupInfo && isPhotoInGroupSelected);
     const showPersistentGroupControls = groupInfo && isFromMainFeed;
-    const captionToShow = groupInfo?.caption || photo.caption;
+    const captionToShow = (isFromMainFeed && groupInfo?.caption) ? groupInfo.caption : photo.caption;
 
     return (
         <div
