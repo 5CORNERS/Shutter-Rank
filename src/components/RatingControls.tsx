@@ -7,6 +7,7 @@ interface RatingControlsProps {
     onRate: (photoId: number, rating: number) => void;
     size?: 'small' | 'large';
     disabled?: boolean;
+    resetButtonMode?: 'always' | 'on-hover-desktop';
 }
 
 const getStarNounAccusative = (count: number): string => {
@@ -27,7 +28,7 @@ const getStarNounGenitive = (count: number): string => {
 }
 
 
-export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, size = 'large', disabled = false }) => {
+export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, size = 'large', disabled = false, resetButtonMode = 'on-hover-desktop' }) => {
     const [hoverRating, setHoverRating] = useState(0);
     const isTouchDevice = 'ontouchstart' in window;
 
@@ -39,6 +40,10 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
     const xCircleSizeClass = size === 'large' ? 'w-6 h-6' : 'w-5 h-5';
     const buttonPadding = size === 'large' ? 'p-2' : 'p-1.5';
     const hasRating = (photo.userRating || 0) > 0;
+
+    const resetButtonVisibilityClass = resetButtonMode === 'on-hover-desktop'
+        ? 'sm:opacity-0 sm:group-hover:opacity-100'
+        : '';
 
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
@@ -82,7 +87,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({ photo, onRate, s
                     <button
                         onClick={() => !disabled && onRate(photo.id, 0)}
                         disabled={disabled}
-                        className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none sm:opacity-0 sm:group-hover:opacity-100`}
+                        className={`${buttonPadding} rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none ${resetButtonVisibilityClass}`}
                         aria-label="Сбросить оценку"
                     >
                         <XCircle className={`${xCircleSizeClass} ${disabled ? 'opacity-50' : ''}`} />

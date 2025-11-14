@@ -167,7 +167,7 @@ export const Modal: React.FC<ModalProps> = ({
                     <div className={`transition-opacity duration-300 ${showRatingPanel ? 'opacity-100' : 'opacity-0 h-0 p-0 overflow-hidden'}`}>
                         <div className="p-3 flex flex-wrap justify-between items-center gap-4">
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} />
+                                <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} resetButtonMode="always" />
                             </div>
                             <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
                                 <div className="flex items-center gap-x-1" title="Оценено фотографий">
