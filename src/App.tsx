@@ -11,8 +11,9 @@ import { ArticleModal } from './components/IntroModal';
 import { RatingInfoModal } from './components/RatingInfoModal';
 import { PhotoStackComponent } from './components/PhotoStack';
 import { Toast } from './components/Toast';
+import { ToggleSwitch } from './components/ToggleSwitch';
 import { useDeviceType } from './hooks/useDeviceType';
-import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List } from 'lucide-react';
+import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2 } from 'lucide-react';
 
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
@@ -338,21 +339,28 @@ const App: React.FC = () => {
 
         const isNewRating = currentRating === 0 && newRating > 0;
         if (isNewRating && ratedPhotosCount >= config.ratedPhotoLimit) {
-            alert(`Можно оценить не более ${config.ratedPhotoLimit} фотографий.`);
+            setToastMessage(`Можно оценить не более ${config.ratedPhotoLimit} фотографий.`);
             return;
         }
 
         const starsDifference = newRating - currentRating;
         if (starsUsed + starsDifference > config.totalStarsLimit) {
-            alert(`Общее количество звезд не может превышать ${config.totalStarsLimit}. У вас осталось ${config.totalStarsLimit - starsUsed} звезд.`);
+            setToastMessage(`Общее количество звезд не может превышать ${config.totalStarsLimit}.`);
             return;
         }
 
         // Optimistic UI update
         setPhotos(prevPhotos =>
-            prevPhotos.map(p =>
-                p.id === photoId ? { ...p, userRating: newRating === 0 ? undefined : newRating } : p
-            )
+            prevPhotos.map(p => {
+                if (p.id === photoId) {
+                    const updatedPhoto: Photo = { ...p, userRating: newRating === 0 ? undefined : newRating };
+                    if (newRating > 0) {
+                        updatedPhoto.isVisible = true; // Automatically make visible when rated
+                    }
+                    return updatedPhoto;
+                }
+                return p;
+            })
         );
 
         // Save individual vote to Firebase
@@ -369,11 +377,11 @@ const App: React.FC = () => {
 
         Promise.all(promises).catch((error: Error) => {
             console.error("Firebase write failed: ", error);
-            alert('Не удалось сохранить вашу оценку. Попробуйте еще раз.');
+            setToastMessage('Ошибка: не удалось сохранить вашу оценку.');
             // Revert optimistic UI update on failure
             setPhotos(prevPhotos =>
                 prevPhotos.map(p =>
-                    p.id === photoId ? { ...p, userRating: currentRating === 0 ? undefined : currentRating } : p
+                    p.id === photoId ? { ...p, userRating: currentRating === 0 ? undefined : currentRating, isVisible: photoToUpdate.isVisible } : p
                 )
             );
         });
@@ -387,6 +395,11 @@ const App: React.FC = () => {
         const currentVisibility = photo.isVisible !== false;
 
         if (currentVisibility) {
+            if (photo.userRating && photo.userRating > 0) {
+                setToastMessage("Оцененные фотографии нельзя скрыть.");
+                return;
+            }
+
             setHidingPhotoId(photoId); // Trigger icon change and animation
             setTimeout(() => {
                 setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, isVisible: false } : p));
@@ -422,7 +435,7 @@ const App: React.FC = () => {
                 })
                 .catch(err => {
                     console.error("Failed to clear votes in Firebase", err);
-                    alert("Не удалось сбросить оценки. Попробуйте еще раз.");
+                    setToastMessage("Не удалось сбросить оценки. Попробуйте еще раз.");
                 });
         }
     }, [sessionId, userId]);
@@ -692,7 +705,7 @@ const App: React.FC = () => {
         }
 
         return (
-            <div className="text-sm space-y-1 text-center text-gray-300">
+            <div className="text-sm space-y-1 text-center text-gray-300 w-full">
                 <div>Вы оценили фотографий: <span className="font-bold text-white">{ratedPhotosCount} / {config.ratedPhotoLimit}</span>, осталось: <span className="font-bold text-indigo-400">{config.ratedPhotoLimit - ratedPhotosCount}</span></div>
                 <div>Израсходовали звезд: <span className="font-bold text-white">{starsUsed} / {config.totalStarsLimit}</span>, осталось: <span className="font-bold text-yellow-400">{config.totalStarsLimit - starsUsed}</span></div>
             </div>
@@ -773,15 +786,8 @@ const App: React.FC = () => {
 
             <div className={`fixed top-0 left-0 right-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700/50 shadow-lg transition-transform duration-300 ease-in-out px-4 py-2 flex justify-between items-center ${!!selectedPhoto ? 'z-[51]' : 'z-40'} ${showStickyHeader ? 'translate-y-0' : '-translate-y-full'}`}>
                 <div className="flex items-center gap-4">
-                    <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a>
-                    <button
-                        onClick={() => setShowHiddenPhotos(s => !s)}
-                        className={`inline-flex items-center gap-x-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors ${showHiddenPhotos ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
-                        title={showHiddenPhotos ? "Скрыть фотографии, которые вы скрыли из ленты" : "Показать скрытые фотографии"}
-                    >
-                        {showHiddenPhotos ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                        <span>{showHiddenPhotos ? 'Скрыть' : 'Показать скрытые'}</span>
-                    </button>
+                    {/* <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a> */}
+                    <ToggleSwitch id="sticky-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label={showHiddenPhotos ? 'Не показывать скрытые' : 'Показывать скрытые'} />
                 </div>
                 <StatsInfo isCompact={true} />
                 <div className="w-48"></div> {/* Placeholder to balance the flex container */}
@@ -797,39 +803,39 @@ const App: React.FC = () => {
                     </div>
                     <p className="text-gray-400 mb-4 max-w-2xl mx-auto">Выберите до {config.ratedPhotoLimit} лучших фотографий. Вы можете распределить между ними до {config.totalStarsLimit} звезд.</p>
                     <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 max-w-4xl mx-auto flex flex-col items-center gap-4">
-                        <StatsInfo />
-                        <div className='flex flex-wrap items-center justify-center gap-4'>
-                            <button
-                                onClick={handleResetVotes}
-                                disabled={!hasVotes}
-                                className="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-800 hover:bg-red-700 focus:ring-red-600 text-white transition-colors disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                                <span>Сбросить оценки</span>
-                            </button>
-                        </div>
-                        <div className='flex flex-wrap items-center justify-center gap-4 mt-2'>
-                            <button
-                                onClick={handleTogglePhase}
-                                className={`inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors
-                            ${votingPhase === 'voting' ? 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500 text-white' : 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500 text-white'}
-                        `}
-                            >
-                                {votingPhase === 'voting' ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                <span>{votingPhase === 'voting' ? 'Показать общие' : 'Скрыть общие'}</span>
-                            </button>
-                            <button
-                                onClick={() => setShowHiddenPhotos(s => !s)}
-                                className={`inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${showHiddenPhotos ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
-                                title={showHiddenPhotos ? "Скрыть фотографии, которые вы скрыли из ленты" : "Показать скрытые фотографии"}
-                            >
-                                {showHiddenPhotos ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                                <span>{showHiddenPhotos ? 'Скрыть' : 'Показать скрытые'}</span>
-                            </button>
-                            <div className="flex space-x-2">
-                                <span className="text-gray-400 text-sm self-center">Сортировать:</span>
-                                <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>По рейтингу</button>
-                                <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>По порядку</button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 w-full">
+                            {/* Оценки */}
+                            <div className="flex flex-col items-center gap-3 p-3 rounded-lg bg-gray-900/40">
+                                <h3 className="font-semibold text-gray-400">Оценки</h3>
+                                <StatsInfo />
+                                <div className='flex flex-wrap items-center justify-center gap-4'>
+                                    <button
+                                        onClick={handleTogglePhase}
+                                        className="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg bg-gray-600 hover:bg-gray-700 focus:ring-gray-500 text-white transition-colors"
+                                    >
+                                        <BarChart2 className="w-4 h-4" />
+                                        <span>{votingPhase === 'voting' ? 'Показать общие' : 'Скрыть общие'}</span>
+                                    </button>
+                                    <button
+                                        onClick={handleResetVotes}
+                                        disabled={!hasVotes}
+                                        className="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-800 hover:bg-red-700 focus:ring-red-600 text-white transition-colors disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                        <span>Сбросить оценки</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Вид */}
+                            <div className="flex flex-col items-center gap-3 p-3 rounded-lg bg-gray-900/40">
+                                <h3 className="font-semibold text-gray-400">Вид</h3>
+                                <ToggleSwitch id="main-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label="Показывать скрытые" />
+                                <div className="flex space-x-2">
+                                    <span className="text-gray-400 text-sm self-center">Сортировать:</span>
+                                    <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>По рейтингу</button>
+                                    <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>По порядку</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -837,8 +843,6 @@ const App: React.FC = () => {
 
                 <div className={settings.layout === 'grid'
                     ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-                    // FIXME: The 'columns-X' approach has known issues with React rendering order.
-                    // Consider a flexbox/grid wrapper for each column if items jump around.
                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
                 }>
                     {votingPhase === 'voting' ? (

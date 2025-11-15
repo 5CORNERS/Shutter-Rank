@@ -94,6 +94,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         layoutMode={layoutMode}
                         gridAspectRatio={gridAspectRatio}
                         isHiding={hidingPhotoId === coverPhoto.id}
+                        showVisibilityToggle={false}
                     />
                 </div>
                 <div className="absolute top-2 right-2 z-[3] bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-lg font-bold flex items-center gap-2 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">

@@ -15,11 +15,13 @@ interface PhotoCardProps {
     isDimmed?: boolean;
     isReadOnly?: boolean;
     isHiding?: boolean;
+    showVisibilityToggle?: boolean;
 }
 
 export const PhotoCard: React.FC<PhotoCardProps> = ({
                                                         photo, onRate, onImageClick, onToggleVisibility, displayVotes, layoutMode,
-                                                        gridAspectRatio, showRatingControls = true, isDimmed = false, isReadOnly = false, isHiding = false
+                                                        gridAspectRatio, showRatingControls = true, isDimmed = false, isReadOnly = false, isHiding = false,
+                                                        showVisibilityToggle = true
                                                     }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
@@ -79,7 +81,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none z-[2]" />
 
             <div className="absolute top-2 left-2 z-[3] flex items-center gap-1.5">
-                {!isOutOfComp && !isReadOnly && (
+                {!isOutOfComp && !isReadOnly && showVisibilityToggle && !hasUserRating && (
                     <button
                         onClick={(e) => { e.stopPropagation(); onToggleVisibility(photo.id); }}
                         className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300"
