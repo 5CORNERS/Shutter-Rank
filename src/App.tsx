@@ -954,13 +954,24 @@ const App: React.FC = () => {
                         sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
                                 const isExpanded = expandedGroupId === item.groupId;
-                                // Render collapsed stack
                                 const groupWrapperId = `expanded-group-wrapper-${item.groupId}`;
                                 const groupData = groups[item.groupId];
                                 const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
 
+                                let wrapperClassName = '';
+                                if (settings.layout === 'original') {
+                                    wrapperClassName = 'break-inside-avoid';
+                                    if (isExpanded) {
+                                        wrapperClassName += ' col-span-all';
+                                    }
+                                } else { // grid layout
+                                    if (isExpanded) {
+                                        wrapperClassName = 'col-span-full';
+                                    }
+                                }
+
                                 return (
-                                    <div key={item.groupId} className={settings.layout === 'original' ? 'col-span-all break-inside-avoid' : 'col-span-full'}>
+                                    <div key={item.groupId} className={wrapperClassName}>
                                         <PhotoStackComponent
                                             stack={item}
                                             onRate={handleRate}
