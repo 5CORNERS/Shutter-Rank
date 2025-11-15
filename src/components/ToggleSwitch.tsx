@@ -9,7 +9,8 @@ interface ToggleSwitchProps {
 
 export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({ id, checked, onChange, label }) => {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
+       {label && <label htmlFor={id} className="text-sm text-gray-300 cursor-pointer select-none" onClick={() => onChange(!checked)}>{label}</label>}
       <button
         id={id}
         type="button"
@@ -27,7 +28,6 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({ id, checked, onChang
           } pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
         />
       </button>
-      {label && <label htmlFor={id} className="text-sm text-gray-300 cursor-pointer">{label}</label>}
     </div>
   );
 };
