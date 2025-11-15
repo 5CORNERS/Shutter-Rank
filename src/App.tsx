@@ -960,7 +960,7 @@ const App: React.FC = () => {
                                 const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
 
                                 return (
-                                    <div key={item.groupId} className={`col-span-full ${settings.layout === 'original' ? 'break-inside-avoid' : ''}`}>
+                                    <div key={item.groupId} className={settings.layout === 'original' ? 'col-span-all break-inside-avoid' : 'col-span-full'}>
                                         <PhotoStackComponent
                                             stack={item}
                                             onRate={handleRate}
