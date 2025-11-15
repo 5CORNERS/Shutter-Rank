@@ -972,18 +972,20 @@ const App: React.FC = () => {
 
                                 return (
                                     <div key={item.groupId} className={wrapperClassName}>
-                                        <PhotoStackComponent
-                                            stack={item}
-                                            onRate={handleRate}
-                                            onImageClick={handleImageClick}
-                                            onToggleVisibility={handleToggleVisibility}
-                                            onExpand={() => setExpandedGroupId(isExpanded ? null : item.groupId)}
-                                            displayVotes={false}
-                                            layoutMode={settings.layout}
-                                            gridAspectRatio={settings.gridAspectRatio}
-                                            isTouchDevice={isTouchDevice}
-                                            hidingPhotoId={hidingPhotoId}
-                                        />
+                                        {!isExpanded && (
+                                            <PhotoStackComponent
+                                                stack={item}
+                                                onRate={handleRate}
+                                                onImageClick={handleImageClick}
+                                                onToggleVisibility={handleToggleVisibility}
+                                                onExpand={() => setExpandedGroupId(isExpanded ? null : item.groupId)}
+                                                displayVotes={false}
+                                                layoutMode={settings.layout}
+                                                gridAspectRatio={settings.gridAspectRatio}
+                                                isTouchDevice={isTouchDevice}
+                                                hidingPhotoId={hidingPhotoId}
+                                            />
+                                        )}
                                         <div id={groupWrapperId} className={`expanded-group-wrapper ${isExpanded ? 'expanded' : ''}`}>
                                             <div className="expanded-group-container">
                                                 <div className="flex justify-between items-center mb-4">
