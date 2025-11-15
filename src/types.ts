@@ -10,7 +10,7 @@ export interface FirebasePhoto {
 export interface Photo extends FirebasePhoto {
     votes: number;
     userRating?: number;
-    isFlagged?: boolean;
+    isVisible?: boolean;
     maxRating?: number;
 }
 

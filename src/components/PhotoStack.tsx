@@ -11,7 +11,7 @@ interface PhotoStackProps {
     groupCaption?: string;
     onRate: (photoId: number, rating: number) => void;
     onImageClick: (photo: Photo, fromGroupId?: string) => void;
-    onToggleFlag: (photoId: number) => void;
+    onToggleVisibility: (photoId: number) => void;
     isExpanded: boolean;
     onExpand: () => void;
     onClose: () => void;
@@ -20,8 +20,9 @@ interface PhotoStackProps {
     layoutMode: LayoutMode;
     gridAspectRatio: GridAspectRatio;
     showToast: (message: string) => void;
-    filterFlags: boolean;
+    showHiddenPhotos: boolean;
     isTouchDevice: boolean;
+    hidingPhotoId: number | null;
 }
 
 const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
@@ -35,7 +36,7 @@ const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
-                                                                   stack, groupName, groupCaption, onRate, onImageClick, onToggleFlag, isExpanded, onExpand, onClose, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showToast, filterFlags, isTouchDevice
+                                                                   stack, groupName, groupCaption, onRate, onImageClick, onToggleVisibility, isExpanded, onExpand, onClose, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showToast, showHiddenPhotos, isTouchDevice, hidingPhotoId
                                                                }) => {
 
     const coverPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId) || stack.photos[0];
@@ -88,10 +89,11 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         photo={coverPhoto}
                         onRate={handleRateCover}
                         onImageClick={onExpand}
-                        onToggleFlag={onToggleFlag}
+                        onToggleVisibility={onToggleVisibility}
                         displayVotes={displayVotes}
                         layoutMode={layoutMode}
                         gridAspectRatio={gridAspectRatio}
+                        isHiding={hidingPhotoId === coverPhoto.id}
                     />
                 </div>
                 <div className="absolute top-2 right-2 z-[3] bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-lg font-bold flex items-center gap-2 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
@@ -103,7 +105,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
     }
 
     const ExpandedViewModal = () => {
-        const photosToShow = filterFlags ? stack.photos.filter(p => p.isFlagged !== false) : stack.photos;
+        const photosToShow = showHiddenPhotos ? stack.photos : stack.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
 
         const gridColsMap: { [key: number]: string } = {
             1: 'grid-cols-1',
@@ -133,7 +135,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                             )}
                         </div>
                         <div className={`flex items-center flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                            <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" disabled={!selectedPhoto} />
+                            <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" disabled={!selectedPhoto} resetButtonMode="always" />
                         </div>
                         <button onClick={onClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Свернуть группу">
                             <X size={24} />
@@ -150,12 +152,13 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                                             photo={photo}
                                             onRate={onRate}
                                             onImageClick={() => onImageClick(photo, stack.groupId)}
-                                            onToggleFlag={onToggleFlag}
+                                            onToggleVisibility={onToggleVisibility}
                                             displayVotes={false}
                                             layoutMode={isTouchDevice ? 'grid' : layoutMode}
                                             gridAspectRatio={isTouchDevice ? '1/1' : gridAspectRatio}
                                             showRatingControls={false}
                                             isDimmed={isDimmed}
+                                            isHiding={hidingPhotoId === photo.id}
                                         />
                                         <div onClick={(e) => handleSelectPhoto(e, photo.id)}>
                                             <SelectionControl isSelected={isSelected} />

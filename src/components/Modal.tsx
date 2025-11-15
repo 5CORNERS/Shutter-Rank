@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { Photo, Config } from '../types';
-import { X, ChevronLeft, ChevronRight, Star, Flag, Layers, Check } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Star, Eye, EyeOff, Layers, Check } from 'lucide-react';
 import { RatingControls } from './RatingControls';
 
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> = ({isSelected, onSelect}) => {
@@ -21,7 +21,7 @@ interface ModalProps {
     onPrev: () => void;
     onEnterImmersive: () => void;
     onRate: (photoId: number, rating: number) => void;
-    onToggleFlag: (photoId: number) => void;
+    onToggleVisibility: (photoId: number) => void;
     hasNext: boolean;
     hasPrev: boolean;
     config: Config | null;
@@ -36,7 +36,7 @@ interface ModalProps {
 
 export const Modal: React.FC<ModalProps> = ({
                                                 photo, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
-                                                onRate, onToggleFlag, hasNext, hasPrev, config, ratedPhotosCount,
+                                                onRate, onToggleVisibility, hasNext, hasPrev, config, ratedPhotosCount,
                                                 starsUsed, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected, openedFromGroupId, onOpenGroup
                                             }) => {
     const imgRef = useRef<HTMLImageElement>(null);
@@ -77,9 +77,9 @@ export const Modal: React.FC<ModalProps> = ({
             if (event.key === 'Escape') onClose(openedFromGroupId);
             else if (event.key === 'ArrowRight') onNext();
             else if (event.key === 'ArrowLeft') onPrev();
-            else if (event.key.toLowerCase() === 'f' || (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))) {
+            else if (event.key.toLowerCase() === 'h' || (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))) {
                 event.preventDefault();
-                if (!photo.isOutOfCompetition) onToggleFlag(photo.id);
+                if (!photo.isOutOfCompetition) onToggleVisibility(photo.id);
             } else if (!groupInfo && !event.ctrlKey && !event.metaKey && /^[0-5]$/.test(event.key)) {
                 event.preventDefault();
                 if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(event.key, 10));
@@ -90,7 +90,7 @@ export const Modal: React.FC<ModalProps> = ({
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [onClose, onNext, onPrev, photo, onRate, onToggleFlag, openedFromGroupId, groupInfo]);
+    }, [onClose, onNext, onPrev, photo, onRate, onToggleVisibility, openedFromGroupId, groupInfo]);
 
     const getScoreColor = (score: number) => {
         if (score > 0) return 'text-green-400';
@@ -129,11 +129,11 @@ export const Modal: React.FC<ModalProps> = ({
                     <div style={controlsContainerStyle} className="absolute pointer-events-none z-20">
                         {!photo.isOutOfCompetition && (
                             <button
-                                onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
+                                onClick={(e) => { e.stopPropagation(); onToggleVisibility(photo.id); }}
                                 className="absolute top-4 left-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
-                                title="Отметить (F)"
+                                title="Скрыть/показать (H)"
                             >
-                                <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                                {photo.isVisible !== false ? <Eye className="w-6 h-6" /> : <EyeOff className="w-6 h-6" />}
                             </button>
                         )}
                         {groupInfo && isFromMainFeed && (
@@ -167,7 +167,7 @@ export const Modal: React.FC<ModalProps> = ({
                     <div className={`transition-opacity duration-300 ${showRatingPanel ? 'opacity-100' : 'opacity-0 h-0 p-0 overflow-hidden'}`}>
                         <div className="p-3 flex flex-wrap justify-between items-center gap-4">
                             <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} />
+                                <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} resetButtonMode="always" />
                             </div>
                             <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
                                 <div className="flex items-center gap-x-1" title="Оценено фотографий">

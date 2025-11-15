@@ -12,7 +12,7 @@ import { RatingInfoModal } from './components/RatingInfoModal';
 import { PhotoStackComponent } from './components/PhotoStack';
 import { Toast } from './components/Toast';
 import { useDeviceType } from './hooks/useDeviceType';
-import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, Flag, FlagOff, List } from 'lucide-react';
+import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List } from 'lucide-react';
 
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
@@ -52,10 +52,11 @@ const App: React.FC = () => {
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isArticleModalOpen, setIsArticleModalOpen] = useState(false);
     const [isRatingInfoModalOpen, setIsRatingInfoModalOpen] = useState(false);
-    const [filterFlags, setFilterFlags] = useState(false);
+    const [showHiddenPhotos, setShowHiddenPhotos] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [activeExpandedGroup, setActiveExpandedGroup] = useState<string | null>(null);
     const [groupSelections, setGroupSelections] = useState<Record<string, number | null>>({});
+    const [hidingPhotoId, setHidingPhotoId] = useState<number | null>(null);
 
     const { isDesktop, isTouchDevice } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
@@ -146,15 +147,15 @@ const App: React.FC = () => {
                 const userVotesSnapshot = await get(userVotesRef);
                 const userRatings: Record<string, number> = userVotesSnapshot.exists() ? userVotesSnapshot.val() : {};
 
-                const flagsKey = `userFlags_${sessionId}`;
-                const savedFlagsRaw = localStorage.getItem(flagsKey);
-                const userFlags: Record<string, boolean> = savedFlagsRaw ? JSON.parse(savedFlagsRaw) : {};
+                const visibilityKey = `userVisibility_${sessionId}`;
+                const savedVisibilityRaw = localStorage.getItem(visibilityKey);
+                const userVisibility: Record<string, boolean> = savedVisibilityRaw ? JSON.parse(savedVisibilityRaw) : {};
 
                 const initialPhotoState: Photo[] = initialPhotos.map(p => ({
                     ...p,
                     votes: initialVotes[String(p.id)] || 0,
                     userRating: userRatings[p.id],
-                    isFlagged: userFlags[p.id] === undefined ? true : userFlags[p.id]
+                    isVisible: userVisibility[p.id] === undefined ? true : userVisibility[p.id]
                 })).sort((a,b) => (a.order ?? a.id) - (b.order ?? b.id));
                 setPhotos(initialPhotoState);
                 setStatus('success');
@@ -213,13 +214,13 @@ const App: React.FC = () => {
     }, [status]);
 
     useEffect(() => {
-        // Save only UI preferences like flags to localStorage
+        // Save only UI preferences like visibility to localStorage
         if (status !== 'success' || !sessionId) return;
-        const userFlags: { [key: number]: boolean } = {};
+        const userVisibility: { [key: number]: boolean } = {};
         photos.forEach(p => {
-            userFlags[p.id] = p.isFlagged !== false;
+            userVisibility[p.id] = p.isVisible !== false;
         });
-        localStorage.setItem(`userFlags_${sessionId}`, JSON.stringify(userFlags));
+        localStorage.setItem(`userVisibility_${sessionId}`, JSON.stringify(userVisibility));
     }, [photos, status, sessionId]);
 
     useEffect(() => {
@@ -379,15 +380,26 @@ const App: React.FC = () => {
 
     }, [photosWithMaxRating, config, ratedPhotosCount, starsUsed, sessionId, userId]);
 
-    const handleToggleFlag = useCallback((photoId: number) => {
-        setPhotos(prevPhotos =>
-            prevPhotos.map(photo =>
-                photo.id === photoId && !photo.isOutOfCompetition
-                    ? { ...photo, isFlagged: !(photo.isFlagged !== false) }
-                    : photo
-            )
-        );
-    }, []);
+    const handleToggleVisibility = useCallback((photoId: number) => {
+        const photo = photos.find(p => p.id === photoId);
+        if (!photo || photo.isOutOfCompetition) return;
+
+        const currentVisibility = photo.isVisible !== false;
+
+        if (currentVisibility) {
+            setHidingPhotoId(photoId); // Trigger icon change and animation
+            setTimeout(() => {
+                setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, isVisible: false } : p));
+                setHidingPhotoId(null);
+
+                // If the hidden photo was viewed in a modal, navigate away
+                if (selectedPhotoId === photoId) handleNextPhoto();
+                if (immersivePhotoId === photoId) handleNextImmersive();
+            }, 400); // Should match animation duration
+        } else {
+            setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, isVisible: true } : p));
+        }
+    }, [photos, selectedPhotoId, immersivePhotoId]);
 
     const handleResetVotes = useCallback(() => {
         if (!sessionId || !userId) return;
@@ -403,10 +415,10 @@ const App: React.FC = () => {
                 .then(() => {
                     // Then clear local state on success
                     setPhotos(prevPhotos =>
-                        prevPhotos.map(p => ({...p, userRating: undefined, isFlagged: true }))
+                        prevPhotos.map(p => ({...p, userRating: undefined, isVisible: true }))
                     );
-                    // Also clear flags from localStorage
-                    localStorage.removeItem(`userFlags_${sessionId}`);
+                    // Also clear visibility from localStorage
+                    localStorage.removeItem(`userVisibility_${sessionId}`);
                 })
                 .catch(err => {
                     console.error("Failed to clear votes in Firebase", err);
@@ -418,13 +430,14 @@ const App: React.FC = () => {
     const sortedGalleryItems = useMemo(() => {
         let itemsCopy = [...galleryItems];
 
-        if (filterFlags) {
+        if (!showHiddenPhotos) {
             itemsCopy = itemsCopy.filter(item => {
                 if (item.type === 'stack') {
-                    // Show stack if at least one photo in it is flagged
-                    return item.photos.some(p => p.isFlagged !== false);
+                    // Keep stack if it contains any visible photos or the photo currently being hidden
+                    const hasVisibleContent = item.photos.some(p => p.isVisible !== false || p.id === hidingPhotoId);
+                    return hasVisibleContent;
                 } else {
-                    return item.isFlagged !== false;
+                    return item.isVisible !== false || item.id === hidingPhotoId;
                 }
             });
         }
@@ -466,7 +479,7 @@ const App: React.FC = () => {
 
         return itemsCopy;
 
-    }, [galleryItems, filterFlags, sortBy, votingPhase]);
+    }, [galleryItems, showHiddenPhotos, sortBy, votingPhase, hidingPhotoId]);
 
     const photosForViewer = useMemo(() => {
         // If a photo viewer is opened from a group, navigation is limited to that group
@@ -500,7 +513,10 @@ const App: React.FC = () => {
     }, [selectedPhotoId, scrollToPhoto]);
 
     const handleNextPhoto = useCallback(() => {
-        if (photosForViewer.length === 0) return;
+        if (photosForViewer.length === 0) {
+            setSelectedPhotoId(null);
+            return;
+        };
         const nextIndex = (selectedPhotoIndex + 1) % photosForViewer.length;
         setSelectedPhotoId(photosForViewer[nextIndex].id);
     }, [selectedPhotoIndex, photosForViewer]);
@@ -555,7 +571,10 @@ const App: React.FC = () => {
 
 
     const handleNextImmersive = useCallback(() => {
-        if (photosForViewer.length === 0 || immersivePhotoIndex === -1) return;
+        if (photosForViewer.length === 0 || immersivePhotoIndex === -1) {
+            setImmersivePhotoId(null);
+            return;
+        }
         const nextIndex = (immersivePhotoIndex + 1) % photosForViewer.length;
         setImmersivePhotoId(photosForViewer[nextIndex].id);
     }, [immersivePhotoIndex, photosForViewer]);
@@ -753,9 +772,19 @@ const App: React.FC = () => {
             )}
 
             <div className={`fixed top-0 left-0 right-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700/50 shadow-lg transition-transform duration-300 ease-in-out px-4 py-2 flex justify-between items-center ${!!selectedPhoto ? 'z-[51]' : 'z-40'} ${showStickyHeader ? 'translate-y-0' : '-translate-y-full'}`}>
-                <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a>
+                <div className="flex items-center gap-4">
+                    <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a>
+                    <button
+                        onClick={() => setShowHiddenPhotos(s => !s)}
+                        className={`inline-flex items-center gap-x-1.5 px-2 py-1 text-xs font-semibold rounded-md transition-colors ${showHiddenPhotos ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                        title={showHiddenPhotos ? "Скрыть фотографии, которые вы скрыли из ленты" : "Показать скрытые фотографии"}
+                    >
+                        {showHiddenPhotos ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        <span>{showHiddenPhotos ? 'Скрыть' : 'Показать скрытые'}</span>
+                    </button>
+                </div>
                 <StatsInfo isCompact={true} />
-                <div className="w-24"></div>
+                <div className="w-48"></div> {/* Placeholder to balance the flex container */}
             </div>
 
             <main className={`container mx-auto px-4 py-8`}>
@@ -790,12 +819,12 @@ const App: React.FC = () => {
                                 <span>{votingPhase === 'voting' ? 'Показать общие' : 'Скрыть общие'}</span>
                             </button>
                             <button
-                                onClick={() => setFilterFlags(f => !f)}
-                                className={`inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${filterFlags ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
-                                title={filterFlags ? "Показать все фотографии" : "Показать только отмеченные фото"}
+                                onClick={() => setShowHiddenPhotos(s => !s)}
+                                className={`inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${showHiddenPhotos ? 'bg-indigo-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                                title={showHiddenPhotos ? "Скрыть фотографии, которые вы скрыли из ленты" : "Показать скрытые фотографии"}
                             >
-                                {filterFlags ? <Flag className="w-4 h-4" /> : <FlagOff className="w-4 h-4" />}
-                                <span>{filterFlags ? 'Показать все' : 'Скрыть неотмеченные'}</span>
+                                {showHiddenPhotos ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                <span>{showHiddenPhotos ? 'Скрыть' : 'Показать скрытые'}</span>
                             </button>
                             <div className="flex space-x-2">
                                 <span className="text-gray-400 text-sm self-center">Сортировать:</span>
@@ -824,7 +853,7 @@ const App: React.FC = () => {
                                             groupCaption={groupData?.caption}
                                             onRate={handleRate}
                                             onImageClick={handleImageClick}
-                                            onToggleFlag={handleToggleFlag}
+                                            onToggleVisibility={handleToggleVisibility}
                                             isExpanded={activeExpandedGroup === item.groupId}
                                             onExpand={() => setActiveExpandedGroup(item.groupId)}
                                             onClose={() => setActiveExpandedGroup(null)}
@@ -833,8 +862,9 @@ const App: React.FC = () => {
                                             layoutMode={settings.layout}
                                             gridAspectRatio={settings.gridAspectRatio}
                                             showToast={setToastMessage}
-                                            filterFlags={filterFlags}
+                                            showHiddenPhotos={showHiddenPhotos}
                                             isTouchDevice={isTouchDevice}
+                                            hidingPhotoId={hidingPhotoId}
                                         />
                                     </div>
                                 );
@@ -848,7 +878,8 @@ const App: React.FC = () => {
                                             displayVotes={false}
                                             layoutMode={settings.layout}
                                             gridAspectRatio={settings.gridAspectRatio}
-                                            onToggleFlag={handleToggleFlag}
+                                            onToggleVisibility={handleToggleVisibility}
+                                            isHiding={hidingPhotoId === item.id}
                                         />
                                     </div>
                                 );
@@ -874,7 +905,7 @@ const App: React.FC = () => {
                                                     photo={photo}
                                                     onRate={() => {}}
                                                     onImageClick={() => {}}
-                                                    onToggleFlag={() => {}}
+                                                    onToggleVisibility={() => {}}
                                                     displayVotes={true}
                                                     layoutMode={settings.layout}
                                                     gridAspectRatio={settings.gridAspectRatio}
@@ -891,7 +922,7 @@ const App: React.FC = () => {
                                             photo={item}
                                             onRate={() => {}}
                                             onImageClick={() => {}}
-                                            onToggleFlag={() => {}}
+                                            onToggleVisibility={() => {}}
                                             displayVotes={true}
                                             layoutMode={settings.layout}
                                             gridAspectRatio={settings.gridAspectRatio}
@@ -911,7 +942,7 @@ const App: React.FC = () => {
                     onClose={handleCloseModal}
                     displayVotes={votingPhase === 'results'}
                     onRate={handleRate}
-                    onToggleFlag={handleToggleFlag}
+                    onToggleVisibility={handleToggleVisibility}
                     onNext={handleNextPhoto}
                     onPrev={handlePrevPhoto}
                     onEnterImmersive={handleEnterImmersive}
@@ -936,7 +967,7 @@ const App: React.FC = () => {
                     onNext={handleNextImmersive}
                     onPrev={handlePrevImmersive}
                     onRate={handleRate}
-                    onToggleFlag={handleToggleFlag}
+                    onToggleVisibility={handleToggleVisibility}
                     displayVotes={votingPhase === 'results'}
                     ratedPhotosCount={ratedPhotosCount}
                     starsUsed={starsUsed}

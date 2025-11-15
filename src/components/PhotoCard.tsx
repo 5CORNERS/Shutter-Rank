@@ -1,24 +1,25 @@
 import React, { useState } from 'react';
 import { Photo, LayoutMode, GridAspectRatio } from '../types';
-import { Info, Flag } from 'lucide-react';
+import { Info, Eye, EyeOff } from 'lucide-react';
 import { RatingControls } from './RatingControls';
 
 interface PhotoCardProps {
     photo: Photo;
     onRate: (photoId: number, rating: number) => void;
     onImageClick: (photo: Photo) => void;
-    onToggleFlag: (photoId: number) => void;
+    onToggleVisibility: (photoId: number) => void;
     displayVotes: boolean;
     layoutMode: LayoutMode;
     gridAspectRatio: GridAspectRatio;
     showRatingControls?: boolean;
     isDimmed?: boolean;
     isReadOnly?: boolean;
+    isHiding?: boolean;
 }
 
 export const PhotoCard: React.FC<PhotoCardProps> = ({
-                                                        photo, onRate, onImageClick, onToggleFlag, displayVotes, layoutMode,
-                                                        gridAspectRatio, showRatingControls = true, isDimmed = false, isReadOnly = false
+                                                        photo, onRate, onImageClick, onToggleVisibility, displayVotes, layoutMode,
+                                                        gridAspectRatio, showRatingControls = true, isDimmed = false, isReadOnly = false, isHiding = false
                                                     }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
@@ -38,7 +39,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         return 'text-gray-400';
     };
 
-    const isFlagged = photo.isFlagged !== false;
+    const isVisible = photo.isVisible !== false;
     const isOutOfComp = !!photo.isOutOfCompetition;
     const hasUserRating = photo.userRating && photo.userRating > 0;
 
@@ -57,7 +58,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
     };
     const aspectRatioClass = aspectRatioMap[gridAspectRatio];
 
-    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 ${!isReadOnly ? 'hover:shadow-indigo-500/30' : ''} ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''} ${isDimmed ? 'opacity-50' : 'opacity-100'}`;
+    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 ${!isReadOnly ? 'hover:shadow-indigo-500/30' : ''} ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''} ${isDimmed ? 'opacity-50' : 'opacity-100'} ${isHiding ? 'animate-hide' : ''}`;
 
     const controlsVisibilityClass = isReadOnly
         ? 'opacity-0'
@@ -80,12 +81,12 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
             <div className="absolute top-2 left-2 z-[3] flex items-center gap-1.5">
                 {!isOutOfComp && !isReadOnly && (
                     <button
-                        onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
+                        onClick={(e) => { e.stopPropagation(); onToggleVisibility(photo.id); }}
                         className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        title={isFlagged ? "Снять отметку" : "Отметить"}
-                        aria-label="Отметить фото"
+                        title={isVisible ? "Скрыть из ленты" : "Показать в ленте"}
+                        aria-label="Переключить видимость"
                     >
-                        <Flag className="w-5 h-5" fill={isFlagged ? 'currentColor' : 'none'} />
+                        {isVisible && !isHiding ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                     </button>
                 )}
             </div>

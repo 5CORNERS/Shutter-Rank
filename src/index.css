@@ -71,3 +71,11 @@
 .selection-control-bg.selected .selection-control-check {
     transform: scale(1);
 }
+
+@keyframes fade-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
+}
+.animate-hide {
+    animation: fade-out 0.4s ease-out forwards;
+}

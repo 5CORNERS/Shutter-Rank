@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import { Photo } from '../types';
-import { ChevronLeft, ChevronRight, X, Star, XCircle, Flag, Layers, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Star, XCircle, Eye, EyeOff, Layers, Check } from 'lucide-react';
 
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.MouseEvent) => void;}> = ({isSelected, onSelect}) => {
     return (
@@ -22,7 +22,7 @@ interface ImmersiveViewProps {
     onNext: () => void;
     onPrev: () => void;
     onRate: (photoId: number, rating: number) => void;
-    onToggleFlag: (photoId: number) => void;
+    onToggleVisibility: (photoId: number) => void;
     displayVotes: boolean;
     ratedPhotosCount: number;
     starsUsed: number;
@@ -74,9 +74,9 @@ const ImageWrapper: React.FC<{
     groupInfo: { id: string; name: string; count: number } | null;
     isPhotoInGroupSelected: boolean;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
-    onToggleFlag: (photoId: number) => void;
+    onToggleVisibility: (photoId: number) => void;
     isFromMainFeed: boolean;
-}> = React.memo(({ photo, isVisible, groupInfo, isPhotoInGroupSelected, onGroupSelectionChange, onToggleFlag, isFromMainFeed }) => {
+}> = React.memo(({ photo, isVisible, groupInfo, isPhotoInGroupSelected, onGroupSelectionChange, onToggleVisibility, isFromMainFeed }) => {
     const imgRef = useRef<HTMLImageElement>(null);
     const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
 
@@ -119,9 +119,9 @@ const ImageWrapper: React.FC<{
         }
     };
 
-    const handleToggleFlagClick = (e: React.MouseEvent) => {
+    const handleToggleVisibilityClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (photo) onToggleFlag(photo.id);
+        if (photo) onToggleVisibility(photo.id);
     }
 
     return (
@@ -144,11 +144,11 @@ const ImageWrapper: React.FC<{
                         <div style={controlsContainerStyle} className="pointer-events-none z-40">
                             {!photo.isOutOfCompetition && (
                                 <button
-                                    onClick={handleToggleFlagClick}
+                                    onClick={handleToggleVisibilityClick}
                                     className="absolute top-4 left-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
-                                    title="Отметить (F)"
+                                    title="Скрыть/показать (H)"
                                 >
-                                    <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                                    {photo.isVisible !== false ? <Eye className="w-6 h-6" /> : <EyeOff className="w-6 h-6" />}
                                 </button>
                             )}
                             {groupInfo && isFromMainFeed && (
@@ -167,7 +167,7 @@ const ImageWrapper: React.FC<{
 });
 
 export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
-                                                                allPhotos, photoId, onClose, onNext, onPrev, onRate, onToggleFlag, displayVotes, ratedPhotosCount,
+                                                                allPhotos, photoId, onClose, onNext, onPrev, onRate, onToggleVisibility, displayVotes, ratedPhotosCount,
                                                                 starsUsed, ratedPhotoLimit, totalStarsLimit, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected,
                                                                 openedFromGroupId, onOpenGroup
                                                             }) => {
@@ -281,9 +281,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             } else if (e.key === ' ' && !isTouchDevice) {
                 e.preventDefault();
                 setUiMode(m => m === 'full' ? 'minimal' : 'full');
-            } else if (e.key.toLowerCase() === 'f' || (e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) {
+            } else if (e.key.toLowerCase() === 'h' || (e.ctrlKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) {
                 e.preventDefault();
-                if (!photo.isOutOfCompetition) onToggleFlag(photo.id);
+                if (!photo.isOutOfCompetition) onToggleVisibility(photo.id);
             } else if (!groupInfo && !e.ctrlKey && !e.metaKey && /^[0-5]$/.test(e.key)) {
                 e.preventDefault();
                 if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(e.key, 10));
@@ -297,7 +297,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
             document.removeEventListener('keydown', handleKeyDown);
             if (activityTimer.current) clearTimeout(activityTimer.current);
         }
-    }, [onNext, onPrev, isTouchDevice, photo, onRate, onToggleFlag, groupInfo, isPhotoInGroupSelected]);
+    }, [onNext, onPrev, isTouchDevice, photo, onRate, onToggleVisibility, groupInfo, isPhotoInGroupSelected]);
 
     useEffect(() => {
         if (showHint) {
@@ -478,9 +478,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                     width: `calc(300vw + ${PHOTO_GAP * 2}px)`,
                 }}
             >
-                <ImageWrapper photo={hasMultiplePhotos ? prevPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleFlag={()=>{}} isFromMainFeed={false} />
-                <ImageWrapper photo={photo} isVisible={true} groupInfo={groupInfo} isPhotoInGroupSelected={isPhotoInGroupSelected} onGroupSelectionChange={onGroupSelectionChange} onToggleFlag={onToggleFlag} isFromMainFeed={isFromMainFeed} />
-                <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleFlag={()=>{}} isFromMainFeed={false} />
+                <ImageWrapper photo={hasMultiplePhotos ? prevPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleVisibility={()=>{}} isFromMainFeed={false} />
+                <ImageWrapper photo={photo} isVisible={true} groupInfo={groupInfo} isPhotoInGroupSelected={isPhotoInGroupSelected} onGroupSelectionChange={onGroupSelectionChange} onToggleVisibility={onToggleVisibility} isFromMainFeed={isFromMainFeed} />
+                <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={false} groupInfo={null} isPhotoInGroupSelected={false} onGroupSelectionChange={()=>{}} onToggleVisibility={()=>{}} isFromMainFeed={false} />
             </div>
 
             <div className="absolute inset-0 pointer-events-none z-10">
