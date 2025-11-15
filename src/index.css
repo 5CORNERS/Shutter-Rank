@@ -53,12 +53,12 @@
 
 /* Animation for stack expansion */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
+    animation: fadeIn 0.3s ease-out forwards;
 }
 
 /* New Selection Control */
@@ -73,17 +73,27 @@
 }
 
 @keyframes fade-out {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.95); }
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
 }
 .animate-hide {
-  animation: fade-out 0.4s ease-out forwards;
+    animation: fade-out 0.4s ease-out forwards;
 }
 
-/* Styles for inline expanded groups */
+/* Styles for inline expanded groups with animation */
+.expanded-group-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.4s ease-in-out;
+}
+.expanded-group-wrapper.expanded {
+    grid-template-rows: 1fr;
+}
 .expanded-group-container {
+    overflow: hidden;
     @apply bg-gray-800/50 p-4 rounded-lg border border-gray-700/50 mb-6;
 }
+
 
 /* Styles for "smart frames" in viewers */
 .smart-frame {
@@ -106,4 +116,25 @@
     @apply absolute inset-0 rounded-lg pointer-events-none;
     background: radial-gradient(ellipse at center, transparent 40%, black var(--vignette-intensity));
     opacity: 0.6;
+}
+
+/* Confirmation Modal Animation */
+.confirmation-modal-content {
+    transition: all 0.2s ease-out;
+}
+.confirmation-modal-enter .confirmation-modal-content {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+}
+.confirmation-modal-enter-active .confirmation-modal-content {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+.confirmation-modal-exit .confirmation-modal-content {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+.confirmation-modal-exit-active .confirmation-modal-content {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
 }

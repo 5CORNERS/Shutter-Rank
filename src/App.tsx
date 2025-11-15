@@ -13,6 +13,7 @@ import { PhotoStackComponent } from './components/PhotoStack';
 import { GroupModal } from './components/GroupModal';
 import { Toast } from './components/Toast';
 import { ToggleSwitch } from './components/ToggleSwitch';
+import { ConfirmationModal } from './components/ConfirmationModal';
 import { useDeviceType } from './hooks/useDeviceType';
 import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, ChevronsRight, X } from 'lucide-react';
 
@@ -20,6 +21,13 @@ type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
 type AppStatus = 'loading' | 'success' | 'error' | 'selecting_session';
 type SessionInfo = { id: string; name: string };
+type ConfirmationState = {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel?: () => void;
+}
 
 const getUserId = (): string => {
     let userId = localStorage.getItem('shutterRankUserId');
@@ -62,8 +70,18 @@ const App: React.FC = () => {
     const [groupSelections, setGroupSelections] = useState<Record<string, number | null>>({});
     const [hidingPhotoId, setHidingPhotoId] = useState<number | null>(null);
 
+    const [confirmation, setConfirmation] = useState<ConfirmationState>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+
     const { isDesktop, isTouchDevice } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
+
+    const openConfirmation = (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
+        setConfirmation({ isOpen: true, title, message, onConfirm, onCancel });
+    };
+
+    const closeConfirmation = () => {
+        setConfirmation(prev => ({ ...prev, isOpen: false }));
+    };
 
     useEffect(() => {
         const handleHashChange = () => {
@@ -228,13 +246,13 @@ const App: React.FC = () => {
     }, [photos, status, sessionId]);
 
     useEffect(() => {
-        const isAnyModalOpen = isSettingsModalOpen || isArticleModalOpen || isRatingInfoModalOpen || !!expertViewGroupId || !!selectedPhotoId || immersivePhotoId !== null;
+        const isAnyModalOpen = isSettingsModalOpen || isArticleModalOpen || isRatingInfoModalOpen || !!expertViewGroupId || !!selectedPhotoId || immersivePhotoId !== null || confirmation.isOpen;
         if (isAnyModalOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
-    }, [isSettingsModalOpen, isArticleModalOpen, isRatingInfoModalOpen, expertViewGroupId, selectedPhotoId, immersivePhotoId]);
+    }, [isSettingsModalOpen, isArticleModalOpen, isRatingInfoModalOpen, expertViewGroupId, selectedPhotoId, immersivePhotoId, confirmation.isOpen]);
 
     const scrollToPhoto = useCallback((photoId: number | null) => {
         if (photoId !== null) {
@@ -420,27 +438,27 @@ const App: React.FC = () => {
     const handleResetVotes = useCallback(() => {
         if (!sessionId || !userId) return;
 
-        if (window.confirm('Вы уверены, что хотите сбросить все ваши оценки и отметки для этой сессии? Это действие нельзя отменить.')) {
-            // TODO: Revert aggregate score in a future version with Cloud Functions for atomicity.
-            // For now, we only clear the user's individual votes.
-
-            const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
-
-            // Clear Firebase data first
-            remove(userVotesRef)
-                .then(() => {
-                    // Then clear local state on success
-                    setPhotos(prevPhotos =>
-                        prevPhotos.map(p => ({...p, userRating: undefined, isVisible: true }))
-                    );
-                    // Also clear visibility from localStorage
-                    localStorage.removeItem(`userVisibility_${sessionId}`);
-                })
-                .catch(err => {
-                    console.error("Failed to clear votes in Firebase", err);
-                    setToastMessage("Не удалось сбросить оценки. Попробуйте еще раз.");
-                });
-        }
+        openConfirmation(
+            'Сбросить все оценки?',
+            'Вы уверены, что хотите сбросить все ваши оценки и отметки для этой сессии? Это действие нельзя отменить.',
+            () => {
+                closeConfirmation();
+                const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
+                remove(userVotesRef)
+                    .then(() => {
+                        setPhotos(prevPhotos =>
+                            prevPhotos.map(p => ({...p, userRating: undefined, isVisible: true }))
+                        );
+                        localStorage.removeItem(`userVisibility_${sessionId}`);
+                        setToastMessage("Ваши оценки были сброшены.");
+                    })
+                    .catch(err => {
+                        console.error("Failed to clear votes in Firebase", err);
+                        setToastMessage("Не удалось сбросить оценки. Попробуйте еще раз.");
+                    });
+            },
+            closeConfirmation
+        );
     }, [sessionId, userId]);
 
     const sortedGalleryItems = useMemo(() => {
@@ -595,72 +613,95 @@ const App: React.FC = () => {
         setIsSettingsModalOpen(false);
     };
 
-    const handleGroupSelectionChange = useCallback((groupId: string, newSelectedId: number | null) => {
+    const handleGroupSelectionChange = useCallback((groupId: string, newSelectedId: number | null, initiatedByRate = false) => {
         const oldSelectedId = groupSelections[groupId] || null;
         if (oldSelectedId === newSelectedId) return;
 
         const oldSelectedPhoto = oldSelectedId ? photos.find(p => p.id === oldSelectedId) : null;
 
-        // Case 1: Selecting a new photo while the old one had a rating
-        if (newSelectedId !== null && oldSelectedPhoto && oldSelectedPhoto.userRating) {
-            if (window.confirm("В этой группе отмечена другая фотография. Перенести отметку с нее на этот снимок?")) {
-                const ratingToTransfer = oldSelectedPhoto.userRating;
-                const newSelectedPhoto = photos.find(p => p.id === newSelectedId);
-                if (!newSelectedPhoto) return; // Safety check
+        const performSelectionChange = () => {
+            const newSelections = { ...groupSelections, [groupId]: newSelectedId };
+            setGroupSelections(newSelections);
+            if (sessionId) {
+                localStorage.setItem(`groupSelections_${sessionId}`, JSON.stringify(newSelections));
+            }
+        };
 
-                // Optimistic UI update for both photos at once
+        // This function will transfer the rating.
+        const transferRating = () => {
+            if (!oldSelectedPhoto?.userRating || newSelectedId === null) return;
+            const ratingToTransfer = oldSelectedPhoto.userRating;
+            const newSelectedPhoto = photos.find(p => p.id === newSelectedId);
+            if (!newSelectedPhoto) return;
+
+            // Optimistic UI update for both photos at once
+            setPhotos(prevPhotos =>
+                prevPhotos.map(p => {
+                    if (p.id === oldSelectedId) return { ...p, userRating: undefined };
+                    if (p.id === newSelectedId) return { ...p, userRating: ratingToTransfer, isVisible: true };
+                    return p;
+                })
+            );
+
+            // DB updates
+            const fromUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${oldSelectedId}`);
+            const fromAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${oldSelectedId}`);
+            const toUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${newSelectedId}`);
+            const toAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${newSelectedId}`);
+
+            const promises = [
+                remove(fromUserVoteRef),
+                runTransaction(fromAggregateVoteRef, (currentVotes: number | null) => (currentVotes || 0) - ratingToTransfer),
+                set(toUserVoteRef, ratingToTransfer),
+                runTransaction(toAggregateVoteRef, (currentVotes: number | null) => (currentVotes || 0) + ratingToTransfer),
+            ];
+
+            Promise.all(promises).catch((error: Error) => {
+                console.error("Firebase write failed during rating transfer: ", error);
+                setToastMessage('Ошибка: не удалось перенести оценку.');
+                // Revert UI
                 setPhotos(prevPhotos =>
                     prevPhotos.map(p => {
-                        if (p.id === oldSelectedId) return { ...p, userRating: undefined };
-                        if (p.id === newSelectedId) return { ...p, userRating: ratingToTransfer, isVisible: true };
+                        if (p.id === oldSelectedId) return oldSelectedPhoto;
+                        if (p.id === newSelectedId) return newSelectedPhoto;
                         return p;
                     })
                 );
+            });
+            performSelectionChange(); // Also update selection state
+        };
 
-                // DB updates
-                const fromUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${oldSelectedId}`);
-                const fromAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${oldSelectedId}`);
-                const toUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${newSelectedId}`);
-                const toAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${newSelectedId}`);
-
-                const promises = [
-                    remove(fromUserVoteRef),
-                    runTransaction(fromAggregateVoteRef, (currentVotes: number | null) => (currentVotes || 0) - ratingToTransfer),
-                    set(toUserVoteRef, ratingToTransfer),
-                    runTransaction(toAggregateVoteRef, (currentVotes: number | null) => (currentVotes || 0) + ratingToTransfer),
-                ];
-
-                Promise.all(promises).catch((error: Error) => {
-                    console.error("Firebase write failed during rating transfer: ", error);
-                    setToastMessage('Ошибка: не удалось перенести оценку.');
-                    // Revert UI
-                    setPhotos(prevPhotos =>
-                        prevPhotos.map(p => {
-                            if (p.id === oldSelectedId) return oldSelectedPhoto;
-                            if (p.id === newSelectedId) return newSelectedPhoto;
-                            return p;
-                        })
-                    );
-                });
-            } else {
-                return; // User cancelled, do not change selection.
-            }
+        // Case 1: Selecting a new photo while the old one had a rating
+        if (newSelectedId !== null && oldSelectedPhoto && oldSelectedPhoto.userRating && !initiatedByRate) {
+            openConfirmation(
+                "Перенести отметку?",
+                "В этой группе отмечена другая фотография. Перенести оценку с нее на этот снимок?",
+                () => {
+                    closeConfirmation();
+                    transferRating();
+                },
+                closeConfirmation
+            );
+            return;
         }
         // Case 2: User manually deselects a rated photo via the checkmark
         else if (newSelectedId === null && oldSelectedPhoto && oldSelectedPhoto.userRating) {
-            if (window.confirm('Группа без выбранной фотографии не может иметь оценку. Снять выделение и сбросить оценку?')) {
-                handleRate(oldSelectedId, 0); // This will clear the rating
-            } else {
-                return; // User cancelled, do not change selection
-            }
+            openConfirmation(
+                "Сбросить оценку?",
+                'Группа без выбранной фотографии не может иметь оценку. Снять выделение и сбросить оценку?',
+                () => {
+                    closeConfirmation();
+                    handleRate(oldSelectedId, 0); // This will clear the rating
+                    performSelectionChange();
+                },
+                closeConfirmation
+            );
+            return;
         }
 
-        // Update selection state for all successful cases
-        const newSelections = { ...groupSelections, [groupId]: newSelectedId };
-        setGroupSelections(newSelections);
-        if (sessionId) {
-            localStorage.setItem(`groupSelections_${sessionId}`, JSON.stringify(newSelections));
-        }
+        // Update selection state for all other successful cases (no conflicts)
+        performSelectionChange();
+
     }, [groupSelections, sessionId, photos, handleRate, userId]);
 
 
@@ -678,25 +719,30 @@ const App: React.FC = () => {
 
         // Is the user trying to rate a NEW photo while another one is already rated?
         if (isNewRating && currentSelectedId && currentSelectedId !== photoId && currentSelectedPhoto?.userRating) {
-            if (window.confirm("В этой группе отмечена другая фотография. Перенести отметку с нее на этот снимок?")) {
-                // 1. Clear old rating.
-                handleRate(currentSelectedId, 0);
-                // 2. Apply new rating.
-                handleRate(photoId, rating);
-                // 3. Update selection.
-                handleGroupSelectionChange(groupId, photoId);
-            }
-            // If user cancels, do nothing.
+            openConfirmation(
+                "Перенести отметку?",
+                "В этой группе отмечена другая фотография. Перенести оценку с нее на этот снимок?",
+                () => {
+                    closeConfirmation();
+                    // 1. Clear old rating.
+                    handleRate(currentSelectedId, 0);
+                    // 2. Apply new rating.
+                    handleRate(photoId, rating);
+                    // 3. Update selection (flagging it was initiated by rating to avoid double confirmation)
+                    handleGroupSelectionChange(groupId, photoId, true);
+                },
+                closeConfirmation
+            );
         } else {
             // Standard case (first rating, changing rating of selected photo, clearing rating).
             handleRate(photoId, rating);
             const isClearingRating = rating === photo.userRating || rating === 0;
 
             if (!isClearingRating && rating > 0) {
-                handleGroupSelectionChange(groupId, photoId);
+                handleGroupSelectionChange(groupId, photoId, true);
             } else if (isClearingRating && currentSelectedId === photoId) {
                 // If the rating of the selected photo is removed, deselect it.
-                handleGroupSelectionChange(groupId, null);
+                handleGroupSelectionChange(groupId, null, true);
             }
         }
     };
@@ -799,6 +845,14 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
             <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
+            <ConfirmationModal
+                isOpen={confirmation.isOpen}
+                title={confirmation.title}
+                message={confirmation.message}
+                onConfirm={confirmation.onConfirm}
+                onCancel={confirmation.onCancel || closeConfirmation}
+            />
+
             {isArticleModalOpen && introArticle && (
                 <ArticleModal content={introArticle} onClose={() => setIsArticleModalOpen(false)} />
             )}
@@ -899,13 +953,27 @@ const App: React.FC = () => {
                     {votingPhase === 'voting' ? (
                         sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
-                                if (expandedGroupId === item.groupId) {
-                                    // Render expanded group
-                                    const groupData = groups[item.groupId];
-                                    const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
+                                const isExpanded = expandedGroupId === item.groupId;
+                                // Render collapsed stack
+                                const groupWrapperId = `expanded-group-wrapper-${item.groupId}`;
+                                const groupData = groups[item.groupId];
+                                const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
 
-                                    return (
-                                        <div key={`expanded-${item.groupId}`} className={`col-span-full ${settings.layout === 'original' ? 'break-inside-avoid' : ''}`}>
+                                return (
+                                    <div key={item.groupId} className={`col-span-full ${settings.layout === 'original' ? 'break-inside-avoid' : ''}`}>
+                                        <PhotoStackComponent
+                                            stack={item}
+                                            onRate={handleRate}
+                                            onImageClick={handleImageClick}
+                                            onToggleVisibility={handleToggleVisibility}
+                                            onExpand={() => setExpandedGroupId(isExpanded ? null : item.groupId)}
+                                            displayVotes={false}
+                                            layoutMode={settings.layout}
+                                            gridAspectRatio={settings.gridAspectRatio}
+                                            isTouchDevice={isTouchDevice}
+                                            hidingPhotoId={hidingPhotoId}
+                                        />
+                                        <div id={groupWrapperId} className={`expanded-group-wrapper ${isExpanded ? 'expanded' : ''}`}>
                                             <div className="expanded-group-container">
                                                 <div className="flex justify-between items-center mb-4">
                                                     <div>
@@ -939,6 +1007,7 @@ const App: React.FC = () => {
                                                                     showSelectionControl={true}
                                                                     isSelected={isSelected}
                                                                     onSelect={() => handleGroupSelectionChange(item.groupId, isSelected ? null : photo.id)}
+                                                                    isFilterActive={showHiddenPhotos}
                                                                 />
                                                             </div>
                                                         )
@@ -946,26 +1015,8 @@ const App: React.FC = () => {
                                                 </div>
                                             </div>
                                         </div>
-                                    )
-                                } else {
-                                    // Render collapsed stack
-                                    return (
-                                        <div key={item.groupId} className={`${settings.layout === 'original' ? 'break-inside-avoid' : ''}`}>
-                                            <PhotoStackComponent
-                                                stack={item}
-                                                onRate={handleRate}
-                                                onImageClick={handleImageClick}
-                                                onToggleVisibility={handleToggleVisibility}
-                                                onExpand={() => setExpandedGroupId(item.groupId)}
-                                                displayVotes={false}
-                                                layoutMode={settings.layout}
-                                                gridAspectRatio={settings.gridAspectRatio}
-                                                isTouchDevice={isTouchDevice}
-                                                hidingPhotoId={hidingPhotoId}
-                                            />
-                                        </div>
-                                    );
-                                }
+                                    </div>
+                                )
                             } else {
                                 return (
                                     <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
@@ -978,6 +1029,7 @@ const App: React.FC = () => {
                                             gridAspectRatio={settings.gridAspectRatio}
                                             onToggleVisibility={handleToggleVisibility}
                                             isHiding={hidingPhotoId === item.id}
+                                            isFilterActive={showHiddenPhotos}
                                         />
                                     </div>
                                 );
