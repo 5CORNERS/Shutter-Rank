@@ -155,7 +155,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         </div>
         
-        <div className="bg-gradient-to-t from-gray-900 via-gray-800/80 to-gray-800/60 rounded-b-lg">
+        <div className="bg-gradient-to-t from-black/90 via-black/80 to-transparent rounded-b-lg">
             {groupInfo && (
                 <div className="flex items-center justify-center gap-3 text-sm text-gray-400 border-t border-gray-700/50 px-4 py-2" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-3 truncate">
