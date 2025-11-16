@@ -1,4 +1,5 @@
 
+
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
@@ -16,7 +17,7 @@ import { Toast } from './components/Toast';
 import { ToggleSwitch } from './components/ToggleSwitch';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { useDeviceType } from './hooks/useDeviceType';
-import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, ChevronsRight, X } from 'lucide-react';
+import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, ChevronsRight, X, ChevronUp } from 'lucide-react';
 
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
@@ -972,7 +973,7 @@ const App: React.FC = () => {
                                                             {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
                                                         </div>
                                                         <button onClick={() => setExpandedGroupId(null)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors flex-shrink-0 ml-4">
-                                                            <X size={18}/>
+                                                            <ChevronUp size={18}/>
                                                             Свернуть группу
                                                         </button>
                                                     </div>
@@ -997,12 +998,22 @@ const App: React.FC = () => {
                                                                         isHiding={hidingPhotoId === photo.id}
                                                                         showSelectionControl={true}
                                                                         isSelected={isSelected}
-                                                                        onSelect={() => handleGroupSelectionChange(item.groupId, photo.id)}
+                                                                        onSelect={() => {
+                                                                            const currentSelection = groupSelections[item.groupId] || null;
+                                                                            const newSelectedId = currentSelection === photo.id ? null : photo.id;
+                                                                            handleGroupSelectionChange(item.groupId, newSelectedId);
+                                                                        }}
                                                                         isFilterActive={showHiddenPhotos}
                                                                     />
                                                                 </div>
                                                             )
                                                         })}
+                                                    </div>
+                                                    <div className="flex justify-center pt-6">
+                                                        <button onClick={() => setExpandedGroupId(null)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                                                            <ChevronUp size={18}/>
+                                                            Свернуть группу
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
