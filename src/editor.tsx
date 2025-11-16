@@ -18,6 +18,9 @@ type SessionData = {
 };
 
 const GEMINI_API_KEY_STORAGE_KEY = 'geminiApiKey';
+const GEMINI_CUSTOM_PROMPT_STORAGE_KEY = 'geminiCustomPrompt';
+
+const DEFAULT_PROMPT = `Ты — куратор музея или автор путеводителя. Опиши это изображение для фотоконкурса. Предоставь фактический, исторический или географический контекст, если это возможно. Избегай поэтического языка, субъективных эмоций и маркетинговых штампов. Будь кратким и информативным. Ответ дай на русском языке. Не используй markdown.`;
 
 const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: string }> => {
     const response = await fetch(url);
@@ -119,6 +122,7 @@ const EditorApp: React.FC = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [generatingCaptionFor, setGeneratingCaptionFor] = useState<number | null>(null);
     const [geminiApiKey, setGeminiApiKey] = useState<string>(() => localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || '');
+    const [geminiCustomPrompt, setGeminiCustomPrompt] = useState<string>(() => localStorage.getItem(GEMINI_CUSTOM_PROMPT_STORAGE_KEY) || DEFAULT_PROMPT);
 
 
     // For Drag and Drop
@@ -297,6 +301,13 @@ const EditorApp: React.FC = () => {
             return;
         }
 
+        const prompt = geminiCustomPrompt.trim();
+        if (!prompt) {
+            alert("Пожалуйста, введите стиль (промпт) для генерации описаний.");
+            document.getElementById('geminiCustomPrompt')?.focus();
+            return;
+        }
+
         const photo = sessionData.photos.photos[index];
         if (!photo.url) {
             alert("URL фотографии не указан.");
@@ -317,7 +328,7 @@ const EditorApp: React.FC = () => {
             };
 
             const textPart = {
-                text: "Опиши это изображение для фотоконкурса. Будь кратким и выразительным. Ответ дай на русском языке. Не используй markdown."
+                text: prompt
             };
 
             const response = await ai.models.generateContent({
@@ -343,12 +354,18 @@ const EditorApp: React.FC = () => {
         } finally {
             setGeneratingCaptionFor(null);
         }
-    }, [sessionData, handlePhotoChange, geminiApiKey]);
+    }, [sessionData, handlePhotoChange, geminiApiKey, geminiCustomPrompt]);
 
     const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newKey = e.target.value;
         setGeminiApiKey(newKey);
         localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, newKey);
+    };
+
+    const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const newPrompt = e.target.value;
+        setGeminiCustomPrompt(newPrompt);
+        localStorage.setItem(GEMINI_CUSTOM_PROMPT_STORAGE_KEY, newPrompt);
     };
 
     const handleMovePhoto = (index: number, direction: 'up' | 'down') => {
@@ -634,6 +651,11 @@ const EditorApp: React.FC = () => {
                             <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white" placeholder="Вставьте ваш ключ"/>
                             <p className="text-xs text-gray-500 mt-1">Ключ сохраняется в вашем браузере и не передается на сервер.</p>
                         </div>
+                    </div>
+                    <div className="mt-4">
+                        <label htmlFor="geminiCustomPrompt" className="block text-sm font-medium text-gray-400">Стиль описаний от ИИ (промпт)</label>
+                        <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={4} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-xs" placeholder="Задайте стиль для генерации..."/>
+                        <p className="text-xs text-gray-500 mt-1">Инструкция для Gemini. Сохраняется в вашем браузере.</p>
                     </div>
                 </details>
 
