@@ -17,9 +17,9 @@ type SessionData = {
     groups?: FirebaseDataGroups;
 };
 
+const GEMINI_API_KEY_STORAGE_KEY = 'geminiApiKey';
+
 const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: string }> => {
-    // A CORS proxy might be needed if the image server doesn't allow cross-origin requests.
-    // However, since the app already displays these images, direct fetch should work.
     const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -29,7 +29,6 @@ const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: str
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
-            // result is "data:mime/type;base64,..."
             const base64 = (reader.result as string).split(',')[1];
             resolve({ base64, mimeType });
         };
@@ -119,6 +118,8 @@ const EditorApp: React.FC = () => {
     const [status, setStatus] = useState<Status>('loading');
     const [isSaving, setIsSaving] = useState(false);
     const [generatingCaptionFor, setGeneratingCaptionFor] = useState<number | null>(null);
+    const [geminiApiKey, setGeminiApiKey] = useState<string>(() => localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || '');
+
 
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
@@ -145,13 +146,11 @@ const EditorApp: React.FC = () => {
                 const data = snapshot.val();
                 let hasBeenMigrated = false;
 
-                // --- Automatic Migration for session 'name' in config ---
                 if (!data.config.name) {
                     data.config.name = id;
                     hasBeenMigrated = true;
                 }
 
-                // --- Automatic Migration for 'groups' object from string to {name, caption} ---
                 if (data.groups) {
                     const groupIds = Object.keys(data.groups);
                     if (groupIds.length > 0 && typeof data.groups[groupIds[0]] === 'string') {
@@ -169,7 +168,6 @@ const EditorApp: React.FC = () => {
                     data.groups = {};
                 }
 
-                // --- Automatic Migration for photo 'order' field ---
                 const photosArray = data.photos?.photos || [];
                 if (photosArray.length > 0) {
                     const photosNeedOrderMigration = photosArray.some((p: FirebasePhoto) => p.order === undefined);
@@ -291,6 +289,14 @@ const EditorApp: React.FC = () => {
 
     const handleGenerateCaption = useCallback(async (index: number) => {
         if (!sessionData) return;
+
+        const key = geminiApiKey.trim();
+        if (!key) {
+            alert("Пожалуйста, введите ваш Google AI API Key в настройках сессии.");
+            document.getElementById('geminiApiKey')?.focus();
+            return;
+        }
+
         const photo = sessionData.photos.photos[index];
         if (!photo.url) {
             alert("URL фотографии не указан.");
@@ -301,7 +307,7 @@ const EditorApp: React.FC = () => {
         try {
             const { base64, mimeType } = await urlToBase64(photo.url);
 
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            const ai = new GoogleGenAI({ apiKey: key });
 
             const imagePart = {
                 inlineData: {
@@ -329,11 +335,21 @@ const EditorApp: React.FC = () => {
 
         } catch (error) {
             console.error("Ошибка генерации описания:", error);
-            alert(`Не удалось сгенерировать описание: ${(error as Error).message}`);
+            let errorMessage = (error as Error).message;
+            if (errorMessage.includes('API key not valid')) {
+                errorMessage = "API-ключ недействителен. Проверьте правильность ключа."
+            }
+            alert(`Не удалось сгенерировать описание: ${errorMessage}`);
         } finally {
             setGeneratingCaptionFor(null);
         }
-    }, [sessionData, handlePhotoChange]);
+    }, [sessionData, handlePhotoChange, geminiApiKey]);
+
+    const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newKey = e.target.value;
+        setGeminiApiKey(newKey);
+        localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, newKey);
+    };
 
     const handleMovePhoto = (index: number, direction: 'up' | 'down') => {
         if (!sessionData) return;
@@ -613,6 +629,11 @@ const EditorApp: React.FC = () => {
                                 )}
                             </div>
                         ))}
+                        <div>
+                            <label htmlFor="geminiApiKey" className="block text-sm font-medium text-gray-400">Google AI API Key</label>
+                            <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white" placeholder="Вставьте ваш ключ"/>
+                            <p className="text-xs text-gray-500 mt-1">Ключ сохраняется в вашем браузере и не передается на сервер.</p>
+                        </div>
                     </div>
                 </details>
 
