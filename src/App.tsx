@@ -417,7 +417,7 @@ const App: React.FC = () => {
 
         if (currentVisibility) {
             if (photo.userRating && photo.userRating > 0) {
-                // setToastMessage("Оцененные фотографии нельзя скрыть."); // Now handled by disabled button
+                // Now handled by disabled button, no toast needed.
                 return;
             }
 
@@ -627,14 +627,12 @@ const App: React.FC = () => {
             }
         };
 
-        // This function will transfer the rating.
         const transferRating = () => {
             if (!oldSelectedPhoto?.userRating || newSelectedId === null) return;
             const ratingToTransfer = oldSelectedPhoto.userRating;
             const newSelectedPhoto = photos.find(p => p.id === newSelectedId);
             if (!newSelectedPhoto) return;
 
-            // Optimistic UI update for both photos at once
             setPhotos(prevPhotos =>
                 prevPhotos.map(p => {
                     if (p.id === oldSelectedId) return { ...p, userRating: undefined };
@@ -643,7 +641,6 @@ const App: React.FC = () => {
                 })
             );
 
-            // DB updates
             const fromUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${oldSelectedId}`);
             const fromAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${oldSelectedId}`);
             const toUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${newSelectedId}`);
@@ -659,7 +656,6 @@ const App: React.FC = () => {
             Promise.all(promises).catch((error: Error) => {
                 console.error("Firebase write failed during rating transfer: ", error);
                 setToastMessage('Ошибка: не удалось перенести оценку.');
-                // Revert UI
                 setPhotos(prevPhotos =>
                     prevPhotos.map(p => {
                         if (p.id === oldSelectedId) return oldSelectedPhoto;
@@ -668,10 +664,9 @@ const App: React.FC = () => {
                     })
                 );
             });
-            performSelectionChange(); // Also update selection state
+            performSelectionChange();
         };
 
-        // Case 1: Selecting a new photo while the old one had a rating
         if (newSelectedId !== null && oldSelectedPhoto && oldSelectedPhoto.userRating && !initiatedByRate) {
             openConfirmation(
                 "Перенести отметку?",
@@ -684,25 +679,10 @@ const App: React.FC = () => {
             );
             return;
         }
-        // Case 2: User manually deselects a rated photo via the checkmark
-        else if (newSelectedId === null && oldSelectedPhoto && oldSelectedPhoto.userRating) {
-            openConfirmation(
-                "Сбросить оценку?",
-                'Группа без выбранной фотографии не может иметь оценку. Снять выделение и сбросить оценку?',
-                () => {
-                    closeConfirmation();
-                    handleRate(oldSelectedId, 0); // This will clear the rating
-                    performSelectionChange();
-                },
-                closeConfirmation
-            );
-            return;
-        }
 
-        // Update selection state for all other successful cases (no conflicts)
         performSelectionChange();
 
-    }, [groupSelections, sessionId, photos, handleRate, userId]);
+    }, [groupSelections, sessionId, photos, userId]);
 
 
     const handleRateInGroup = (photoId: number, rating: number) => {
@@ -715,33 +695,29 @@ const App: React.FC = () => {
         const groupId = photo.groupId;
         const currentSelectedId = groupSelections[groupId];
         const currentSelectedPhoto = currentSelectedId ? photos.find(p => p.id === currentSelectedId) : null;
-        const isNewRating = rating > 0 && rating !== photo.userRating;
+        const isClearingRating = rating === 0 || rating === photo.userRating;
+        const isNewRating = rating > 0 && !isClearingRating;
 
-        // Is the user trying to rate a NEW photo while another one is already rated?
         if (isNewRating && currentSelectedId && currentSelectedId !== photoId && currentSelectedPhoto?.userRating) {
             openConfirmation(
                 "Перенести отметку?",
                 "В этой группе отмечена другая фотография. Перенести оценку с нее на этот снимок?",
                 () => {
                     closeConfirmation();
-                    // 1. Clear old rating.
-                    handleRate(currentSelectedId, 0);
-                    // 2. Apply new rating.
-                    handleRate(photoId, rating);
-                    // 3. Update selection (flagging it was initiated by rating to avoid double confirmation)
-                    handleGroupSelectionChange(groupId, photoId, true);
+                    // This function now handles both rating and selection transfer
+                    handleGroupSelectionChange(groupId, photoId, true); // Mark as initiatedByRate
+                    handleRate(currentSelectedId, 0); // Clear old rating
+                    handleRate(photoId, rating); // Apply new rating
                 },
                 closeConfirmation
             );
         } else {
-            // Standard case (first rating, changing rating of selected photo, clearing rating).
             handleRate(photoId, rating);
-            const isClearingRating = rating === photo.userRating || rating === 0;
 
-            if (!isClearingRating && rating > 0) {
+            if (isNewRating) {
                 handleGroupSelectionChange(groupId, photoId, true);
             } else if (isClearingRating && currentSelectedId === photoId) {
-                // If the rating of the selected photo is removed, deselect it.
+                // Unconditionally remove selection when rating is cleared from selected photo.
                 handleGroupSelectionChange(groupId, null, true);
             }
         }
@@ -988,20 +964,20 @@ const App: React.FC = () => {
                                         )}
                                         <div id={groupWrapperId} className={`expanded-group-wrapper ${isExpanded ? 'expanded' : ''}`}>
                                             <div className="expanded-group-container">
-                                                <div className="flex justify-between items-center mb-4">
+                                                <div className="flex justify-between items-start pt-1">
                                                     <div>
                                                         <h3 className="text-lg font-bold text-gray-200">Группа: «{groupData?.name || ''}»</h3>
-                                                        {groupData?.caption && <p className="text-sm text-gray-400">{groupData.caption}</p>}
+                                                        {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
                                                     </div>
-                                                    <button onClick={() => setExpandedGroupId(null)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                                                    <button onClick={() => setExpandedGroupId(null)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors flex-shrink-0 ml-4">
                                                         <X size={18}/>
                                                         Свернуть группу
                                                     </button>
                                                 </div>
-                                                <div className={settings.layout === 'grid'
+                                                <div className={`pt-4 ${settings.layout === 'grid'
                                                     ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
                                                     : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
-                                                }>
+                                                }`}>
                                                     {photosToShow.map(photo => {
                                                         const isSelected = item.selectedPhotoId === photo.id;
                                                         const isDimmed = item.selectedPhotoId !== null && !isSelected;

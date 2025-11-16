@@ -81,9 +81,11 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         ? 'opacity-0'
         : (hasUserRating ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100');
 
-    const visibilityIconClass = isFilterActive && !isVisible
-        ? 'opacity-100'
-        : 'opacity-70 md:opacity-0 group-hover:opacity-100';
+    const visibilityIconClass = [
+        'p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white transition-all duration-300',
+        (isFilterActive && !isVisible) ? 'opacity-100' : 'opacity-70 md:opacity-0 group-hover:opacity-100',
+        hasUserRating ? 'disabled:cursor-not-allowed' : '',
+    ].join(' ');
 
 
     return (
@@ -104,7 +106,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
                     <button
                         onClick={(e) => { e.stopPropagation(); onToggleVisibility(photo.id); }}
                         disabled={hasUserRating}
-                        className={`p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white transition-all duration-300 disabled:opacity-30 disabled:hover:bg-black/50 disabled:cursor-not-allowed ${visibilityIconClass}`}
+                        className={visibilityIconClass}
                         title={hasUserRating ? "Оцененные фото нельзя скрыть" : (isVisible ? "Скрыть из ленты" : "Показать в ленте")}
                         aria-label="Переключить видимость"
                     >
