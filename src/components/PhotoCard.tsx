@@ -1,24 +1,42 @@
 import React, { useState } from 'react';
 import { Photo, LayoutMode, GridAspectRatio } from '../types';
-import { Info, Flag } from 'lucide-react';
+import { Info, Eye, EyeOff, Check } from 'lucide-react';
 import { RatingControls } from './RatingControls';
+
+const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> = ({isSelected, onSelect}) => {
+    return (
+        <div className="absolute top-2 right-2 z-10 pointer-events-auto" onClick={(e) => { e.stopPropagation(); onSelect(); }} >
+            <div className={`selection-control-bg w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg cursor-pointer ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-900/40 backdrop-blur-sm border-white/80'}`}>
+                <Check className="w-5 h-5 text-white selection-control-check" />
+            </div>
+        </div>
+    )
+}
 
 interface PhotoCardProps {
     photo: Photo;
     onRate: (photoId: number, rating: number) => void;
     onImageClick: (photo: Photo) => void;
-    onToggleFlag: (photoId: number) => void;
+    onToggleVisibility: (photoId: number) => void;
     displayVotes: boolean;
     layoutMode: LayoutMode;
     gridAspectRatio: GridAspectRatio;
     showRatingControls?: boolean;
     isDimmed?: boolean;
     isReadOnly?: boolean;
+    isHiding?: boolean;
+    showVisibilityToggle?: boolean;
+    showSelectionControl?: boolean;
+    isSelected?: boolean;
+    onSelect?: () => void;
+    isFilterActive?: boolean; // New prop to know if "Show Hidden" is on
 }
 
 export const PhotoCard: React.FC<PhotoCardProps> = ({
-                                                        photo, onRate, onImageClick, onToggleFlag, displayVotes, layoutMode,
-                                                        gridAspectRatio, showRatingControls = true, isDimmed = false, isReadOnly = false
+                                                        photo, onRate, onImageClick, onToggleVisibility, displayVotes, layoutMode,
+                                                        gridAspectRatio, showRatingControls = true, isDimmed = false, isReadOnly = false, isHiding = false,
+                                                        showVisibilityToggle = true, showSelectionControl = false, isSelected = false, onSelect = () => {},
+                                                        isFilterActive = false
                                                     }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
@@ -38,7 +56,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         return 'text-gray-400';
     };
 
-    const isFlagged = photo.isFlagged !== false;
+    const isVisible = photo.isVisible !== false;
     const isOutOfComp = !!photo.isOutOfCompetition;
     const hasUserRating = photo.userRating && photo.userRating > 0;
 
@@ -57,11 +75,17 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
     };
     const aspectRatioClass = aspectRatioMap[gridAspectRatio];
 
-    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 ${!isReadOnly ? 'hover:shadow-indigo-500/30' : ''} ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''} ${isDimmed ? 'opacity-50' : 'opacity-100'}`;
+    const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 ${!isReadOnly ? 'hover:shadow-indigo-500/30' : ''} ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''} ${isDimmed ? 'opacity-50' : 'opacity-100'} ${isHiding ? 'animate-hide' : ''}`;
 
     const controlsVisibilityClass = isReadOnly
         ? 'opacity-0'
         : (hasUserRating ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100');
+
+    const visibilityIconClass = [
+        'p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white transition-all duration-300',
+        (isFilterActive && !isVisible) || (hasUserRating) ? 'opacity-70 md:opacity-0 group-hover:opacity-100' : 'opacity-70 md:opacity-0 group-hover:opacity-100',
+        hasUserRating ? 'disabled:cursor-not-allowed' : '',
+    ].join(' ');
 
 
     return (
@@ -78,17 +102,20 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none z-[2]" />
 
             <div className="absolute top-2 left-2 z-[3] flex items-center gap-1.5">
-                {!isOutOfComp && !isReadOnly && (
+                {!isOutOfComp && !isReadOnly && showVisibilityToggle && (
                     <button
-                        onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
-                        className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        title={isFlagged ? "Снять отметку" : "Отметить"}
-                        aria-label="Отметить фото"
+                        onClick={(e) => { e.stopPropagation(); onToggleVisibility(photo.id); }}
+                        disabled={hasUserRating}
+                        className={visibilityIconClass}
+                        title={hasUserRating ? "Оцененные фото нельзя скрыть" : (isVisible ? "Скрыть из ленты" : "Показать в ленте")}
+                        aria-label="Переключить видимость"
                     >
-                        <Flag className="w-5 h-5" fill={isFlagged ? 'currentColor' : 'none'} />
+                        {isVisible && !isHiding ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                     </button>
                 )}
             </div>
+
+            {showSelectionControl && <SelectionControl isSelected={isSelected} onSelect={onSelect} />}
 
             <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-end z-[3]">
                 <div className="flex items-center gap-2">

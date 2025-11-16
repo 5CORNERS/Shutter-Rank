@@ -71,3 +71,76 @@
 .selection-control-bg.selected .selection-control-check {
     transform: scale(1);
 }
+
+@keyframes fade-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
+}
+.animate-hide {
+    animation: fade-out 0.4s ease-out forwards;
+}
+
+/* Styles for inline expanded groups with animation */
+.expanded-group-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.4s ease-in-out;
+}
+.expanded-group-wrapper.expanded {
+    grid-template-rows: 1fr;
+}
+.expanded-group-container {
+    overflow: hidden;
+}
+
+.expanded-group-content {
+    @apply bg-gray-800/50 p-4 rounded-lg border border-gray-700/50 mb-6;
+}
+
+
+/* Styles for "smart frames" in viewers */
+.smart-frame {
+    @apply absolute inset-0 rounded-lg pointer-events-none transition-all duration-300;
+    content: '';
+    box-shadow: 0 0 0 2px transparent inset;
+}
+.smart-frame.in-group {
+    @apply shadow-gray-500/50;
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.5) inset; /* gray-500 */
+}
+.smart-frame.selected {
+    @apply shadow-green-500/80;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.8) inset; /* green-500 */
+}
+
+/* Vignette effect for unselected photos in a group */
+.vignette-overlay {
+    --vignette-intensity: 70%; /* Tune this value in inspector */
+    @apply absolute inset-0 rounded-lg pointer-events-none;
+    background: radial-gradient(ellipse at center, transparent 40%, black var(--vignette-intensity));
+    opacity: 0.6;
+}
+
+/* Confirmation Modal Animation */
+.confirmation-modal-content {
+    transition: all 0.2s ease-out;
+}
+.confirmation-modal-enter .confirmation-modal-content {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+}
+.confirmation-modal-enter-active .confirmation-modal-content {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+.confirmation-modal-exit .confirmation-modal-content {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+}
+.confirmation-modal-exit-active .confirmation-modal-content {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+}
+.col-span-all {
+    column-span: all;
+}

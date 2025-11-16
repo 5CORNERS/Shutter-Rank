@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { Photo, Config } from '../types';
-import { X, ChevronLeft, ChevronRight, Star, Flag, Layers, Check } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Star, Eye, EyeOff, Layers, Check } from 'lucide-react';
 import { RatingControls } from './RatingControls';
 
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> = ({isSelected, onSelect}) => {
@@ -15,32 +15,36 @@ const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> =
 
 interface ModalProps {
     photo: Photo;
-    onClose: (openedFromGroupId?: string | null) => void;
+    allPhotosInGroup: Photo[];
+    onClose: () => void;
     displayVotes: boolean;
     onNext: () => void;
     onPrev: () => void;
     onEnterImmersive: () => void;
     onRate: (photoId: number, rating: number) => void;
-    onToggleFlag: (photoId: number) => void;
+    onToggleVisibility: (photoId: number) => void;
     hasNext: boolean;
     hasPrev: boolean;
     config: Config | null;
     ratedPhotosCount: number;
     starsUsed: number;
-    groupInfo: { id: string; name: string; caption?: string; count: number } | null;
+    groupInfo: { id: string; name: string; caption?: string; photos: Photo[] } | null;
+    groupSelections: Record<string, number | null>;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
-    isPhotoInGroupSelected: boolean;
-    openedFromGroupId: string | null;
     onOpenGroup: (groupId: string) => void;
 }
 
 export const Modal: React.FC<ModalProps> = ({
-                                                photo, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
-                                                onRate, onToggleFlag, hasNext, hasPrev, config, ratedPhotosCount,
-                                                starsUsed, groupInfo, onGroupSelectionChange, isPhotoInGroupSelected, openedFromGroupId, onOpenGroup
+                                                photo, allPhotosInGroup, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
+                                                onRate, onToggleVisibility, hasNext, hasPrev, config, ratedPhotosCount,
+                                                starsUsed, groupInfo, groupSelections, onGroupSelectionChange, onOpenGroup
                                             }) => {
     const imgRef = useRef<HTMLImageElement>(null);
     const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
+
+    const isPhotoInGroupSelected = groupInfo ? groupSelections[groupInfo.id] === photo.id : false;
+    const isAnotherPhotoInGroupSelected = groupInfo ? (groupSelections[groupInfo.id] !== null && groupSelections[groupInfo.id] !== photo.id) : false;
+    const photoIndexInGroup = groupInfo ? allPhotosInGroup.findIndex(p => p.id === photo.id) + 1 : 0;
 
     const calculateControlsPosition = useCallback(() => {
         const img = imgRef.current;
@@ -74,13 +78,13 @@ export const Modal: React.FC<ModalProps> = ({
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') onClose(openedFromGroupId);
+            if (event.key === 'Escape') onClose();
             else if (event.key === 'ArrowRight') onNext();
             else if (event.key === 'ArrowLeft') onPrev();
-            else if (event.key.toLowerCase() === 'f' || (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))) {
+            else if (event.key.toLowerCase() === 'h' || (event.ctrlKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown'))) {
                 event.preventDefault();
-                if (!photo.isOutOfCompetition) onToggleFlag(photo.id);
-            } else if (!groupInfo && !event.ctrlKey && !event.metaKey && /^[0-5]$/.test(event.key)) {
+                if (!photo.isOutOfCompetition) onToggleVisibility(photo.id);
+            } else if (!event.ctrlKey && !event.metaKey && /^[0-5]$/.test(event.key)) {
                 event.preventDefault();
                 if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(event.key, 10));
             }
@@ -90,7 +94,7 @@ export const Modal: React.FC<ModalProps> = ({
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
         };
-    }, [onClose, onNext, onPrev, photo, onRate, onToggleFlag, openedFromGroupId, groupInfo]);
+    }, [onClose, onNext, onPrev, photo, onRate, onToggleVisibility]);
 
     const getScoreColor = (score: number) => {
         if (score > 0) return 'text-green-400';
@@ -105,19 +109,18 @@ export const Modal: React.FC<ModalProps> = ({
         }
     };
 
-    const isFromMainFeed = openedFromGroupId === null;
-    const showRatingPanel = !groupInfo || (groupInfo && isPhotoInGroupSelected);
-    const captionToShow = (isFromMainFeed && groupInfo?.caption) ? groupInfo.caption : photo.caption;
+    const captionToShow = groupInfo?.caption ? groupInfo.caption : photo.caption;
+    const hasUserRating = photo.userRating && photo.userRating > 0;
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose(openedFromGroupId)} role="dialog">
-            <div className="absolute top-4 right-4 z-[51] flex items-center gap-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in" onClick={() => onClose()} role="dialog">
+            <div className="absolute top-12 right-4 z-[51] flex items-center gap-4">
                 {displayVotes && (
                     <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 px-3 py-1 rounded-md`}>
                         Рейтинг: {photo.votes}
                     </div>
                 )}
-                <button onClick={() => onClose(openedFromGroupId)} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Закрыть"><X className="w-6 h-6" /></button>
+                <button onClick={() => onClose()} className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20" aria-label="Закрыть"><X className="w-6 h-6" /></button>
             </div>
 
             {hasPrev && <button onClick={(e) => { e.stopPropagation(); onPrev(); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-[51] p-2 rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronLeft className="w-8 h-8" /></button>}
@@ -127,36 +130,40 @@ export const Modal: React.FC<ModalProps> = ({
                 <div className="flex-grow p-4 overflow-hidden flex items-center justify-center relative group cursor-pointer" onClick={onEnterImmersive}>
                     <img ref={imgRef} src={photo.url} alt={`Фото ${photo.id}`} className="object-contain w-full h-full max-h-[calc(90vh-140px)]" onLoad={calculateControlsPosition}/>
                     <div style={controlsContainerStyle} className="absolute pointer-events-none z-20">
+                        {groupInfo && <div className={`smart-frame ${isPhotoInGroupSelected ? 'selected' : 'in-group'}`} />}
+                        {isAnotherPhotoInGroupSelected && <div className="vignette-overlay"/>}
+
                         {!photo.isOutOfCompetition && (
                             <button
-                                onClick={(e) => { e.stopPropagation(); onToggleFlag(photo.id); }}
-                                className="absolute top-4 left-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto"
-                                title="Отметить (F)"
+                                onClick={(e) => { e.stopPropagation(); onToggleVisibility(photo.id); }}
+                                disabled={hasUserRating}
+                                className="absolute top-4 left-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white hover:bg-gray-700 transition-colors pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={hasUserRating ? "Оцененные фото нельзя скрыть" : "Скрыть/показать (H)"}
                             >
-                                <Flag className="w-6 h-6" fill={photo.isFlagged !== false ? 'currentColor' : 'none'} />
+                                {photo.isVisible !== false ? <Eye className="w-6 h-6" /> : <EyeOff className="w-6 h-6" />}
                             </button>
                         )}
-                        {groupInfo && isFromMainFeed && (
-                            <div className="absolute top-4 right-4 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white pointer-events-auto flex items-center gap-2">
-                                <Layers size={22} />
-                                <span className="font-bold text-base pr-1">{groupInfo.count}</span>
-                            </div>
+                        {groupInfo && (
+                            <>
+                                <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />
+                                <div className="absolute top-4 left-1/2 -translate-x-1/2 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white pointer-events-auto flex items-center gap-2">
+                                    <Layers size={20} />
+                                    <span className="font-bold text-sm pr-1">{photoIndexInGroup}/{groupInfo.photos.length}</span>
+                                </div>
+                            </>
                         )}
-                        {groupInfo && !isFromMainFeed && <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />}
                     </div>
                 </div>
 
-                <div className="bg-gradient-to-t from-gray-900 via-gray-800/80 to-gray-800/60 rounded-b-lg">
+                <div className="bg-gradient-to-t from-black/90 via-black/80 to-transparent rounded-b-lg">
                     {groupInfo && (
                         <div className="flex items-center justify-center gap-3 text-sm text-gray-400 border-t border-gray-700/50 px-4 py-2" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center gap-3 truncate">
                                 <Layers className="w-5 h-5 flex-shrink-0 text-indigo-400" />
                                 <span className="truncate">Фото из группы: «{groupInfo.name}»</span>
-                                {isFromMainFeed && (
-                                    <button onClick={() => onOpenGroup(groupInfo.id)} className="ml-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
-                                        Открыть группу
-                                    </button>
-                                )}
+                                <button onClick={() => onOpenGroup(groupInfo.id)} className="ml-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                                    Перейти в группу
+                                </button>
                             </div>
                         </div>
                     )}
@@ -164,22 +171,20 @@ export const Modal: React.FC<ModalProps> = ({
                         <p>{captionToShow}</p>
                     </div>
 
-                    <div className={`transition-opacity duration-300 ${showRatingPanel ? 'opacity-100' : 'opacity-0 h-0 p-0 overflow-hidden'}`}>
-                        <div className="p-3 flex flex-wrap justify-between items-center gap-4">
-                            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} resetButtonMode="always" />
+                    <div className="p-3 flex flex-wrap justify-between items-center gap-4">
+                        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                            <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} resetButtonMode="always" />
+                        </div>
+                        <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
+                            <div className="flex items-center gap-x-1" title="Оценено фотографий">
+                                <span className="font-semibold text-green-400">{ratedPhotosCount}</span>
+                                <span className="text-gray-500">/{config?.ratedPhotoLimit}</span>
                             </div>
-                            <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
-                                <div className="flex items-center gap-x-1" title="Оценено фотографий">
-                                    <span className="font-semibold text-green-400">{ratedPhotosCount}</span>
-                                    <span className="text-gray-500">/{config?.ratedPhotoLimit}</span>
-                                </div>
-                                <div className="w-px h-4 bg-gray-600"></div>
-                                <div className="flex items-center gap-x-1" title="Израсходовано звёзд">
-                                    <Star size={14} className="text-yellow-400" />
-                                    <span className="font-semibold text-yellow-400">{starsUsed}</span>
-                                    <span className="text-gray-500">/{config?.totalStarsLimit}</span>
-                                </div>
+                            <div className="w-px h-4 bg-gray-600"></div>
+                            <div className="flex items-center gap-x-1" title="Израсходовано звёзд">
+                                <Star size={14} className="text-yellow-400" />
+                                <span className="font-semibold text-yellow-400">{starsUsed}</span>
+                                <span className="text-gray-500">/{config?.totalStarsLimit}</span>
                             </div>
                         </div>
                     </div>

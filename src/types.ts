@@ -1,17 +1,17 @@
 export interface FirebasePhoto {
-    id: number;
-    url: string;
-    caption: string;
-    isOutOfCompetition?: boolean;
-    order?: number;
-    groupId?: string;
+  id: number;
+  url: string;
+  caption: string;
+  isOutOfCompetition?: boolean;
+  order?: number;
+  groupId?: string;
 }
 
 export interface Photo extends FirebasePhoto {
-    votes: number;
-    userRating?: number;
-    isFlagged?: boolean;
-    maxRating?: number;
+  votes: number;
+  userRating?: number;
+  isVisible?: boolean;
+  maxRating?: number;
 }
 
 export interface GroupData {
@@ -48,12 +48,12 @@ export interface Settings {
 }
 
 export interface Config {
-    name?: string; // Human-readable name
-    ratedPhotoLimit: number;
-    totalStarsLimit: number;
-    defaultLayoutDesktop: LayoutMode;
-    defaultLayoutMobile: LayoutMode;
-    defaultGridAspectRatio: GridAspectRatio;
-    unlockFourStarsThresholdPercent?: number;
-    unlockFiveStarsThresholdPercent?: number;
+  name?: string; // Human-readable name
+  ratedPhotoLimit: number;
+  totalStarsLimit: number;
+  defaultLayoutDesktop: LayoutMode;
+  defaultLayoutMobile: LayoutMode;
+  defaultGridAspectRatio: GridAspectRatio;
+  unlockFourStarsThresholdPercent?: number;
+  unlockFiveStarsThresholdPercent?: number;
 }

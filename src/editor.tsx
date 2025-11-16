@@ -4,7 +4,8 @@ import { db } from './firebase';
 import { ref, get, set, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
 import exifr from 'exifr';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
@@ -15,6 +16,28 @@ type SessionData = {
     photos: FirebasePhotoData;
     groups?: FirebaseDataGroups;
 };
+
+const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: string }> => {
+    // A CORS proxy might be needed if the image server doesn't allow cross-origin requests.
+    // However, since the app already displays these images, direct fetch should work.
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    const blob = await response.blob();
+    const mimeType = blob.type;
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            // result is "data:mime/type;base64,..."
+            const base64 = (reader.result as string).split(',')[1];
+            resolve({ base64, mimeType });
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
 
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
     const photoFiguresHtml = photosInOrder.map(photo => {
@@ -95,6 +118,7 @@ const EditorApp: React.FC = () => {
     const [newGroupName, setNewGroupName] = useState('');
     const [status, setStatus] = useState<Status>('loading');
     const [isSaving, setIsSaving] = useState(false);
+    const [generatingCaptionFor, setGeneratingCaptionFor] = useState<number | null>(null);
 
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
@@ -247,21 +271,69 @@ const EditorApp: React.FC = () => {
         }
     };
 
-    const handlePhotoChange = (index: number, field: keyof FirebasePhoto, value: string | boolean) => {
-        if (sessionData) {
-            const newPhotos = [...sessionData.photos.photos];
+    const handlePhotoChange = useCallback((index: number, field: keyof FirebasePhoto, value: string | boolean) => {
+        setSessionData(currentData => {
+            if (!currentData) return null;
+
+            const newPhotos = [...currentData.photos.photos];
             const updatedPhoto = { ...newPhotos[index], [field]: value };
             if (field === 'groupId' && value === '') {
                 delete updatedPhoto.groupId;
             }
-            newPhotos[index] = updatedPhoto;
+            newPhotos[index] = updatedPhoto as FirebasePhoto;
 
-            setSessionData({
-                ...sessionData,
-                photos: { ...sessionData.photos, photos: newPhotos },
-            });
+            return {
+                ...currentData,
+                photos: { ...currentData.photos, photos: newPhotos },
+            };
+        });
+    }, []);
+
+    const handleGenerateCaption = useCallback(async (index: number) => {
+        if (!sessionData) return;
+        const photo = sessionData.photos.photos[index];
+        if (!photo.url) {
+            alert("URL фотографии не указан.");
+            return;
         }
-    };
+
+        setGeneratingCaptionFor(photo.id);
+        try {
+            const { base64, mimeType } = await urlToBase64(photo.url);
+
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+            const imagePart = {
+                inlineData: {
+                    mimeType: mimeType,
+                    data: base64,
+                },
+            };
+
+            const textPart = {
+                text: "Опиши это изображение для фотоконкурса. Будь кратким и выразительным. Ответ дай на русском языке. Не используй markdown."
+            };
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: { parts: [imagePart, textPart] },
+            });
+
+            const caption = response.text.trim();
+
+            if (caption) {
+                handlePhotoChange(index, 'caption', caption);
+            } else {
+                throw new Error("Gemini вернул пустое описание.");
+            }
+
+        } catch (error) {
+            console.error("Ошибка генерации описания:", error);
+            alert(`Не удалось сгенерировать описание: ${(error as Error).message}`);
+        } finally {
+            setGeneratingCaptionFor(null);
+        }
+    }, [sessionData, handlePhotoChange]);
 
     const handleMovePhoto = (index: number, direction: 'up' | 'down') => {
         if (!sessionData) return;
@@ -625,7 +697,27 @@ const EditorApp: React.FC = () => {
                                 <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0 self-center" />
                                 <div className="flex-grow space-y-2">
                                     <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="URL"/>
-                                    <textarea value={photo.caption} onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)} rows={2} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="Описание"/>
+                                    <div className="relative">
+                                        <textarea
+                                            value={photo.caption}
+                                            onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)}
+                                            rows={2}
+                                            className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm pr-10"
+                                            placeholder="Описание"
+                                        />
+                                        <button
+                                            onClick={() => handleGenerateCaption(index)}
+                                            disabled={generatingCaptionFor === photo.id}
+                                            className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5 text-gray-400 hover:text-indigo-400 transition-colors disabled:cursor-not-allowed disabled:text-gray-600"
+                                            title="Сгенерировать описание с помощью Gemini"
+                                        >
+                                            {generatingCaptionFor === photo.id ? (
+                                                <Loader className="w-5 h-5 animate-spin"/>
+                                            ) : (
+                                                <Wand2 className="w-5 h-5"/>
+                                            )}
+                                        </button>
+                                    </div>
                                     <div className="flex items-center justify-between gap-4">
                                         <select
                                             value={photo.groupId || ''}
