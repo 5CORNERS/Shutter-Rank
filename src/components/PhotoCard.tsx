@@ -83,7 +83,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
 
     const visibilityIconClass = [
         'p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white transition-all duration-300',
-        (isFilterActive && !isVisible) ? 'opacity-100' : 'opacity-70 md:opacity-0 group-hover:opacity-100',
+        (isFilterActive && !isVisible) || (hasUserRating) ? 'opacity-70 md:opacity-0 group-hover:opacity-100' : 'opacity-70 md:opacity-0 group-hover:opacity-100',
         hasUserRating ? 'disabled:cursor-not-allowed' : '',
     ].join(' ');
 

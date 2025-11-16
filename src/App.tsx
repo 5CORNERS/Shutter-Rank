@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
@@ -937,11 +938,12 @@ const App: React.FC = () => {
                                 let wrapperClassName = '';
                                 if (settings.layout === 'original') {
                                     wrapperClassName = 'break-inside-avoid';
-                                    if (isExpanded) {
+                                }
+
+                                if (isExpanded) {
+                                    if (settings.layout === 'original') {
                                         wrapperClassName += ' col-span-all';
-                                    }
-                                } else { // grid layout
-                                    if (isExpanded) {
+                                    } else {
                                         wrapperClassName = 'col-span-full';
                                     }
                                 }
@@ -951,141 +953,134 @@ const App: React.FC = () => {
                                         {!isExpanded && (
                                             <PhotoStackComponent
                                                 stack={item}
+                                                groupName={groupData?.name || ''}
                                                 onRate={handleRate}
                                                 onImageClick={handleImageClick}
-                                                onToggleVisibility={handleToggleVisibility}
-                                                onExpand={() => setExpandedGroupId(isExpanded ? null : item.groupId)}
+                                                onExpand={() => setExpandedGroupId(item.groupId)}
                                                 displayVotes={false}
                                                 layoutMode={settings.layout}
                                                 gridAspectRatio={settings.gridAspectRatio}
                                                 isTouchDevice={isTouchDevice}
-                                                hidingPhotoId={hidingPhotoId}
                                             />
                                         )}
                                         <div id={groupWrapperId} className={`expanded-group-wrapper ${isExpanded ? 'expanded' : ''}`}>
                                             <div className="expanded-group-container">
-                                                <div className="flex justify-between items-start pt-1">
-                                                    <div>
-                                                        <h3 className="text-lg font-bold text-gray-200">Группа: «{groupData?.name || ''}»</h3>
-                                                        {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
+                                                <div className="expanded-group-content">
+                                                    <div className="flex justify-between items-start pt-1">
+                                                        <div>
+                                                            <h3 className="text-lg font-bold text-gray-200">Группа: «{groupData?.name || ''}»</h3>
+                                                            {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
+                                                        </div>
+                                                        <button onClick={() => setExpandedGroupId(null)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors flex-shrink-0 ml-4">
+                                                            <X size={18}/>
+                                                            Свернуть группу
+                                                        </button>
                                                     </div>
-                                                    <button onClick={() => setExpandedGroupId(null)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors flex-shrink-0 ml-4">
-                                                        <X size={18}/>
-                                                        Свернуть группу
-                                                    </button>
-                                                </div>
-                                                <div className={`pt-4 ${settings.layout === 'grid'
-                                                    ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-                                                    : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
-                                                }`}>
-                                                    {photosToShow.map(photo => {
-                                                        const isSelected = item.selectedPhotoId === photo.id;
-                                                        const isDimmed = item.selectedPhotoId !== null && !isSelected;
-                                                        return (
-                                                            <div key={photo.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                                                <PhotoCard
-                                                                    photo={photo}
-                                                                    onRate={handleRateInGroup}
-                                                                    onImageClick={handleImageClick}
-                                                                    displayVotes={false}
-                                                                    layoutMode={settings.layout}
-                                                                    gridAspectRatio={settings.gridAspectRatio}
-                                                                    onToggleVisibility={handleToggleVisibility}
-                                                                    isHiding={hidingPhotoId === photo.id}
-                                                                    isDimmed={isDimmed}
-                                                                    showSelectionControl={true}
-                                                                    isSelected={isSelected}
-                                                                    onSelect={() => handleGroupSelectionChange(item.groupId, isSelected ? null : photo.id)}
-                                                                    isFilterActive={showHiddenPhotos}
-                                                                />
-                                                            </div>
-                                                        )
-                                                    })}
+                                                    <div className={`pt-4 ${settings.layout === 'grid'
+                                                        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+                                                        : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
+                                                    }`}>
+                                                        {photosToShow.map(photo => {
+                                                            const isSelected = item.selectedPhotoId === photo.id;
+                                                            const isDimmed = item.selectedPhotoId !== null && !isSelected;
+                                                            return (
+                                                                <div key={photo.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                                                    <PhotoCard
+                                                                        photo={photo}
+                                                                        onRate={handleRateInGroup}
+                                                                        onImageClick={handleImageClick}
+                                                                        displayVotes={false}
+                                                                        layoutMode={settings.layout}
+                                                                        gridAspectRatio={settings.gridAspectRatio}
+                                                                        onToggleVisibility={handleToggleVisibility}
+                                                                        isDimmed={isDimmed}
+                                                                        isHiding={hidingPhotoId === photo.id}
+                                                                        showSelectionControl={true}
+                                                                        isSelected={isSelected}
+                                                                        onSelect={() => handleGroupSelectionChange(item.groupId, photo.id)}
+                                                                        isFilterActive={showHiddenPhotos}
+                                                                    />
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
-                                )
-                            } else {
-                                return (
-                                    <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                        <PhotoCard
-                                            photo={item}
-                                            onRate={handleRate}
-                                            onImageClick={handleImageClick}
-                                            displayVotes={false}
-                                            layoutMode={settings.layout}
-                                            gridAspectRatio={settings.gridAspectRatio}
-                                            onToggleVisibility={handleToggleVisibility}
-                                            isHiding={hidingPhotoId === item.id}
-                                            isFilterActive={showHiddenPhotos}
-                                        />
-                                    </div>
                                 );
                             }
+                            return (
+                                <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                    <PhotoCard
+                                        photo={item}
+                                        onRate={handleRate}
+                                        onImageClick={handleImageClick}
+                                        // FIX: In the 'voting' phase, displayVotes should be false. The comparison `votingPhase === 'results'` is always false here.
+                                        displayVotes={false}
+                                        layoutMode={settings.layout}
+                                        gridAspectRatio={settings.gridAspectRatio}
+                                        onToggleVisibility={handleToggleVisibility}
+                                        isHiding={hidingPhotoId === item.id}
+                                        isFilterActive={showHiddenPhotos}
+                                    />
+                                </div>
+                            );
                         })
                     ) : (
                         sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
                                 const groupData = groups[item.groupId];
-                                const sortedPhotosInGroup = item.photos.slice().sort((a, b) =>
-                                    sortBy === 'score' ? (b.votes || 0) - (a.votes || 0) : (a.order ?? a.id) - (b.order ?? b.id)
-                                );
+                                const bestPhoto = item.photos.reduce((best, current) => (current.votes > best.votes ? current : best), item.photos[0]);
+                                if (!bestPhoto) return null;
                                 return (
-                                    <React.Fragment key={`group-results-${item.groupId}`}>
-                                        <div className="col-span-full mt-8 mb-4">
-                                            <h2 className="text-2xl font-bold text-gray-300 border-b-2 border-gray-700 pb-2">
-                                                Группа: {groupData?.name || 'Без названия'}
-                                            </h2>
-                                        </div>
-                                        {sortedPhotosInGroup.map(photo => (
-                                            <div key={photo.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                                <PhotoCard
-                                                    photo={photo}
-                                                    onRate={() => {}}
-                                                    onImageClick={() => {}}
-                                                    onToggleVisibility={() => {}}
-                                                    displayVotes={true}
-                                                    layoutMode={settings.layout}
-                                                    gridAspectRatio={settings.gridAspectRatio}
-                                                    isReadOnly={true}
-                                                />
-                                            </div>
-                                        ))}
-                                    </React.Fragment>
-                                );
-                            } else {
-                                return (
-                                    <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                    <div key={item.groupId} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
                                         <PhotoCard
-                                            photo={item}
-                                            onRate={() => {}}
-                                            onImageClick={() => {}}
-                                            onToggleVisibility={() => {}}
+                                            photo={bestPhoto}
+                                            onRate={handleRate}
+                                            onImageClick={handleImageClick}
                                             displayVotes={true}
                                             layoutMode={settings.layout}
                                             gridAspectRatio={settings.gridAspectRatio}
+                                            onToggleVisibility={handleToggleVisibility}
                                             isReadOnly={true}
                                         />
+                                        <div className="text-center -mt-2 text-sm bg-gray-800 p-1 rounded-b-md">
+                                            <p className="font-semibold">Лучшее из группы «{groupData?.name}»</p>
+                                        </div>
                                     </div>
                                 );
                             }
+                            return (
+                                <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                    <PhotoCard
+                                        photo={item}
+                                        onRate={()=>{}}
+                                        onImageClick={handleImageClick}
+                                        displayVotes={true}
+                                        layoutMode={settings.layout}
+                                        gridAspectRatio={settings.gridAspectRatio}
+                                        onToggleVisibility={()=>{}}
+                                        isReadOnly={true}
+                                    />
+                                </div>
+                            );
                         })
                     )}
                 </div>
             </main>
 
-            {!isTouchDevice && selectedPhoto && (
+            {selectedPhoto && (
                 <Modal
                     photo={selectedPhoto}
                     allPhotosInGroup={selectedPhotoGroupInfo?.photos || []}
                     onClose={handleCloseModal}
                     displayVotes={votingPhase === 'results'}
-                    onRate={handleRateInGroup}
-                    onToggleVisibility={handleToggleVisibility}
                     onNext={handleNextPhoto}
                     onPrev={handlePrevPhoto}
                     onEnterImmersive={handleEnterImmersive}
+                    onRate={handleRateInGroup}
+                    onToggleVisibility={handleToggleVisibility}
                     hasNext={photosForViewer.length > 1}
                     hasPrev={photosForViewer.length > 1}
                     config={config}

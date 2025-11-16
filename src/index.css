@@ -91,6 +91,9 @@
 }
 .expanded-group-container {
     overflow: hidden;
+}
+
+.expanded-group-content {
     @apply bg-gray-800/50 p-4 rounded-lg border border-gray-700/50 mb-6;
 }
 
