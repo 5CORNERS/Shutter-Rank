@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import { ref, get, set, update } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import exifr from 'exifr';
 import './index.css';
@@ -123,13 +124,16 @@ const EditorApp: React.FC = () => {
     const [generatingCaptionFor, setGeneratingCaptionFor] = useState<number | null>(null);
     const [geminiApiKey, setGeminiApiKey] = useState<string>(() => localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || '');
     const [geminiCustomPrompt, setGeminiCustomPrompt] = useState<string>(() => localStorage.getItem(GEMINI_CUSTOM_PROMPT_STORAGE_KEY) || DEFAULT_PROMPT);
+    const [uploadProgress, setUploadProgress] = useState<{current: number, total: number} | null>(null);
 
 
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
     const placeholderRef = useRef<HTMLDivElement | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const draggedItemIndex = useRef<number | null>(null);
     const scrollInterval = useRef<number | null>(null);
+    const dragCounter = useRef(0);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -538,13 +542,26 @@ const EditorApp: React.FC = () => {
         placeholderRef.current?.remove();
         stopScrolling();
         draggedItemIndex.current = null;
+        dragCounter.current = 0;
+
+        const overlay = document.getElementById('drop-overlay');
+        if (overlay) overlay.style.display = 'none';
     }, [stopScrolling]);
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
+        e.stopPropagation();
+
+        // If dragging files, show overlay and do nothing else
+        if (e.dataTransfer.types.includes('Files')) {
+            e.dataTransfer.dropEffect = 'copy';
+            return;
+        }
+
+        // Handle reordering logic
         const container = photoListRef.current;
         const placeholder = placeholderRef.current;
-        if (!container || !placeholder) return;
+        if (!container || !placeholder || draggedItemIndex.current === null) return;
 
         const SCROLL_ZONE_HEIGHT = 80;
         const SCROLL_SPEED = 15;
@@ -583,8 +600,103 @@ const EditorApp: React.FC = () => {
         }
     };
 
+    const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current++;
+        if (e.dataTransfer.types.includes('Files')) {
+            const overlay = document.getElementById('drop-overlay');
+            if (overlay) overlay.style.display = 'flex';
+        }
+    }
+
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current--;
+        if (dragCounter.current === 0) {
+            const overlay = document.getElementById('drop-overlay');
+            if (overlay) overlay.style.display = 'none';
+        }
+    }
+
+    const handleUploadFiles = async (files: FileList | null) => {
+        if (!files || files.length === 0 || !sessionData || !sessionId) return;
+
+        const newPhotos: FirebasePhoto[] = [];
+        const total = files.length;
+        let current = 0;
+        setUploadProgress({ current: 0, total });
+
+        let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (!file.type.startsWith('image/')) continue;
+
+            try {
+                // Create a storage reference
+                // Format: sessions/<sessionId>/<timestamp>_<filename>
+                const filename = `${Date.now()}_${file.name}`;
+                const fileRef = storageRef(storage, `sessions/${sessionId}/${filename}`);
+
+                // Upload file
+                await uploadBytes(fileRef, file);
+
+                // Get public URL
+                const url = await getDownloadURL(fileRef);
+
+                maxId++;
+                newPhotos.push({
+                    id: maxId,
+                    url: url,
+                    caption: '',
+                    isOutOfCompetition: false,
+                    order: sessionData.photos.photos.length + i
+                });
+
+            } catch (error) {
+                console.error(`Error uploading ${file.name}:`, error);
+                alert(`Ошибка загрузки файла ${file.name}. Проверьте консоль и настройки CORS.`);
+            } finally {
+                current++;
+                setUploadProgress({ current, total });
+            }
+        }
+
+        if (newPhotos.length > 0) {
+            setSessionData(prev => {
+                if(!prev) return null;
+                return {
+                    ...prev,
+                    photos: {
+                        ...prev.photos,
+                        photos: [...prev.photos.photos, ...newPhotos]
+                    }
+                }
+            });
+        }
+        setUploadProgress(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ''; // Reset input
+        }
+    }
+
     const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
+        e.stopPropagation();
+
+        const overlay = document.getElementById('drop-overlay');
+        if (overlay) overlay.style.display = 'none';
+        dragCounter.current = 0;
+
+        // 1. Handle Files Upload
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleUploadFiles(e.dataTransfer.files);
+            return;
+        }
+
+        // 2. Handle Reordering
         if (draggedItemIndex.current === null || !sessionData) {
             handleDragEnd();
             return;
@@ -597,7 +709,7 @@ const EditorApp: React.FC = () => {
         }
 
         const children = Array.from(placeholder.parentElement.children);
-        const newIndex = children.indexOf(placeholder) -1;
+        const newIndex = children.indexOf(placeholder) - 1;
 
         const newPhotos = [...sessionData.photos.photos];
         const [draggedItem] = newPhotos.splice(draggedItemIndex.current, 1);
@@ -616,10 +728,50 @@ const EditorApp: React.FC = () => {
         if (status === 'error') return <div className="text-red-400 text-center">Ошибка загрузки данных.</div>;
         if (status === 'not_found' || !sessionData) return <div className="text-yellow-400 text-center">Сессия "{sessionId}" не найдена.</div>;
 
-        const availableGroups = sessionData.groups ? Object.entries(sessionData.groups) : [];
+        const availableGroups = sessionData.groups ? (Object.entries(sessionData.groups) as [string, GroupData][]) : [];
 
         return (
-            <div className="space-y-8">
+            <div
+                className="space-y-8 relative"
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
+                {/* Hidden File Input */}
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={(e) => handleUploadFiles(e.target.files)}
+                    className="hidden"
+                    multiple
+                    accept="image/*"
+                />
+
+                {/* Drop Zone Overlay */}
+                <div id="drop-overlay" className="hidden fixed inset-0 z-50 bg-black/80 flex-col items-center justify-center text-white backdrop-blur-sm transition-opacity pointer-events-none">
+                    <UploadCloud className="w-24 h-24 text-indigo-500 mb-4 animate-bounce" />
+                    <p className="text-2xl font-bold">Отпустите файлы для загрузки</p>
+                    <p className="text-gray-400 mt-2">Они будут добавлены в конец списка</p>
+                </div>
+
+                {/* Upload Progress Modal */}
+                {uploadProgress && (
+                    <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm">
+                        <div className="bg-gray-800 p-8 rounded-xl shadow-2xl text-center border border-gray-700">
+                            <Loader className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
+                            <h3 className="text-xl font-bold text-white mb-2">Загрузка фотографий...</h3>
+                            <p className="text-gray-300 text-lg">{uploadProgress.current} / {uploadProgress.total}</p>
+                            <div className="w-64 h-2 bg-gray-700 rounded-full mt-4 overflow-hidden">
+                                <div
+                                    className="h-full bg-indigo-500 transition-all duration-300"
+                                    style={{width: `${(uploadProgress.current / uploadProgress.total) * 100}%`}}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
                     <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Настройки сессии</summary>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
@@ -724,7 +876,13 @@ const EditorApp: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    <div ref={photoListRef} onDragOver={handleDragOver} onDrop={handleDrop} className="space-y-3">
+                    <div ref={photoListRef} className="space-y-3 min-h-[200px] border-2 border-dashed border-gray-700 rounded-xl p-4 transition-colors hover:border-indigo-500/50">
+                        {sessionData.photos.photos.length === 0 && (
+                            <div className="flex flex-col items-center justify-center h-48 text-gray-500 pointer-events-none">
+                                <UploadCloud className="w-12 h-12 mb-2" />
+                                <p>Перетащите сюда фотографии для загрузки</p>
+                            </div>
+                        )}
                         {sessionData.photos.photos.map((photo, index) => (
                             <div key={photo.id}
                                  draggable
@@ -786,9 +944,14 @@ const EditorApp: React.FC = () => {
                             </div>
                         ))}
                     </div>
-                    <button onClick={handleAddPhoto} className="w-full mt-4 inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white transition-colors">
-                        <Plus className="w-5 h-5"/> Добавить фотографию
-                    </button>
+                    <div className='grid grid-cols-2 gap-4 mt-4'>
+                        <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white transition-colors">
+                            <UploadCloud className="w-5 h-5"/> Загрузить фото
+                        </button>
+                        <button onClick={handleAddPhoto} className="inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white transition-colors">
+                            <Plus className="w-5 h-5"/> Добавить пустую карточку
+                        </button>
+                    </div>
                 </div>
 
                 <div className="mt-8 pt-6 border-t border-gray-700">

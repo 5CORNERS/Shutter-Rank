@@ -1,5 +1,3 @@
-
-
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
@@ -17,7 +15,7 @@ import { Toast } from './components/Toast';
 import { ToggleSwitch } from './components/ToggleSwitch';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { useDeviceType } from './hooks/useDeviceType';
-import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, ChevronsRight, X, ChevronUp } from 'lucide-react';
+import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, ChevronsRight, X, ChevronUp, Share2 } from 'lucide-react';
 
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
@@ -746,6 +744,14 @@ const App: React.FC = () => {
         return galleryItems.find(item => item.type === 'stack' && item.groupId === expertViewGroupId) as PhotoStack | null;
     }, [expertViewGroupId, galleryItems]);
 
+    const handleShare = useCallback(() => {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            setToastMessage('Ссылка скопирована в буфер обмена');
+        }).catch(() => {
+            setToastMessage('Не удалось скопировать ссылку');
+        });
+    }, []);
 
     const StatsInfo = ({isCompact = false}) => {
         if (!config) return null;
@@ -878,11 +884,16 @@ const App: React.FC = () => {
 
             <main className={`container mx-auto px-4 py-8`}>
                 <header ref={headerRef} className="text-center mb-8">
-                    <div className="flex justify-center items-center gap-3 mb-2">
+                    <div className="flex justify-center items-center gap-4 mb-2">
                         <h1 className="text-4xl font-bold tracking-tight">{sessionDisplayName}</h1>
-                        <button onClick={() => setIsSettingsModalOpen(true)} className="text-gray-400 hover:text-white transition-colors" title="Настройки">
-                            <SettingsIcon className="w-6 h-6" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={handleShare} className="text-gray-400 hover:text-white transition-colors" title="Поделиться ссылкой">
+                                <Share2 className="w-6 h-6" />
+                            </button>
+                            <button onClick={() => setIsSettingsModalOpen(true)} className="text-gray-400 hover:text-white transition-colors" title="Настройки">
+                                <SettingsIcon className="w-6 h-6" />
+                            </button>
+                        </div>
                     </div>
                     <p className="text-gray-400 mb-4 max-w-2xl mx-auto">Выберите до {config.ratedPhotoLimit} лучших фотографий. Вы можете распределить между ними до {config.totalStarsLimit} звезд.</p>
                     <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 max-w-4xl mx-auto flex flex-col items-center gap-4">
