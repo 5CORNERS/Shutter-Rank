@@ -41,7 +41,7 @@ const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: str
 
 const StorageHelpModal: React.FC<{ onClose: () => void, mode?: 'upload' | 'read' }> = ({ onClose, mode = 'upload' }) => {
     const [copied, setCopied] = useState(false);
-    const bucketName = "shutter-rank-storage"; // Replace with your bucket name if different
+    const bucketName = "shutter-rank-storage";
 
     const corsConfig = `[
   {
@@ -316,7 +316,6 @@ const EditorApp: React.FC = () => {
             },
         };
 
-        // Clean up undefined values before saving to avoid Firebase error
         const sanitizedData = JSON.parse(JSON.stringify(finalSessionData));
 
         try {
@@ -362,6 +361,15 @@ const EditorApp: React.FC = () => {
             setSessionData({
                 ...sessionData,
                 config: { ...sessionData.config, [name]: parsedValue },
+            });
+        }
+    };
+
+    const handleIntroChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        if (sessionData) {
+            setSessionData({
+                ...sessionData,
+                photos: { ...sessionData.photos, introArticleMarkdown: e.target.value },
             });
         }
     };
@@ -656,7 +664,6 @@ const EditorApp: React.FC = () => {
         }
     }
 
-    // Helper to verify if the uploaded file is public accessible
     const verifyPublicAccess = async (url: string): Promise<boolean> => {
         try {
             const response = await fetch(url, { method: 'HEAD' });
@@ -675,9 +682,8 @@ const EditorApp: React.FC = () => {
         setUploadProgress({ current: 0, total });
 
         let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
-        const bucketName = "shutter-rank-storage"; // Replace with your bucket name if different
+        const bucketName = "shutter-rank-storage";
 
-        // Flag to show help modal only once per batch
         let hasVerificationError = false;
         let hasUploadError = false;
 
@@ -688,8 +694,6 @@ const EditorApp: React.FC = () => {
                 const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
                 const filePath = `sessions/${sessionId}/${filename}`;
 
-                // DIRECT UPLOAD to Google Cloud Storage JSON API
-                // Bypasses Firebase SDK which requires auth headers for cross-project access
                 const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o?uploadType=media&name=${encodeURIComponent(filePath)}`;
 
                 const response = await fetch(uploadUrl, {
@@ -704,10 +708,8 @@ const EditorApp: React.FC = () => {
                     throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
                 }
 
-                // Construct public URL
                 const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
 
-                // Verification step: Check if we can read it back
                 const isReadable = await verifyPublicAccess(publicUrl);
                 if (!isReadable) {
                     hasVerificationError = true;
@@ -743,7 +745,6 @@ const EditorApp: React.FC = () => {
         setUploadProgress(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
 
-        // Show help modal based on errors encountered
         if (hasUploadError) {
             setHelpModalMode('upload');
             setShowHelpModal(true);
@@ -820,97 +821,111 @@ const EditorApp: React.FC = () => {
                     </div>
                 )}
 
-                <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
-                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Настройки сессии</summary>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400">Session Name</label>
-                            <input type="text" name="name" value={sessionData.config.name || ''} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
+                <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
+                    <h2 className="text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2">
+                        Настройки сессии
+                        {isSaving && <span className="text-sm text-gray-400 font-normal flex items-center"><Loader className="w-4 h-4 animate-spin mr-1"/>Сохранение...</span>}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-1">
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Session Name</label>
+                            <input type="text" name="name" value={sessionData.config.name || ''} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
                         </div>
-                        {Object.entries(sessionData.config).filter(([key]) => key !== 'name').map(([key, value]) => (
-                            <div key={key}>
-                                <label className="block text-sm font-medium text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
-                                {typeof value === 'number' ? (
-                                    <input type="number" name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
-                                ) : (
-                                    <select name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white">
-                                        {key.includes('Layout') ? <>
-                                            <option value="grid">Grid</option>
-                                            <option value="original">Original</option>
-                                        </> : <>
-                                            <option value="1/1">1/1</option>
-                                            <option value="4/3">4/3</option>
-                                            <option value="3/2">3/2</option>
-                                        </>}
-                                    </select>
-                                )}
-                            </div>
-                        ))}
                         <div>
-                            <label htmlFor="geminiApiKey" className="block text-sm font-medium text-gray-400">Google AI API Key</label>
-                            <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white" placeholder="Вставьте ваш ключ"/>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Grid Aspect Ratio</label>
+                            <select name="defaultGridAspectRatio" value={sessionData.config.defaultGridAspectRatio} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                <option value="4/3">4:3</option>
+                                <option value="3/2">3:2</option>
+                                <option value="1/1">1:1</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Layout Desktop</label>
+                            <select name="defaultLayoutDesktop" value={sessionData.config.defaultLayoutDesktop} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                <option value="grid">Grid</option>
+                                <option value="original">Original</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Layout Mobile</label>
+                            <select name="defaultLayoutMobile" value={sessionData.config.defaultLayoutMobile} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                <option value="original">Original</option>
+                                <option value="grid">Grid</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Rated Photo Limit</label>
+                            <input type="number" name="ratedPhotoLimit" value={sessionData.config.ratedPhotoLimit} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Total Stars Limit</label>
+                            <input type="number" name="totalStarsLimit" value={sessionData.config.totalStarsLimit} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Unlock Five Stars Threshold Percent</label>
+                            <input type="number" name="unlockFiveStarsThresholdPercent" value={sessionData.config.unlockFiveStarsThresholdPercent ?? 50} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Unlock Four Stars Threshold Percent</label>
+                            <input type="number" name="unlockFourStarsThresholdPercent" value={sessionData.config.unlockFourStarsThresholdPercent ?? 20} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div className="md:col-span-2 lg:col-span-1">
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Google AI API Key</label>
+                            <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} placeholder="Вставьте ваш ключ" className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
                             <p className="text-xs text-gray-500 mt-1">Ключ сохраняется в вашем браузере и не передается на сервер.</p>
                         </div>
-                    </div>
-                    <div className="mt-4">
-                        <label htmlFor="geminiCustomPrompt" className="block text-sm font-medium text-gray-400">Стиль описаний от ИИ (промпт)</label>
-                        <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={4} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-xs" placeholder="Задайте стиль для генерации..."/>
-                        <p className="text-xs text-gray-500 mt-1">Инструкция для Gemini. Сохраняется в вашем браузере.</p>
-                    </div>
-                </details>
-
-                <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
-                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Вступительная статья (Markdown)</summary>
-                    <textarea
-                        value={sessionData.photos.introArticleMarkdown}
-                        onChange={(e) => setSessionData({...sessionData, photos: {...sessionData.photos, introArticleMarkdown: e.target.value}})}
-                        rows={10}
-                        className="mt-4 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-sm"
-                    />
-                </details>
-
-                <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
-                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Группы фотографий</summary>
-                    <div className="mt-4 space-y-4">
-                        <div className="flex gap-2 p-3 bg-gray-700/50 rounded-lg">
-                            <input
-                                type="text"
-                                value={newGroupName}
-                                onChange={(e) => setNewGroupName(e.target.value)}
-                                className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-800 text-white"
-                                placeholder="Название новой группы"
-                            />
-                            <button onClick={handleAddGroup} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-                                <Plus className="w-5 h-5"/> Добавить
-                            </button>
+                        <div className="md:col-span-2 lg:col-span-3">
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Стиль описаний от ИИ (промпт)</label>
+                            <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={3} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-sm" />
+                            <p className="text-xs text-gray-500 mt-1">Инструкция для Gemini. Сохраняется в вашем браузере.</p>
                         </div>
-                        {availableGroups.length > 0 && (
-                            <div className="space-y-3">
-                                {availableGroups.map(([id, groupData]) => (
-                                    <div key={id} className="space-y-2 p-3 bg-gray-700/50 rounded-lg">
-                                        <div className="flex items-center justify-between">
-                                            <input
-                                                type="text"
-                                                value={groupData.name}
-                                                onChange={(e) => handleGroupChange(id, 'name', e.target.value)}
-                                                className="flex-grow p-1 border-b border-gray-600 bg-transparent text-gray-200 focus:outline-none focus:border-indigo-500 font-semibold"
-                                                placeholder="Название группы"
-                                            />
-                                            <button onClick={() => handleDeleteGroup(id)} className="ml-2 p-1 text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4"/></button>
-                                        </div>
-                                        <textarea
-                                            value={groupData.caption || ''}
-                                            onChange={(e) => handleGroupChange(id, 'caption', e.target.value)}
-                                            rows={2}
-                                            className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
-                                            placeholder="Описание группы (необязательно)"
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
-                </details>
+                </div>
+
+                <div className="cursor-pointer" onClick={() => setIsIntroExpanded(!isIntroExpanded)}>
+                    <div className="flex items-center gap-2 text-lg font-semibold text-gray-200 mb-2 hover:text-indigo-400 transition-colors">
+                        {isIntroExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                        Вступительная статья (Markdown)
+                    </div>
+                </div>
+                {isIntroExpanded && (
+                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm animate-fade-in">
+                         <textarea
+                             value={sessionData.photos.introArticleMarkdown}
+                             onChange={handleIntroChange}
+                             rows={10}
+                             className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white font-mono text-sm"
+                             placeholder="# Заголовок\n\nТекст статьи..."
+                         />
+                    </div>
+                )}
+
+                <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
+                    <h2 className="text-xl font-semibold mb-4 text-gray-200">Группы фотографий</h2>
+                    <div className="flex gap-2 mb-4">
+                        <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="Название новой группы" />
+                        <button onClick={handleAddGroup} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors">
+                            <Plus className="w-4 h-4" /> Добавить
+                        </button>
+                    </div>
+                    {availableGroups.length > 0 ? (
+                        <div className="space-y-3">
+                            {availableGroups.map(([groupId, group]) => (
+                                <div key={groupId} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
+                                    <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                                        <input type="text" value={group.name} onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Название" />
+                                        <input type="text" value={group.caption || ''} onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Описание группы (необязательно)" />
+                                    </div>
+                                    <button onClick={() => handleDeleteGroup(groupId)} className="text-red-400 hover:text-red-300 p-2" title="Удалить группу">
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-gray-500 italic">Группы пока не созданы.</p>
+                    )}
+                </div>
 
                 <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-4">

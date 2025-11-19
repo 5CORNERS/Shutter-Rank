@@ -42,8 +42,11 @@ export const Modal: React.FC<ModalProps> = ({
     const imgRef = useRef<HTMLImageElement>(null);
     const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
 
-    const isPhotoInGroupSelected = groupInfo ? groupSelections[groupInfo.id] === photo.id : false;
-    const isAnotherPhotoInGroupSelected = groupInfo ? (groupSelections[groupInfo.id] !== null && groupSelections[groupInfo.id] !== photo.id) : false;
+    const currentGroupSelection = groupInfo ? groupSelections[groupInfo.id] : undefined;
+    const isPhotoInGroupSelected = currentGroupSelection === photo.id;
+    // Fix: Check strictly if a selection exists (is a number) to avoid 'undefined !== null' evaluating to true
+    const isAnotherPhotoInGroupSelected = groupInfo ? (currentGroupSelection != null && currentGroupSelection !== photo.id) : false;
+
     const photoIndexInGroup = groupInfo ? allPhotosInGroup.findIndex(p => p.id === photo.id) + 1 : 0;
 
     const calculateControlsPosition = useCallback(() => {
