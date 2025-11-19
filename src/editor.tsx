@@ -136,9 +136,16 @@ const EditorApp: React.FC = () => {
 
     useEffect(() => {
         // Sign in anonymously to allow Storage operations if rules require auth
+        // If auth is not configured in console, we catch the error and proceed, hoping for public bucket access
         signInAnonymously(auth)
             .then(() => console.log("Signed in anonymously"))
-            .catch((error) => console.error("Error signing in anonymously:", error));
+            .catch((error) => {
+                if (error.code === 'auth/configuration-not-found') {
+                    console.warn("Anonymous auth not enabled in Firebase Console. Uploads may fail if bucket is not public.");
+                } else {
+                    console.error("Error signing in anonymously:", error);
+                }
+            });
     }, []);
 
     useEffect(() => {
@@ -651,14 +658,18 @@ const EditorApp: React.FC = () => {
     const handleUploadFiles = async (files: FileList | null) => {
         if (!files || files.length === 0 || !sessionData || !sessionId) return;
 
-        // Ensure auth is initialized
+        // Attempt to sign in if not signed in, but don't block entirely
         if (!auth.currentUser) {
             try {
                 await signInAnonymously(auth);
-            } catch (err) {
-                console.error("Auth required for upload:", err);
-                alert("Ошибка авторизации перед загрузкой. Проверьте консоль.");
-                return;
+            } catch (err: any) {
+                if (err.code === 'auth/configuration-not-found') {
+                    console.warn("Anonymous Auth not enabled. Attempting upload without explicit auth token...");
+                } else {
+                    console.error("Auth check error:", err);
+                    alert("Ошибка авторизации. Подробности в консоли.");
+                    return;
+                }
             }
         }
 
@@ -719,7 +730,7 @@ const EditorApp: React.FC = () => {
         }
 
         if (failedUploads.length > 0) {
-            alert(`Не удалось загрузить следующие файлы (${failedUploads.length}):\n${failedUploads.join('\n')}\n\nПроверьте права доступа к хранилищу (ошибка 412 или 403).`);
+            alert(`Не удалось загрузить следующие файлы (${failedUploads.length}):\n${failedUploads.join('\n')}\n\nВозможные причины:\n1. Не включен Anonymous Auth в Firebase Console.\n2. Бакет не публичный (нет прав allUsers -> Storage Object User).\n3. Не настроен CORS.`);
         }
     }
 
