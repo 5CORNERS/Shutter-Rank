@@ -89,7 +89,7 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                             <p><strong className="text-white">Инструкция:</strong></p>
                             <ol className="list-decimal list-inside space-y-1">
                                 <li>Откройте <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google Cloud Console</a>.</li>
-                                <li>Нажмите иконку терминала <strong>(>_)</strong> в правом верхнем углу.</li>
+                                <li>Нажмите иконку терминала <strong>(&gt;_)</strong> в правом верхнем углу.</li>
                                 <li>Вставьте скопированную команду и нажмите Enter.</li>
                                 <li>Подождите 1 минуту и попробуйте загрузить файл снова.</li>
                             </ol>
