@@ -962,7 +962,7 @@ const App: React.FC = () => {
 
                                 return (
                                     <div key={item.groupId} className={wrapperClassName}>
-                                        {!isExpanded && (
+                                        <div className={`stack-transition-wrapper ${isExpanded ? 'hidden-stack' : ''}`}>
                                             <PhotoStackComponent
                                                 stack={item}
                                                 groupName={groupData?.name || ''}
@@ -974,7 +974,7 @@ const App: React.FC = () => {
                                                 gridAspectRatio={settings.gridAspectRatio}
                                                 isTouchDevice={isTouchDevice}
                                             />
-                                        )}
+                                        </div>
                                         <div id={groupWrapperId} className={`expanded-group-wrapper ${isExpanded ? 'expanded' : ''}`}>
                                             <div className="expanded-group-container">
                                                 <div className="expanded-group-content">

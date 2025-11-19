@@ -97,6 +97,23 @@
     @apply bg-gray-800/50 p-4 rounded-lg border border-gray-700/50 mb-6;
 }
 
+/* Smooth transition for stack card disappearing */
+.stack-transition-wrapper {
+    transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+    opacity: 1;
+    max-height: 600px; /* Arbitrary max height that exceeds card height */
+    transform-origin: top center;
+    overflow: hidden;
+}
+
+.stack-transition-wrapper.hidden-stack {
+    opacity: 0;
+    max-height: 0;
+    margin-bottom: 0;
+    transform: scale(0.95) translateY(-10px);
+    pointer-events: none;
+}
+
 
 /* Styles for "smart frames" in viewers */
 .smart-frame {
