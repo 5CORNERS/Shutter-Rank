@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { db, storage } from './firebase';
-import { ref, get, set, update } from 'firebase/database';
+import { ref, get, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
-import exifr from 'exifr';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
 
@@ -181,10 +180,11 @@ const EditorApp: React.FC = () => {
                     const photosNeedOrderMigration = photosArray.some((p: FirebasePhoto) => p.order === undefined);
 
                     if (photosNeedOrderMigration) {
-                        data.photos.photos = photosArray.map((photo: FirebasePhoto, index: number) => ({
-                            ...photo,
-                            order: photo.order ?? index,
-                        }));
+                        // We create a new array to update, but we also need to ensure
+                        // we update the sessionData structure later correctly
+                        photosArray.forEach((photo: FirebasePhoto, index: number) => {
+                            photo.order = photo.order ?? index;
+                        });
                         hasBeenMigrated = true;
                     }
                 }
@@ -193,7 +193,20 @@ const EditorApp: React.FC = () => {
                     alert('Обнаружена сессия старого формата. Данные были обновлены в редакторе. Нажмите "Сохранить", чтобы применить изменения.');
                 }
 
-                setSessionData({ config: data.config, photos: data.photos, groups: data.groups || {} });
+                // CRITICAL FIX: Explicitly construct the photos object.
+                // If data.photos was undefined or didn't have the 'photos' array property,
+                // passing it directly to state would cause undefined.length crashes in render.
+                const safePhotosData: FirebasePhotoData = {
+                    introArticleMarkdown: data.photos?.introArticleMarkdown || '',
+                    photos: photosArray, // This is guaranteed to be an array (empty or not)
+                    groups: data.photos?.groups
+                };
+
+                setSessionData({
+                    config: data.config,
+                    photos: safePhotosData,
+                    groups: data.groups || {}
+                });
                 setStatus('success');
             } else {
                 setStatus('not_found');
@@ -464,11 +477,24 @@ const EditorApp: React.FC = () => {
         const failedPhotos: { id: number, url: string, error: string }[] = [];
         const newPhotos = [...sessionData.photos.photos];
 
+        // Dynamic import to prevent load issues
+        let exifr;
+        try {
+            const module = await import('exifr');
+            exifr = module.default || module;
+        } catch (e) {
+            console.error("Failed to load exifr module", e);
+            alert("Ошибка загрузки библиотеки EXIF. Проверьте интернет-соединение.");
+            setStatus('success');
+            return;
+        }
+
         for (let i = 0; i < newPhotos.length; i++) {
             const photo = newPhotos[i];
             try {
                 if (!photo.url) continue;
 
+                // Fetch the image as a buffer to avoid some CORS issues with the library's internal fetch
                 const response = await fetch(photo.url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
