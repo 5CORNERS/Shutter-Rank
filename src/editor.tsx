@@ -5,7 +5,7 @@ import { ref, get, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, Terminal, CheckCircle2 } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
@@ -42,8 +42,9 @@ const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: str
 
 const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     const [copied, setCopied] = useState(false);
-    const bucketName = "shutter-rank-storage"; // Hardcoded based on your project
+    const bucketName = "shutter-rank-storage";
 
+    // Configuration for copy-paste
     const corsConfig = `[
   {
     "origin": ["*"],
@@ -53,6 +54,7 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
   }
 ]`;
 
+    // Single line command for ease of use
     const command = `echo '${corsConfig.replace(/\n/g, '').replace(/\s+/g, ' ')}' > cors.json && gcloud storage buckets update gs://${bucketName} --cors-file=cors.json`;
 
     const handleCopy = () => {
@@ -741,7 +743,17 @@ const EditorApp: React.FC = () => {
                 const filename = `${Date.now()}_${file.name}`;
                 const fileRef = storageRef(storage, `sessions/${sessionId}/${filename}`);
 
-                await uploadBytes(fileRef, file);
+                // Create a promise that rejects after 10 seconds
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error("Upload timed out (likely CORS issue)")), 10000);
+                });
+
+                // Race between upload and timeout
+                await Promise.race([
+                    uploadBytes(fileRef, file),
+                    timeoutPromise
+                ]);
+
                 const url = await getDownloadURL(fileRef);
 
                 maxId++;
@@ -756,6 +768,8 @@ const EditorApp: React.FC = () => {
             } catch (error: any) {
                 console.warn(`Error uploading ${file.name}:`, error);
                 failedUploads.push(file.name);
+                // Force CORS modal if ANY upload fails
+                setShowCorsModal(true);
             } finally {
                 current++;
                 setUploadProgress({ current, total });
@@ -778,11 +792,6 @@ const EditorApp: React.FC = () => {
         setUploadProgress(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
-        }
-
-        if (failedUploads.length > 0) {
-            // Force show modal on any error during upload to help user diagnose permission issues
-            setShowCorsModal(true);
         }
     }
 
@@ -865,226 +874,4 @@ const EditorApp: React.FC = () => {
                 {uploadProgress && (
                     <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm">
                         <div className="bg-gray-800 p-8 rounded-xl shadow-2xl text-center border border-gray-700">
-                            <Loader className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-white mb-2">Загрузка фотографий...</h3>
-                            <p className="text-gray-300 text-lg">{uploadProgress.current} / {uploadProgress.total}</p>
-                            <div className="w-64 h-2 bg-gray-700 rounded-full mt-4 overflow-hidden">
-                                <div
-                                    className="h-full bg-indigo-500 transition-all duration-300"
-                                    style={{width: `${(uploadProgress.current / uploadProgress.total) * 100}%`}}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {authStatus === 'failed' && (
-                    <div className="bg-yellow-900/30 border border-yellow-700/50 p-3 rounded-lg flex items-start gap-3 text-sm text-yellow-200">
-                        <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-                        <div>
-                            <p className="font-bold">Внимание: Авторизация не удалась</p>
-                            <p className="mt-1 opacity-80">Загрузка файлов сработает, только если вы настроили публичный доступ к бакету (allUsers -&gt; Storage Object User) в консоли Google Cloud.</p>
-                        </div>
-                    </div>
-                )}
-
-                <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
-                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Настройки сессии</summary>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400">Session Name</label>
-                            <input type="text" name="name" value={sessionData.config.name || ''} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
-                        </div>
-                        {Object.entries(sessionData.config).filter(([key]) => key !== 'name').map(([key, value]) => (
-                            <div key={key}>
-                                <label className="block text-sm font-medium text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
-                                {typeof value === 'number' ? (
-                                    <input type="number" name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
-                                ) : (
-                                    <select name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white">
-                                        {key.includes('Layout') ? <>
-                                            <option value="grid">Grid</option>
-                                            <option value="original">Original</option>
-                                        </> : <>
-                                            <option value="1/1">1/1</option>
-                                            <option value="4/3">4/3</option>
-                                            <option value="3/2">3/2</option>
-                                        </>}
-                                    </select>
-                                )}
-                            </div>
-                        ))}
-                        <div>
-                            <label htmlFor="geminiApiKey" className="block text-sm font-medium text-gray-400">Google AI API Key</label>
-                            <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white" placeholder="Вставьте ваш ключ"/>
-                            <p className="text-xs text-gray-500 mt-1">Ключ сохраняется в вашем браузере и не передается на сервер.</p>
-                        </div>
-                    </div>
-                    <div className="mt-4">
-                        <label htmlFor="geminiCustomPrompt" className="block text-sm font-medium text-gray-400">Стиль описаний от ИИ (промпт)</label>
-                        <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={4} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-xs" placeholder="Задайте стиль для генерации..."/>
-                        <p className="text-xs text-gray-500 mt-1">Инструкция для Gemini. Сохраняется в вашем браузере.</p>
-                    </div>
-                </details>
-
-                <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
-                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Вступительная статья (Markdown)</summary>
-                    <textarea
-                        value={sessionData.photos.introArticleMarkdown}
-                        onChange={(e) => setSessionData({...sessionData, photos: {...sessionData.photos, introArticleMarkdown: e.target.value}})}
-                        rows={10}
-                        className="mt-4 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-sm"
-                    />
-                </details>
-
-                <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
-                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Группы фотографий</summary>
-                    <div className="mt-4 space-y-4">
-                        <div className="flex gap-2 p-3 bg-gray-700/50 rounded-lg">
-                            <input
-                                type="text"
-                                value={newGroupName}
-                                onChange={(e) => setNewGroupName(e.target.value)}
-                                className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-800 text-white"
-                                placeholder="Название новой группы"
-                            />
-                            <button onClick={handleAddGroup} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-                                <Plus className="w-5 h-5"/> Добавить
-                            </button>
-                        </div>
-                        {availableGroups.length > 0 && (
-                            <div className="space-y-3">
-                                {availableGroups.map(([id, groupData]) => (
-                                    <div key={id} className="space-y-2 p-3 bg-gray-700/50 rounded-lg">
-                                        <div className="flex items-center justify-between">
-                                            <input
-                                                type="text"
-                                                value={groupData.name}
-                                                onChange={(e) => handleGroupChange(id, 'name', e.target.value)}
-                                                className="flex-grow p-1 border-b border-gray-600 bg-transparent text-gray-200 focus:outline-none focus:border-indigo-500 font-semibold"
-                                                placeholder="Название группы"
-                                            />
-                                            <button onClick={() => handleDeleteGroup(id)} className="ml-2 p-1 text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4"/></button>
-                                        </div>
-                                        <textarea
-                                            value={groupData.caption || ''}
-                                            onChange={(e) => handleGroupChange(id, 'caption', e.target.value)}
-                                            rows={2}
-                                            className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
-                                            placeholder="Описание группы (необязательно)"
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </details>
-
-                <div className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                        <h2 className="text-xl font-semibold text-gray-300">Фотографии ({sessionData.photos.photos.length})</h2>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button onClick={handleDownloadHtml} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white transition-colors">
-                                <Download className="w-5 h-5"/> Скачать HTML
-                            </button>
-                            <button onClick={handleExtractExif} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition-colors">
-                                <Wand2 className="w-5 h-5"/> Извлечь описания из EXIF
-                            </button>
-                        </div>
-                    </div>
-                    <div ref={photoListRef} className="space-y-3 min-h-[200px] border-2 border-dashed border-gray-700 rounded-xl p-4 transition-colors hover:border-indigo-500/50">
-                        {sessionData.photos.photos.length === 0 && (
-                            <div className="flex flex-col items-center justify-center h-48 text-gray-500 pointer-events-none">
-                                <UploadCloud className="w-12 h-12 mb-2" />
-                                <p>Перетащите сюда фотографии для загрузки</p>
-                            </div>
-                        )}
-                        {sessionData.photos.photos.map((photo, index) => (
-                            <div key={photo.id}
-                                 draggable
-                                 onDragStart={(e) => handleDragStart(e, index)}
-                                 onDragEnd={handleDragEnd}
-                                 className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300`}
-                            >
-                                <div className="flex-shrink-0 self-center flex md:flex-col items-center gap-2 drag-handle cursor-grab active:cursor-grabbing">
-                                    <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
-                                    <div className="text-gray-500">☰</div>
-                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
-                                </div>
-                                <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0 self-center" />
-                                <div className="flex-grow space-y-2">
-                                    <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="URL"/>
-                                    <div className="relative">
-                                        <textarea
-                                            value={photo.caption}
-                                            onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)}
-                                            rows={2}
-                                            className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm pr-10"
-                                            placeholder="Описание"
-                                        />
-                                        <button
-                                            onClick={() => handleGenerateCaption(index)}
-                                            disabled={generatingCaptionFor === photo.id}
-                                            className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5 text-gray-400 hover:text-indigo-400 transition-colors disabled:cursor-not-allowed disabled:text-gray-600"
-                                            title="Сгенерировать описание с помощью Gemini"
-                                        >
-                                            {generatingCaptionFor === photo.id ? (
-                                                <Loader className="w-5 h-5 animate-spin"/>
-                                            ) : (
-                                                <Wand2 className="w-5 h-5"/>
-                                            )}
-                                        </button>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-4">
-                                        <select
-                                            value={photo.groupId || ''}
-                                            onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)}
-                                            className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
-                                            disabled={availableGroups.length === 0}
-                                        >
-                                            <option value="">Без группы</option>
-                                            {availableGroups.map(([id, groupData]) => (
-                                                <option key={id} value={id}>{groupData.name}</option>
-                                            ))}
-                                        </select>
-
-                                        <div className="flex items-center">
-                                            <input type="checkbox" id={`ooc-${photo.id}`} checked={!!photo.isOutOfCompetition} onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"/>
-                                            <label htmlFor={`ooc-${photo.id}`} className="ml-2 block text-sm text-gray-300">Вне конкурса</label>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="self-center">
-                                    <button onClick={() => handleDeletePhoto(index)} className="p-2 text-red-500 hover:text-red-400"><Trash2 className="w-5 h-5"/></button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <div className='grid grid-cols-2 gap-4 mt-4'>
-                        <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white transition-colors">
-                            <UploadCloud className="w-5 h-5"/> Загрузить фото
-                        </button>
-                        <button onClick={handleAddPhoto} className="inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white transition-colors">
-                            <Plus className="w-5 h-5"/> Добавить пустую карточку
-                        </button>
-                    </div>
-                </div>
-
-                <div className="mt-8 pt-6 border-t border-gray-700">
-                    <button onClick={handleSave} disabled={isSaving} className="w-full inline-flex items-center justify-center gap-x-2 px-4 py-3 font-semibold text-lg rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:bg-gray-600 disabled:cursor-wait">
-                        <Save className="w-6 h-6"/> {isSaving ? 'Сохранение...' : 'Сохранить все изменения'}
-                    </button>
-                </div>
-            </div>
-        );
-    };
-
-    const pageTitle = `Редактор: ${sessionData?.config?.name || sessionId || '...'}`;
-
-    return <AdminLayout title={pageTitle}>{renderContent()}</AdminLayout>;
-};
-
-const rootElement = document.getElementById('root');
-if (!rootElement) throw new Error("Could not find root element");
-const root = ReactDOM.createRoot(rootElement);
-root.render(<React.StrictMode><EditorApp /></React.StrictMode>);
+                            <Loader className="w-12 h
