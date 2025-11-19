@@ -69,9 +69,9 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                         <AlertTriangle className="w-8 h-8 text-red-500" />
                     </div>
                     <div className="flex-grow">
-                        <h3 className="text-xl font-bold text-white mb-2">Ошибка загрузки (CORS или Права доступа)</h3>
+                        <h3 className="text-xl font-bold text-white mb-2">Проблема с загрузкой</h3>
                         <p className="text-gray-300 text-sm mb-4">
-                            Браузер заблокировал загрузку. Это происходит, если у бакета не настроен CORS или нет прав на запись.
+                            Файл не загрузился. В 99% случаев это означает, что у вашего бакета не настроены права доступа (CORS) или права на запись.
                         </p>
 
                         <div className="bg-gray-950 rounded-lg p-4 border border-gray-800 font-mono text-xs text-green-400 overflow-x-auto relative mb-4">
@@ -86,13 +86,16 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                         </div>
 
                         <div className="text-sm text-gray-400 space-y-2">
-                            <p><strong className="text-white">Инструкция:</strong></p>
+                            <p><strong className="text-white">Как исправить (займет 1 минуту):</strong></p>
                             <ol className="list-decimal list-inside space-y-1">
                                 <li>Откройте <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google Cloud Console</a>.</li>
                                 <li>Нажмите иконку терминала <strong>(&gt;_)</strong> в правом верхнем углу.</li>
                                 <li>Вставьте скопированную команду и нажмите Enter.</li>
                                 <li>Подождите 1 минуту и попробуйте загрузить файл снова.</li>
                             </ol>
+                            <p className="mt-2 pt-2 border-t border-gray-700/50">
+                                Также убедитесь, что в <strong>Permissions</strong> бакета добавлена роль <strong>Storage Object User</strong> для <strong>allUsers</strong> (если вы не настраивали Firebase Auth).
+                            </p>
                         </div>
                     </div>
                     <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-6 h-6" /></button>
@@ -727,7 +730,6 @@ const EditorApp: React.FC = () => {
         setUploadProgress({ current: 0, total });
 
         const failedUploads: string[] = [];
-        let corsErrorDetected = false;
 
         let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
 
@@ -752,18 +754,8 @@ const EditorApp: React.FC = () => {
                 });
 
             } catch (error: any) {
-                console.error(`Error uploading ${file.name}:`, error);
+                console.warn(`Error uploading ${file.name}:`, error);
                 failedUploads.push(file.name);
-
-                // Detect CORS or Access related errors
-                if (
-                    error.code === 'storage/retry-limit-exceeded' ||
-                    error.message?.includes('network') ||
-                    error.message?.includes('CORS') ||
-                    error.status === 0
-                ) {
-                    corsErrorDetected = true;
-                }
             } finally {
                 current++;
                 setUploadProgress({ current, total });
@@ -789,11 +781,8 @@ const EditorApp: React.FC = () => {
         }
 
         if (failedUploads.length > 0) {
-            if (corsErrorDetected) {
-                setShowCorsModal(true);
-            } else {
-                alert(`Не удалось загрузить следующие файлы (${failedUploads.length}):\n${failedUploads.join('\n')}`);
-            }
+            // Force show modal on any error during upload to help user diagnose permission issues
+            setShowCorsModal(true);
         }
     }
 
