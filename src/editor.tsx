@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import { db, storage, auth, signInAnonymously } from './firebase';
+import { db, auth, signInAnonymously } from './firebase';
 import { ref, get, update } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2, ChevronRight, ChevronDown } from 'lucide-react';
@@ -314,6 +313,7 @@ const EditorApp: React.FC = () => {
             },
         };
 
+        // Clean up undefined values before saving
         const sanitizedData = JSON.parse(JSON.stringify(finalSessionData));
 
         try {
@@ -673,22 +673,38 @@ const EditorApp: React.FC = () => {
         setUploadProgress({ current: 0, total });
 
         let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
+        const bucketName = "shutter-rank-storage";
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             if (!file.type.startsWith('image/')) continue;
             try {
                 const filename = `${Date.now()}_${file.name}`;
-                const fileRef = storageRef(storage, `sessions/${sessionId}/${filename}`);
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error("Upload timed out")), 10000);
+                const filePath = `sessions/${sessionId}/${filename}`;
+
+                // Use direct upload to Google Cloud Storage JSON API to bypass Firebase SDK issues
+                // Since the bucket is public for writing (allUsers -> Storage Object User), this works without auth headers
+                const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o?uploadType=media&name=${encodeURIComponent(filePath)}`;
+
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': file.type,
+                    },
+                    body: file
                 });
-                await Promise.race([uploadBytes(fileRef, file), timeoutPromise]);
-                const url = await getDownloadURL(fileRef);
+
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+                }
+
+                // Construct the public URL manually
+                const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+
                 maxId++;
                 newPhotos.push({
                     id: maxId,
-                    url: url,
+                    url: publicUrl,
                     caption: '',
                     isOutOfCompetition: false,
                     order: sessionData.photos.photos.length + i

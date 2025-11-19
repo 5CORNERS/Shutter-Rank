@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
-import { ref, get, onValue, runTransaction, DataSnapshot, set, remove, TransactionResult, update } from 'firebase/database';
+import { ref, get, onValue, runTransaction, DataSnapshot, set, remove, TransactionResult } from 'firebase/database';
 import { Photo, FirebasePhotoData, Settings, Config, GalleryItem, PhotoStack, FirebaseDataGroups } from './types';
 import { PhotoCard } from './components/PhotoCard';
 import { Modal } from './components/Modal';
@@ -15,7 +15,7 @@ import { Toast } from './components/Toast';
 import { ToggleSwitch } from './components/ToggleSwitch';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { useDeviceType } from './hooks/useDeviceType';
-import { Eye, EyeOff, Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, ChevronsRight, X, ChevronUp, Share2 } from 'lucide-react';
+import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, ChevronUp } from 'lucide-react';
 
 type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
@@ -72,7 +72,7 @@ const App: React.FC = () => {
 
     const [confirmation, setConfirmation] = useState<ConfirmationState>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
-    const { isDesktop, isTouchDevice } = useDeviceType();
+    const { isTouchDevice } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
 
     const openConfirmation = (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
@@ -134,7 +134,8 @@ const App: React.FC = () => {
                 const loadedConfig = data.config as Config;
                 setConfig(loadedConfig);
 
-                const photosData = data.photos as FirebasePhotoData;
+                // Safely handle potential missing data structures
+                const photosData = (data.photos || { photos: [], introArticleMarkdown: '' }) as FirebasePhotoData;
                 const groupsData = (data.groups || {}) as FirebaseDataGroups;
                 setGroups(groupsData);
 
@@ -162,7 +163,7 @@ const App: React.FC = () => {
                 const savedSelections = localStorage.getItem(groupSelectionsKey);
                 setGroupSelections(savedSelections ? JSON.parse(savedSelections) : {});
 
-                const initialPhotos = photosData.photos;
+                const initialPhotos = photosData.photos || [];
                 const initialVotes = data.votes || {};
 
                 const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
@@ -875,7 +876,6 @@ const App: React.FC = () => {
 
             <div className={`fixed top-0 left-0 right-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700/50 shadow-lg transition-transform duration-300 ease-in-out px-4 py-2 flex justify-between items-center ${!!selectedPhoto ? 'z-[51]' : 'z-40'} ${showStickyHeader ? 'translate-y-0' : '-translate-y-full'}`}>
                 <div className="flex items-center gap-4">
-                    {/* <a href="#" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">← К выбору сессии</a> */}
                     <ToggleSwitch id="sticky-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label="Показывать скрытые"/>
                 </div>
                 <StatsInfo isCompact={true} />
@@ -1038,7 +1038,6 @@ const App: React.FC = () => {
                                         photo={item}
                                         onRate={handleRate}
                                         onImageClick={handleImageClick}
-                                        // FIX: In the 'voting' phase, displayVotes should be false. The comparison `votingPhase === 'results'` is always false here.
                                         displayVotes={false}
                                         layoutMode={settings.layout}
                                         gridAspectRatio={settings.gridAspectRatio}
