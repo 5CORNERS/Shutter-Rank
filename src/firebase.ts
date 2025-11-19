@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -25,3 +26,6 @@ export const db = getDatabase(app);
 // Export instance of Storage
 // Подключен внешний бакет Google Cloud Storage
 export const storage = getStorage(app, "gs://shutter-rank-storage");
+
+// Export instance of Auth
+export const auth = getAuth(app);

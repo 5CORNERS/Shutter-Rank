@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import { db, storage } from './firebase';
+import { db, storage, auth } from './firebase';
 import { ref, get, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { signInAnonymously } from 'firebase/auth';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud } from 'lucide-react';
@@ -135,6 +136,13 @@ const EditorApp: React.FC = () => {
     const dragCounter = useRef(0);
 
     useEffect(() => {
+        // Sign in anonymously to allow Storage operations if rules require auth
+        signInAnonymously(auth)
+            .then(() => console.log("Signed in anonymously"))
+            .catch((error) => console.error("Error signing in anonymously:", error));
+    }, []);
+
+    useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('session');
         if (id) {
@@ -180,8 +188,6 @@ const EditorApp: React.FC = () => {
                     const photosNeedOrderMigration = photosArray.some((p: FirebasePhoto) => p.order === undefined);
 
                     if (photosNeedOrderMigration) {
-                        // We create a new array to update, but we also need to ensure
-                        // we update the sessionData structure later correctly
                         photosArray.forEach((photo: FirebasePhoto, index: number) => {
                             photo.order = photo.order ?? index;
                         });
@@ -193,12 +199,9 @@ const EditorApp: React.FC = () => {
                     alert('Обнаружена сессия старого формата. Данные были обновлены в редакторе. Нажмите "Сохранить", чтобы применить изменения.');
                 }
 
-                // CRITICAL FIX: Explicitly construct the photos object.
-                // If data.photos was undefined or didn't have the 'photos' array property,
-                // passing it directly to state would cause undefined.length crashes in render.
                 const safePhotosData: FirebasePhotoData = {
                     introArticleMarkdown: data.photos?.introArticleMarkdown || '',
-                    photos: photosArray, // This is guaranteed to be an array (empty or not)
+                    photos: photosArray,
                     groups: data.photos?.groups
                 };
 
@@ -649,10 +652,23 @@ const EditorApp: React.FC = () => {
     const handleUploadFiles = async (files: FileList | null) => {
         if (!files || files.length === 0 || !sessionData || !sessionId) return;
 
+        // Ensure auth is initialized
+        if (!auth.currentUser) {
+            try {
+                await signInAnonymously(auth);
+            } catch (err) {
+                console.error("Auth required for upload:", err);
+                alert("Ошибка авторизации перед загрузкой. Проверьте консоль.");
+                return;
+            }
+        }
+
         const newPhotos: FirebasePhoto[] = [];
         const total = files.length;
         let current = 0;
         setUploadProgress({ current: 0, total });
+
+        const failedUploads: string[] = [];
 
         let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
 
@@ -661,15 +677,10 @@ const EditorApp: React.FC = () => {
             if (!file.type.startsWith('image/')) continue;
 
             try {
-                // Create a storage reference
-                // Format: sessions/<sessionId>/<timestamp>_<filename>
                 const filename = `${Date.now()}_${file.name}`;
                 const fileRef = storageRef(storage, `sessions/${sessionId}/${filename}`);
 
-                // Upload file
                 await uploadBytes(fileRef, file);
-
-                // Get public URL
                 const url = await getDownloadURL(fileRef);
 
                 maxId++;
@@ -683,7 +694,7 @@ const EditorApp: React.FC = () => {
 
             } catch (error) {
                 console.error(`Error uploading ${file.name}:`, error);
-                alert(`Ошибка загрузки файла ${file.name}. Проверьте консоль и настройки CORS.`);
+                failedUploads.push(file.name);
             } finally {
                 current++;
                 setUploadProgress({ current, total });
@@ -702,9 +713,14 @@ const EditorApp: React.FC = () => {
                 }
             });
         }
+
         setUploadProgress(null);
         if (fileInputRef.current) {
-            fileInputRef.current.value = ''; // Reset input
+            fileInputRef.current.value = '';
+        }
+
+        if (failedUploads.length > 0) {
+            alert(`Не удалось загрузить следующие файлы (${failedUploads.length}):\n${failedUploads.join('\n')}\n\nПроверьте права доступа к хранилищу (ошибка 412 или 403).`);
         }
     }
 
