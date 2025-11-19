@@ -4,7 +4,7 @@ import { db, auth, signInAnonymously } from './firebase';
 import { ref, get, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2, ChevronRight, ChevronDown, HelpCircle } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2, HelpCircle } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
@@ -193,7 +193,6 @@ const EditorApp: React.FC = () => {
     const [authStatus, setAuthStatus] = useState<'pending' | 'signed_in' | 'failed'>('pending');
     const [showHelpModal, setShowHelpModal] = useState(false);
     const [helpModalMode, setHelpModalMode] = useState<'upload' | 'read'>('upload');
-    const [isIntroExpanded, setIsIntroExpanded] = useState(false);
 
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
@@ -694,6 +693,7 @@ const EditorApp: React.FC = () => {
                 const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
                 const filePath = `sessions/${sessionId}/${filename}`;
 
+                // Use direct upload to Google Cloud Storage JSON API to bypass Firebase SDK issues
                 const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o?uploadType=media&name=${encodeURIComponent(filePath)}`;
 
                 const response = await fetch(uploadUrl, {
@@ -708,6 +708,7 @@ const EditorApp: React.FC = () => {
                     throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
                 }
 
+                // Construct the public URL manually
                 const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
 
                 const isReadable = await verifyPublicAccess(publicUrl);
@@ -821,12 +822,12 @@ const EditorApp: React.FC = () => {
                     </div>
                 )}
 
-                <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2">
+                <details open className="space-y-4 bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
+                    <summary className="text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2 cursor-pointer">
                         Настройки сессии
                         {isSaving && <span className="text-sm text-gray-400 font-normal flex items-center"><Loader className="w-4 h-4 animate-spin mr-1"/>Сохранение...</span>}
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    </summary>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
                         <div className="lg:col-span-1">
                             <label className="block text-sm font-medium text-gray-400 mb-1">Session Name</label>
                             <input type="text" name="name" value={sessionData.config.name || ''} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
@@ -880,16 +881,13 @@ const EditorApp: React.FC = () => {
                             <p className="text-xs text-gray-500 mt-1">Инструкция для Gemini. Сохраняется в вашем браузере.</p>
                         </div>
                     </div>
-                </div>
+                </details>
 
-                <div className="cursor-pointer" onClick={() => setIsIntroExpanded(!isIntroExpanded)}>
-                    <div className="flex items-center gap-2 text-lg font-semibold text-gray-200 mb-2 hover:text-indigo-400 transition-colors">
-                        {isIntroExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                <details className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
+                    <summary className="text-xl font-semibold mb-2 text-gray-200 cursor-pointer">
                         Вступительная статья (Markdown)
-                    </div>
-                </div>
-                {isIntroExpanded && (
-                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm animate-fade-in">
+                    </summary>
+                    <div className="mt-4">
                          <textarea
                              value={sessionData.photos.introArticleMarkdown}
                              onChange={handleIntroChange}
@@ -898,34 +896,36 @@ const EditorApp: React.FC = () => {
                              placeholder="# Заголовок\n\nТекст статьи..."
                          />
                     </div>
-                )}
+                </details>
 
-                <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-200">Группы фотографий</h2>
-                    <div className="flex gap-2 mb-4">
-                        <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="Название новой группы" />
-                        <button onClick={handleAddGroup} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors">
-                            <Plus className="w-4 h-4" /> Добавить
-                        </button>
-                    </div>
-                    {availableGroups.length > 0 ? (
-                        <div className="space-y-3">
-                            {availableGroups.map(([groupId, group]) => (
-                                <div key={groupId} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
-                                    <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
-                                        <input type="text" value={group.name} onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Название" />
-                                        <input type="text" value={group.caption || ''} onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Описание группы (необязательно)" />
-                                    </div>
-                                    <button onClick={() => handleDeleteGroup(groupId)} className="text-red-400 hover:text-red-300 p-2" title="Удалить группу">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
+                <details open className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
+                    <summary className="text-xl font-semibold mb-4 text-gray-200 cursor-pointer">Группы фотографий</summary>
+                    <div className="mt-4">
+                        <div className="flex gap-2 mb-4">
+                            <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="Название новой группы" />
+                            <button onClick={handleAddGroup} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors">
+                                <Plus className="w-4 h-4" /> Добавить
+                            </button>
                         </div>
-                    ) : (
-                        <p className="text-gray-500 italic">Группы пока не созданы.</p>
-                    )}
-                </div>
+                        {availableGroups.length > 0 ? (
+                            <div className="space-y-3">
+                                {availableGroups.map(([groupId, group]) => (
+                                    <div key={groupId} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
+                                        <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                                            <input type="text" value={group.name} onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Название" />
+                                            <input type="text" value={group.caption || ''} onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Описание группы (необязательно)" />
+                                        </div>
+                                        <button onClick={() => handleDeleteGroup(groupId)} className="text-red-400 hover:text-red-300 p-2" title="Удалить группу">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-gray-500 italic">Группы пока не созданы.</p>
+                        )}
+                    </div>
+                </details>
 
                 <div className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -945,67 +945,82 @@ const EditorApp: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                    <div ref={photoListRef} className="space-y-3">
-                        {sessionData.photos.photos.map((photo, index) => (
-                            <div key={photo.id}
-                                 draggable
-                                 onDragStart={(e) => handleDragStart(e, index)}
-                                 className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300`}
-                            >
-                                <div className="flex-shrink-0 self-center flex md:flex-col items-center gap-2 drag-handle cursor-grab active:cursor-grabbing">
-                                    <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
-                                    <div className="text-gray-500">☰</div>
-                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
-                                </div>
-                                <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0 self-center" />
-                                <div className="flex-grow space-y-2">
-                                    <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="URL"/>
-                                    <div className="relative">
-                                        <textarea
-                                            value={photo.caption}
-                                            onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)}
-                                            rows={2}
-                                            className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm pr-10"
-                                            placeholder="Описание"
-                                        />
-                                        <button
-                                            onClick={() => handleGenerateCaption(index)}
-                                            disabled={generatingCaptionFor === photo.id}
-                                            className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5 text-gray-400 hover:text-indigo-400 transition-colors disabled:cursor-not-allowed disabled:text-gray-600"
-                                            title="Сгенерировать описание с помощью Gemini"
-                                        >
-                                            {generatingCaptionFor === photo.id ? (
-                                                <Loader className="w-5 h-5 animate-spin"/>
-                                            ) : (
-                                                <Wand2 className="w-5 h-5"/>
-                                            )}
-                                        </button>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-4">
-                                        <select
-                                            value={photo.groupId || ''}
-                                            onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)}
-                                            className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
-                                            disabled={availableGroups.length === 0}
-                                        >
-                                            <option value="">Без группы</option>
-                                            {availableGroups.map(([id, groupData]) => (
-                                                <option key={id} value={id}>{groupData.name}</option>
-                                            ))}
-                                        </select>
 
-                                        <div className="flex items-center">
-                                            <input type="checkbox" id={`ooc-${photo.id}`} checked={!!photo.isOutOfCompetition} onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"/>
-                                            <label htmlFor={`ooc-${photo.id}`} className="ml-2 block text-sm text-gray-300">Вне конкурса</label>
+                    {sessionData.photos.photos.length === 0 ? (
+                        <div
+                            className="border-2 border-dashed border-gray-700 rounded-lg p-12 flex flex-col items-center justify-center text-gray-500 bg-gray-800/30 transition-colors hover:bg-gray-800/50 hover:border-gray-500 cursor-pointer"
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <UploadCloud className="w-16 h-16 mb-4 text-gray-600" />
+                            <p className="text-lg font-medium">Перетащите сюда фотографии для загрузки</p>
+                            <p className="text-sm mt-2">или кликните, чтобы выбрать файлы</p>
+                        </div>
+                    ) : (
+                        <div ref={photoListRef} className="space-y-3">
+                            {sessionData.photos.photos.map((photo, index) => (
+                                <div key={photo.id}
+                                     draggable
+                                     onDragStart={(e) => handleDragStart(e, index)}
+                                     className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300`}
+                                >
+                                    <div className="flex-shrink-0 self-center flex md:flex-col items-center gap-2 drag-handle cursor-grab active:cursor-grabbing">
+                                        <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
+                                        <div className="text-gray-500">☰</div>
+                                        <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
+                                    </div>
+                                    <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0 self-center" />
+                                    <div className="flex-grow space-y-2">
+                                        <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="URL"/>
+                                        <div className="relative">
+                                            <textarea
+                                                value={photo.caption}
+                                                onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)}
+                                                rows={2}
+                                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm pr-10"
+                                                placeholder="Описание"
+                                            />
+                                            <button
+                                                onClick={() => handleGenerateCaption(index)}
+                                                disabled={generatingCaptionFor === photo.id}
+                                                className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5 text-gray-400 hover:text-indigo-400 transition-colors disabled:cursor-not-allowed disabled:text-gray-600"
+                                                title="Сгенерировать описание с помощью Gemini"
+                                            >
+                                                {generatingCaptionFor === photo.id ? (
+                                                    <Loader className="w-5 h-5 animate-spin"/>
+                                                ) : (
+                                                    <Wand2 className="w-5 h-5"/>
+                                                )}
+                                            </button>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-4">
+                                            <select
+                                                value={photo.groupId || ''}
+                                                onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)}
+                                                className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
+                                                disabled={availableGroups.length === 0}
+                                            >
+                                                <option value="">Без группы</option>
+                                                {availableGroups.map(([id, groupData]) => (
+                                                    <option key={id} value={id}>{groupData.name}</option>
+                                                ))}
+                                            </select>
+
+                                            <div className="flex items-center">
+                                                <input type="checkbox" id={`ooc-${photo.id}`} checked={!!photo.isOutOfCompetition} onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"/>
+                                                <label htmlFor={`ooc-${photo.id}`} className="ml-2 block text-sm text-gray-300">Вне конкурса</label>
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className="self-center">
+                                        <button onClick={() => handleDeletePhoto(index)} className="p-2 text-red-500 hover:text-red-400"><Trash2 className="w-5 h-5"/></button>
+                                    </div>
                                 </div>
-                                <div className="self-center">
-                                    <button onClick={() => handleDeletePhoto(index)} className="p-2 text-red-500 hover:text-red-400"><Trash2 className="w-5 h-5"/></button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
+
                     <div className="flex gap-2 mt-4">
                         <button onClick={() => fileInputRef.current?.click()} className="flex-1 inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white transition-colors">
                             <UploadCloud className="w-5 h-5"/> Загрузить фото
