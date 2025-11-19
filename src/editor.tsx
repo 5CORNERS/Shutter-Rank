@@ -44,12 +44,12 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
     const [copied, setCopied] = useState(false);
     const bucketName = "shutter-rank-storage";
 
-    // Configuration for copy-paste
+    // Configuration for copy-paste - Expanded headers to prevent issues
     const corsConfig = `[
   {
     "origin": ["*"],
     "method": ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS"],
-    "responseHeader": ["Content-Type", "x-goog-resumable"],
+    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "User-Agent", "x-goog-resumable", "x-goog-meta-full-image-url", "x-firebase-storage-version"],
     "maxAgeSeconds": 3600
   }
 ]`;
@@ -874,4 +874,264 @@ const EditorApp: React.FC = () => {
                 {uploadProgress && (
                     <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm">
                         <div className="bg-gray-800 p-8 rounded-xl shadow-2xl text-center border border-gray-700">
-                            <Loader className="w-12 h
+                            <Loader className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
+                            <h3 className="text-xl font-bold text-white mb-2">Загрузка файлов...</h3>
+                            <p className="text-gray-300 mb-4">{uploadProgress.current} из {uploadProgress.total}</p>
+                            <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-indigo-500 transition-all duration-300"
+                                    style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
+                    <h2 className="text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2">
+                        Настройки сессии
+                        {isSaving && <span className="text-sm text-gray-400 font-normal flex items-center"><Loader className="w-4 h-4 animate-spin mr-1"/>Сохранение...</span>}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Лимит оцененных фото</label>
+                            <input
+                                type="number"
+                                name="ratedPhotoLimit"
+                                value={sessionData.config.ratedPhotoLimit}
+                                onChange={handleConfigChange}
+                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Лимит звезд</label>
+                            <input
+                                type="number"
+                                name="totalStarsLimit"
+                                value={sessionData.config.totalStarsLimit}
+                                onChange={handleConfigChange}
+                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Порог 4 звезд (%)</label>
+                            <input
+                                type="number"
+                                name="unlockFourStarsThresholdPercent"
+                                value={sessionData.config.unlockFourStarsThresholdPercent ?? 20}
+                                onChange={handleConfigChange}
+                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Порог 5 звезд (%)</label>
+                            <input
+                                type="number"
+                                name="unlockFiveStarsThresholdPercent"
+                                value={sessionData.config.unlockFiveStarsThresholdPercent ?? 50}
+                                onChange={handleConfigChange}
+                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Gemini API Key (хранится локально)</label>
+                            <input
+                                id="geminiApiKey"
+                                type="password"
+                                value={geminiApiKey}
+                                onChange={handleApiKeyChange}
+                                placeholder="AIzaSy..."
+                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Нужен только для генерации описаний. Получить ключ: <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-indigo-400 hover:underline">Google AI Studio</a></p>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Промпт для генерации (хранится локально)</label>
+                            <textarea
+                                id="geminiCustomPrompt"
+                                value={geminiCustomPrompt}
+                                onChange={handlePromptChange}
+                                rows={3}
+                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-sm"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
+                    <h2 className="text-xl font-semibold mb-4 text-gray-200">Управление группами</h2>
+                    <div className="flex gap-2 mb-4">
+                        <input
+                            type="text"
+                            value={newGroupName}
+                            onChange={(e) => setNewGroupName(e.target.value)}
+                            className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="Название новой группы"
+                        />
+                        <button onClick={handleAddGroup} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 transition-colors">
+                            <Plus className="w-4 h-4" /> Добавить
+                        </button>
+                    </div>
+                    {availableGroups.length > 0 ? (
+                        <div className="space-y-3">
+                            {availableGroups.map(([groupId, group]) => (
+                                <div key={groupId} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
+                                    <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                                        <input
+                                            type="text"
+                                            value={group.name}
+                                            onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)}
+                                            className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+                                            placeholder="Название"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={group.caption || ''}
+                                            onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)}
+                                            className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+                                            placeholder="Описание группы (необязательно)"
+                                        />
+                                    </div>
+                                    <button onClick={() => handleDeleteGroup(groupId)} className="text-red-400 hover:text-red-300 p-2" title="Удалить группу">
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-gray-500 italic">Группы пока не созданы.</p>
+                    )}
+                </div>
+
+                <div className="space-y-4">
+                    <div className="flex flex-wrap justify-between items-center gap-4">
+                        <h2 className="text-xl font-semibold text-gray-200">Фотографии ({sessionData.photos.photos.length})</h2>
+                        <div className="flex flex-wrap gap-2">
+                            <button onClick={() => fileInputRef.current?.click()} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
+                                <UploadCloud className="w-4 h-4" /> Загрузить файлы
+                            </button>
+                            <button onClick={handleAddPhoto} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center gap-2 transition-colors text-sm">
+                                <Plus className="w-4 h-4" /> Пустая карточка
+                            </button>
+                            <button onClick={handleExtractExif} className="px-3 py-2 bg-teal-700 hover:bg-teal-600 text-white rounded-lg flex items-center gap-2 transition-colors text-sm" title="Извлечь описания из метаданных EXIF">
+                                <Download className="w-4 h-4" /> Извлечь EXIF
+                            </button>
+                            <button onClick={handleDownloadHtml} className="px-3 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2 transition-colors text-sm" title="Скачать HTML галерею">
+                                <Download className="w-4 h-4" /> Скачать HTML
+                            </button>
+                        </div>
+                    </div>
+
+                    <div ref={photoListRef} className="space-y-4 pb-20">
+                        {sessionData.photos.photos.map((photo, index) => (
+                            <div
+                                key={photo.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, index)}
+                                className="bg-gray-800 rounded-lg border border-gray-700 p-4 flex flex-col md:flex-row gap-4 items-start transition-colors hover:border-gray-600"
+                            >
+                                <div className="flex md:flex-col items-center gap-2 text-gray-500">
+                                    <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-1 hover:text-white disabled:opacity-30"><ArrowUp className="w-5 h-5" /></button>
+                                    <span className="font-mono text-xs select-none">{index + 1}</span>
+                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-1 hover:text-white disabled:opacity-30"><ArrowDown className="w-5 h-5" /></button>
+                                </div>
+
+                                <div className="relative group flex-shrink-0">
+                                    <img src={photo.url || 'https://via.placeholder.com/150?text=No+Image'} alt={`Фото ${photo.id}`} className="w-32 h-32 object-cover rounded-lg bg-gray-900" />
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg pointer-events-none">
+                                        <span className="text-xs text-white font-mono">{photo.id}</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex-grow space-y-3 w-full">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-gray-400">URL изображения</label>
+                                            <input
+                                                type="text"
+                                                value={photo.url}
+                                                onChange={(e) => handlePhotoChange(index, 'url', e.target.value)}
+                                                className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-gray-400">Группа</label>
+                                            <select
+                                                value={photo.groupId || ''}
+                                                onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)}
+                                                className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+                                            >
+                                                <option value="">-- Без группы --</option>
+                                                {availableGroups.map(([gId, gData]) => (
+                                                    <option key={gId} value={gId}>{gData.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <div className="flex justify-between items-center">
+                                            <label className="text-xs text-gray-400">Описание</label>
+                                            <button
+                                                onClick={() => handleGenerateCaption(index)}
+                                                disabled={generatingCaptionFor === photo.id}
+                                                className="text-xs flex items-center gap-1 text-indigo-400 hover:text-indigo-300 disabled:opacity-50 disabled:cursor-wait"
+                                            >
+                                                {generatingCaptionFor === photo.id ? <Loader className="w-3 h-3 animate-spin"/> : <Wand2 className="w-3 h-3"/>}
+                                                Сгенерировать (Gemini)
+                                            </button>
+                                        </div>
+                                        <textarea
+                                            value={photo.caption}
+                                            onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)}
+                                            rows={2}
+                                            className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center gap-4">
+                                        <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={!!photo.isOutOfCompetition}
+                                                onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)}
+                                                className="rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            Вне конкурса
+                                        </label>
+                                        <button onClick={() => handleDeletePhoto(index)} className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1 ml-auto">
+                                            <Trash2 className="w-4 h-4" /> Удалить
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2">
+                    {authStatus === 'failed' && (
+                        <div className="bg-red-900/80 text-white text-xs px-3 py-1 rounded backdrop-blur-md border border-red-500/50 mb-2">
+                            Auth Failed (Public Mode)
+                        </div>
+                    )}
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-2xl shadow-green-900/50 flex items-center gap-3 font-bold text-lg transition-all hover:scale-105 disabled:opacity-70 disabled:hover:scale-100"
+                    >
+                        {isSaving ? <Loader className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
+                        {isSaving ? 'Сохранение...' : 'Сохранить изменения'}
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    return <AdminLayout title="Редактор сессии">{renderContent()}</AdminLayout>;
+};
+
+const rootElement = document.getElementById('root');
+if (!rootElement) throw new Error("Could not find root element");
+const root = ReactDOM.createRoot(rootElement);
+root.render(<React.StrictMode><EditorApp /></React.StrictMode>);
