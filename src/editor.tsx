@@ -5,7 +5,7 @@ import { ref, get, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2 } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2, ChevronRight, ChevronDown } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
@@ -44,7 +44,6 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
     const [copied, setCopied] = useState(false);
     const bucketName = "shutter-rank-storage";
 
-    // Configuration for copy-paste - Expanded headers to prevent issues
     const corsConfig = `[
   {
     "origin": ["*"],
@@ -54,7 +53,6 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
   }
 ]`;
 
-    // Single line command for ease of use
     const command = `echo '${corsConfig.replace(/\n/g, '').replace(/\s+/g, ' ')}' > cors.json && gcloud storage buckets update gs://${bucketName} --cors-file=cors.json`;
 
     const handleCopy = () => {
@@ -192,6 +190,7 @@ const EditorApp: React.FC = () => {
     const [uploadProgress, setUploadProgress] = useState<{current: number, total: number} | null>(null);
     const [authStatus, setAuthStatus] = useState<'pending' | 'signed_in' | 'failed'>('pending');
     const [showCorsModal, setShowCorsModal] = useState(false);
+    const [isIntroExpanded, setIsIntroExpanded] = useState(false);
 
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
@@ -208,8 +207,7 @@ const EditorApp: React.FC = () => {
                 console.log("Signed in anonymously to Firebase");
                 setAuthStatus('signed_in');
             } catch (error: any) {
-                // We deliberately catch and log this without throwing, to allow "public bucket" access
-                console.warn("Firebase Auth failed. Uploads will only work if the GCS bucket is publicly writable (allUsers -> Storage Object User). Error:", error);
+                console.warn("Firebase Auth failed.", error);
                 setAuthStatus('failed');
             }
         };
@@ -260,7 +258,6 @@ const EditorApp: React.FC = () => {
                 const photosArray = data.photos?.photos || [];
                 if (photosArray.length > 0) {
                     const photosNeedOrderMigration = photosArray.some((p: FirebasePhoto) => p.order === undefined);
-
                     if (photosNeedOrderMigration) {
                         photosArray.forEach((photo: FirebasePhoto, index: number) => {
                             photo.order = photo.order ?? index;
@@ -294,7 +291,6 @@ const EditorApp: React.FC = () => {
         }
     }, []);
 
-
     useEffect(() => {
         if (sessionId) {
             fetchData(sessionId);
@@ -318,7 +314,6 @@ const EditorApp: React.FC = () => {
             },
         };
 
-        // Sanitize data to remove undefined values
         const sanitizedData = JSON.parse(JSON.stringify(finalSessionData));
 
         try {
@@ -339,7 +334,6 @@ const EditorApp: React.FC = () => {
         }
     };
 
-
     const handleDownloadHtml = () => {
         if (!sessionData || !sessionId) return;
         try {
@@ -355,7 +349,6 @@ const EditorApp: React.FC = () => {
             URL.revokeObjectURL(url);
         } catch (error) {
             alert(`Ошибка при создании HTML: ${(error as Error).message}`);
-            console.error(error);
         }
     };
 
@@ -370,17 +363,24 @@ const EditorApp: React.FC = () => {
         }
     };
 
+    const handleIntroChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        if (sessionData) {
+            setSessionData({
+                ...sessionData,
+                photos: { ...sessionData.photos, introArticleMarkdown: e.target.value },
+            });
+        }
+    };
+
     const handlePhotoChange = useCallback((index: number, field: keyof FirebasePhoto, value: string | boolean) => {
         setSessionData(currentData => {
             if (!currentData) return null;
-
             const newPhotos = [...currentData.photos.photos];
             const updatedPhoto = { ...newPhotos[index], [field]: value };
             if (field === 'groupId' && value === '') {
                 delete updatedPhoto.groupId;
             }
             newPhotos[index] = updatedPhoto as FirebasePhoto;
-
             return {
                 ...currentData,
                 photos: { ...currentData.photos, photos: newPhotos },
@@ -390,21 +390,18 @@ const EditorApp: React.FC = () => {
 
     const handleGenerateCaption = useCallback(async (index: number) => {
         if (!sessionData) return;
-
         const key = geminiApiKey.trim();
         if (!key) {
             alert("Пожалуйста, введите ваш Google AI API Key в настройках сессии.");
             document.getElementById('geminiApiKey')?.focus();
             return;
         }
-
         const prompt = geminiCustomPrompt.trim();
         if (!prompt) {
             alert("Пожалуйста, введите стиль (промпт) для генерации описаний.");
             document.getElementById('geminiCustomPrompt')?.focus();
             return;
         }
-
         const photo = sessionData.photos.photos[index];
         if (!photo.url) {
             alert("URL фотографии не указан.");
@@ -414,38 +411,24 @@ const EditorApp: React.FC = () => {
         setGeneratingCaptionFor(photo.id);
         try {
             const { base64, mimeType } = await urlToBase64(photo.url);
-
             const ai = new GoogleGenAI({ apiKey: key });
-
-            const imagePart = {
-                inlineData: {
-                    mimeType: mimeType,
-                    data: base64,
-                },
-            };
-
-            const textPart = {
-                text: prompt
-            };
-
+            const imagePart = { inlineData: { mimeType: mimeType, data: base64 } };
+            const textPart = { text: prompt };
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: { parts: [imagePart, textPart] },
             });
-
             const caption = response.text.trim();
-
             if (caption) {
                 handlePhotoChange(index, 'caption', caption);
             } else {
                 throw new Error("Gemini вернул пустое описание.");
             }
-
-        } catch (error) {
+        } catch (error: any) {
             console.error("Ошибка генерации описания:", error);
-            let errorMessage = (error as Error).message;
+            let errorMessage = error.message;
             if (errorMessage.includes('API key not valid')) {
-                errorMessage = "API-ключ недействителен. Проверьте правильность ключа."
+                errorMessage = "API-ключ недействителен."
             }
             alert(`Не удалось сгенерировать описание: ${errorMessage}`);
         } finally {
@@ -470,9 +453,7 @@ const EditorApp: React.FC = () => {
         const newPhotos = [...sessionData.photos.photos];
         const targetIndex = direction === 'up' ? index - 1 : index + 1;
         if (targetIndex < 0 || targetIndex >= newPhotos.length) return;
-
         [newPhotos[index], newPhotos[targetIndex]] = [newPhotos[targetIndex], newPhotos[index]];
-
         setSessionData({
             ...sessionData,
             photos: { ...sessionData.photos, photos: newPhotos },
@@ -509,10 +490,8 @@ const EditorApp: React.FC = () => {
     const handleAddGroup = () => {
         const trimmedName = newGroupName.trim();
         if (!trimmedName || !sessionData) return;
-
         const newGroupId = `group-${crypto.randomUUID()}`;
         const newGroups: FirebaseDataGroups = { ...sessionData.groups, [newGroupId]: { name: trimmedName, caption: '' } };
-
         setSessionData({ ...sessionData, groups: newGroups });
         setNewGroupName('');
     };
@@ -524,13 +503,10 @@ const EditorApp: React.FC = () => {
         setSessionData({ ...sessionData, groups: newGroups });
     };
 
-
     const handleDeleteGroup = (groupId: string) => {
         if (!sessionData || !window.confirm(`Вы уверены, что хотите удалить группу? Все фотографии в ней будут откреплены.`)) return;
-
         const newGroups = { ...sessionData.groups };
         delete newGroups[groupId];
-
         const newPhotos = sessionData.photos.photos.map(p => {
             if (p.groupId === groupId) {
                 const { groupId: _, ...rest } = p;
@@ -538,7 +514,6 @@ const EditorApp: React.FC = () => {
             }
             return p;
         });
-
         setSessionData({
             ...sessionData,
             groups: newGroups,
@@ -546,18 +521,14 @@ const EditorApp: React.FC = () => {
         });
     };
 
-
     const handleExtractExif = async () => {
         if (!sessionData || !window.confirm('Это действие попытается извлечь описания из метаданных EXIF/IPTC для всех фотографий и перезапишет текущие описания. Продолжить?')) {
             return;
         }
-
         setStatus('loading');
         let successCount = 0;
         const failedPhotos: { id: number, url: string, error: string }[] = [];
         const newPhotos = [...sessionData.photos.photos];
-
-        // Dynamic import to prevent load issues
         let exifr;
         try {
             const module = await import('exifr');
@@ -568,29 +539,15 @@ const EditorApp: React.FC = () => {
             setStatus('success');
             return;
         }
-
         for (let i = 0; i < newPhotos.length; i++) {
             const photo = newPhotos[i];
             try {
                 if (!photo.url) continue;
-
-                // Fetch the image as a buffer to avoid some CORS issues with the library's internal fetch
                 const response = await fetch(photo.url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const buffer = await response.arrayBuffer();
-
-                const exif = await exifr.parse(buffer, {
-                    iptc: true,
-                    exif: true,
-                    xmp: true,
-                    userComment: true,
-                });
-
-                const description = exif?.ImageDescription
-                    || exif?.UserComment
-                    || exif?.description
-                    || exif?.['Caption/Abstract'];
-
+                const exif = await exifr.parse(buffer, { iptc: true, exif: true, xmp: true, userComment: true });
+                const description = exif?.ImageDescription || exif?.UserComment || exif?.description || exif?.['Caption/Abstract'];
                 if (typeof description === 'string' && description.trim()) {
                     newPhotos[i] = { ...newPhotos[i], caption: description.trim() };
                     successCount++;
@@ -600,21 +557,13 @@ const EditorApp: React.FC = () => {
             } catch (error: any) {
                 const errorMessage = error.message || 'Неизвестная ошибка';
                 failedPhotos.push({ id: photo.id, url: photo.url, error: errorMessage });
-                console.warn(`Не удалось извлечь EXIF для фото ${photo.id} (${photo.url}):`, error);
             }
         }
-
         setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         setStatus('success');
-
         let alertMessage = `Успешно извлечено ${successCount} из ${newPhotos.length} описаний.`;
         if (failedPhotos.length > 0) {
             alertMessage += `\n\nНе удалось обработать ${failedPhotos.length} фото.`;
-            alertMessage += `\n\nВозможные причины:`;
-            alertMessage += `\n- CORS-политика на сервере изображений (проверьте, что она настроена).`;
-            alertMessage += `\n- Файл изображения поврежден или недоступен по URL.`;
-            alertMessage += `\n- В метаданных фотографии отсутствует поле с описанием.`;
-            alertMessage += '\n\nОткройте консоль разработчика (F12) для просмотра полного списка ошибок.'
         }
         alert(alertMessage);
     };
@@ -629,14 +578,11 @@ const EditorApp: React.FC = () => {
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
         const target = e.currentTarget;
         draggedItemIndex.current = index;
-
         if (!placeholderRef.current) {
             placeholderRef.current = document.createElement('div');
             placeholderRef.current.className = 'drag-over-placeholder';
         }
-
         target.parentElement?.insertBefore(placeholderRef.current, target.nextSibling);
-
         setTimeout(() => {
             target.classList.add('dragging');
         }, 0);
@@ -649,7 +595,6 @@ const EditorApp: React.FC = () => {
         stopScrolling();
         draggedItemIndex.current = null;
         dragCounter.current = 0;
-
         const overlay = document.getElementById('drop-overlay');
         if (overlay) overlay.style.display = 'none';
     }, [stopScrolling]);
@@ -657,14 +602,10 @@ const EditorApp: React.FC = () => {
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
-
-        // If dragging files, show overlay and do nothing else
         if (e.dataTransfer.types.includes('Files')) {
             e.dataTransfer.dropEffect = 'copy';
             return;
         }
-
-        // Handle reordering logic
         const container = photoListRef.current;
         const placeholder = placeholderRef.current;
         if (!container || !placeholder || draggedItemIndex.current === null) return;
@@ -672,7 +613,6 @@ const EditorApp: React.FC = () => {
         const SCROLL_ZONE_HEIGHT = 80;
         const SCROLL_SPEED = 15;
         const clientY = e.clientY;
-
         const containerRect = container.getBoundingClientRect();
 
         if (clientY < containerRect.top + SCROLL_ZONE_HEIGHT) {
@@ -688,7 +628,6 @@ const EditorApp: React.FC = () => {
         }
 
         type Closest = { offset: number; element: HTMLElement | null };
-
         const afterElement = [...container.querySelectorAll<HTMLElement>('[draggable="true"]:not(.dragging)')]
             .reduce((closest: Closest, child: HTMLElement): Closest => {
                 const box = child.getBoundingClientRect();
@@ -728,37 +667,24 @@ const EditorApp: React.FC = () => {
 
     const handleUploadFiles = async (files: FileList | null) => {
         if (!files || files.length === 0 || !sessionData || !sessionId) return;
-
         const newPhotos: FirebasePhoto[] = [];
         const total = files.length;
         let current = 0;
         setUploadProgress({ current: 0, total });
-
-        const failedUploads: string[] = [];
 
         let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             if (!file.type.startsWith('image/')) continue;
-
             try {
                 const filename = `${Date.now()}_${file.name}`;
                 const fileRef = storageRef(storage, `sessions/${sessionId}/${filename}`);
-
-                // Create a promise that rejects after 10 seconds
                 const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error("Upload timed out (likely CORS issue)")), 10000);
+                    setTimeout(() => reject(new Error("Upload timed out")), 10000);
                 });
-
-                // Race between upload and timeout
-                await Promise.race([
-                    uploadBytes(fileRef, file),
-                    timeoutPromise
-                ]);
-
+                await Promise.race([uploadBytes(fileRef, file), timeoutPromise]);
                 const url = await getDownloadURL(fileRef);
-
                 maxId++;
                 newPhotos.push({
                     id: maxId,
@@ -767,77 +693,56 @@ const EditorApp: React.FC = () => {
                     isOutOfCompetition: false,
                     order: sessionData.photos.photos.length + i
                 });
-
             } catch (error: any) {
                 console.warn(`Error uploading ${file.name}:`, error);
-                failedUploads.push(file.name);
-                // Force CORS modal if ANY upload fails
                 setShowCorsModal(true);
             } finally {
                 current++;
                 setUploadProgress({ current, total });
             }
         }
-
         if (newPhotos.length > 0) {
             setSessionData(prev => {
                 if(!prev) return null;
                 return {
                     ...prev,
-                    photos: {
-                        ...prev.photos,
-                        photos: [...prev.photos.photos, ...newPhotos]
-                    }
+                    photos: { ...prev.photos, photos: [...prev.photos.photos, ...newPhotos] }
                 }
             });
         }
-
         setUploadProgress(null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
     }
 
     const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
-
         const overlay = document.getElementById('drop-overlay');
         if (overlay) overlay.style.display = 'none';
         dragCounter.current = 0;
-
-        // 1. Handle Files Upload
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             handleUploadFiles(e.dataTransfer.files);
             return;
         }
-
-        // 2. Handle Reordering
         if (draggedItemIndex.current === null || !sessionData) {
             handleDragEnd();
             return;
         }
-
         const placeholder = placeholderRef.current;
         if (!placeholder || !placeholder.parentElement) {
             handleDragEnd();
             return;
         }
-
         const children = Array.from(placeholder.parentElement.children);
         const newIndex = children.indexOf(placeholder) - 1;
-
         const newPhotos = [...sessionData.photos.photos];
         const [draggedItem] = newPhotos.splice(draggedItemIndex.current, 1);
-
         if (newIndex >= 0) {
             newPhotos.splice(newIndex, 0, draggedItem);
             setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         }
-
         handleDragEnd();
     }, [sessionData, handleDragEnd]);
-
 
     const renderContent = () => {
         if (status === 'loading') return <Spinner text={`Загрузка сессии "${sessionId}"...`} />;
@@ -847,33 +752,14 @@ const EditorApp: React.FC = () => {
         const availableGroups = sessionData.groups ? (Object.entries(sessionData.groups) as [string, GroupData][]) : [];
 
         return (
-            <div
-                className="space-y-8 relative"
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-            >
+            <div className="space-y-8 relative" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 {showCorsModal && <CorsTroubleshootModal onClose={() => setShowCorsModal(false)} />}
-
-                {/* Hidden File Input */}
-                <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={(e) => handleUploadFiles(e.target.files)}
-                    className="hidden"
-                    multiple
-                    accept="image/*"
-                />
-
-                {/* Drop Zone Overlay */}
+                <input type="file" ref={fileInputRef} onChange={(e) => handleUploadFiles(e.target.files)} className="hidden" multiple accept="image/*" />
                 <div id="drop-overlay" className="hidden fixed inset-0 z-50 bg-black/80 flex-col items-center justify-center text-white backdrop-blur-sm transition-opacity pointer-events-none">
                     <UploadCloud className="w-24 h-24 text-indigo-500 mb-4 animate-bounce" />
                     <p className="text-2xl font-bold">Отпустите файлы для загрузки</p>
                     <p className="text-gray-400 mt-2">Они будут добавлены в конец списка</p>
                 </div>
-
-                {/* Upload Progress Modal */}
                 {uploadProgress && (
                     <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm">
                         <div className="bg-gray-800 p-8 rounded-xl shadow-2xl text-center border border-gray-700">
@@ -881,10 +767,7 @@ const EditorApp: React.FC = () => {
                             <h3 className="text-xl font-bold text-white mb-2">Загрузка файлов...</h3>
                             <p className="text-gray-300 mb-4">{uploadProgress.current} из {uploadProgress.total}</p>
                             <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
-                                <div
-                                    className="h-full bg-indigo-500 transition-all duration-300"
-                                    style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-                                />
+                                <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }} />
                             </div>
                         </div>
                     </div>
@@ -895,83 +778,85 @@ const EditorApp: React.FC = () => {
                         Настройки сессии
                         {isSaving && <span className="text-sm text-gray-400 font-normal flex items-center"><Loader className="w-4 h-4 animate-spin mr-1"/>Сохранение...</span>}
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Лимит оцененных фото</label>
-                            <input
-                                type="number"
-                                name="ratedPhotoLimit"
-                                value={sessionData.config.ratedPhotoLimit}
-                                onChange={handleConfigChange}
-                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                            />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-1">
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Session Name</label>
+                            <input type="text" name="name" value={sessionData.config.name || ''} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Лимит звезд</label>
-                            <input
-                                type="number"
-                                name="totalStarsLimit"
-                                value={sessionData.config.totalStarsLimit}
-                                onChange={handleConfigChange}
-                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                            />
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Grid Aspect Ratio</label>
+                            <select name="defaultGridAspectRatio" value={sessionData.config.defaultGridAspectRatio} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                <option value="4/3">4:3</option>
+                                <option value="3/2">3:2</option>
+                                <option value="1/1">1:1</option>
+                            </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Порог 4 звезд (%)</label>
-                            <input
-                                type="number"
-                                name="unlockFourStarsThresholdPercent"
-                                value={sessionData.config.unlockFourStarsThresholdPercent ?? 20}
-                                onChange={handleConfigChange}
-                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                            />
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Layout Desktop</label>
+                            <select name="defaultLayoutDesktop" value={sessionData.config.defaultLayoutDesktop} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                <option value="grid">Grid</option>
+                                <option value="original">Original</option>
+                            </select>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Порог 5 звезд (%)</label>
-                            <input
-                                type="number"
-                                name="unlockFiveStarsThresholdPercent"
-                                value={sessionData.config.unlockFiveStarsThresholdPercent ?? 50}
-                                onChange={handleConfigChange}
-                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                            />
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Layout Mobile</label>
+                            <select name="defaultLayoutMobile" value={sessionData.config.defaultLayoutMobile} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                <option value="original">Original</option>
+                                <option value="grid">Grid</option>
+                            </select>
                         </div>
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Gemini API Key (хранится локально)</label>
-                            <input
-                                id="geminiApiKey"
-                                type="password"
-                                value={geminiApiKey}
-                                onChange={handleApiKeyChange}
-                                placeholder="AIzaSy..."
-                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Нужен только для генерации описаний. Получить ключ: <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-indigo-400 hover:underline">Google AI Studio</a></p>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Rated Photo Limit</label>
+                            <input type="number" name="ratedPhotoLimit" value={sessionData.config.ratedPhotoLimit} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
                         </div>
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Промпт для генерации (хранится локально)</label>
-                            <textarea
-                                id="geminiCustomPrompt"
-                                value={geminiCustomPrompt}
-                                onChange={handlePromptChange}
-                                rows={3}
-                                className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-sm"
-                            />
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Total Stars Limit</label>
+                            <input type="number" name="totalStarsLimit" value={sessionData.config.totalStarsLimit} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Unlock Five Stars Threshold Percent</label>
+                            <input type="number" name="unlockFiveStarsThresholdPercent" value={sessionData.config.unlockFiveStarsThresholdPercent ?? 50} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Unlock Four Stars Threshold Percent</label>
+                            <input type="number" name="unlockFourStarsThresholdPercent" value={sessionData.config.unlockFourStarsThresholdPercent ?? 20} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div className="md:col-span-2 lg:col-span-1">
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Google AI API Key</label>
+                            <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} placeholder="Вставьте ваш ключ" className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                            <p className="text-xs text-gray-500 mt-1">Ключ сохраняется в вашем браузере и не передается на сервер.</p>
+                        </div>
+                        <div className="md:col-span-2 lg:col-span-3">
+                            <label className="block text-sm font-medium text-gray-400 mb-1">Стиль описаний от ИИ (промпт)</label>
+                            <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={3} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-sm" />
+                            <p className="text-xs text-gray-500 mt-1">Инструкция для Gemini. Сохраняется в вашем браузере.</p>
                         </div>
                     </div>
                 </div>
 
+                <div className="cursor-pointer" onClick={() => setIsIntroExpanded(!isIntroExpanded)}>
+                    <div className="flex items-center gap-2 text-lg font-semibold text-gray-200 mb-2 hover:text-indigo-400 transition-colors">
+                        {isIntroExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                        Вступительная статья (Markdown)
+                    </div>
+                </div>
+                {isIntroExpanded && (
+                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm animate-fade-in">
+                         <textarea
+                             value={sessionData.photos.introArticleMarkdown}
+                             onChange={handleIntroChange}
+                             rows={10}
+                             className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white font-mono text-sm"
+                             placeholder="# Заголовок\n\nТекст статьи..."
+                         />
+                    </div>
+                )}
+
                 <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-200">Управление группами</h2>
+                    <h2 className="text-xl font-semibold mb-4 text-gray-200">Группы фотографий</h2>
                     <div className="flex gap-2 mb-4">
-                        <input
-                            type="text"
-                            value={newGroupName}
-                            onChange={(e) => setNewGroupName(e.target.value)}
-                            className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Название новой группы"
-                        />
-                        <button onClick={handleAddGroup} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 transition-colors">
+                        <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="Название новой группы" />
+                        <button onClick={handleAddGroup} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors">
                             <Plus className="w-4 h-4" /> Добавить
                         </button>
                     </div>
@@ -980,20 +865,8 @@ const EditorApp: React.FC = () => {
                             {availableGroups.map(([groupId, group]) => (
                                 <div key={groupId} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
                                     <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
-                                        <input
-                                            type="text"
-                                            value={group.name}
-                                            onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)}
-                                            className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
-                                            placeholder="Название"
-                                        />
-                                        <input
-                                            type="text"
-                                            value={group.caption || ''}
-                                            onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)}
-                                            className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
-                                            placeholder="Описание группы (необязательно)"
-                                        />
+                                        <input type="text" value={group.name} onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Название" />
+                                        <input type="text" value={group.caption || ''} onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Описание группы (необязательно)" />
                                     </div>
                                     <button onClick={() => handleDeleteGroup(groupId)} className="text-red-400 hover:text-red-300 p-2" title="Удалить группу">
                                         <Trash2 className="w-4 h-4" />
@@ -1010,105 +883,91 @@ const EditorApp: React.FC = () => {
                     <div className="flex flex-wrap justify-between items-center gap-4">
                         <h2 className="text-xl font-semibold text-gray-200">Фотографии ({sessionData.photos.photos.length})</h2>
                         <div className="flex flex-wrap gap-2">
-                            <button onClick={() => fileInputRef.current?.click()} className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
-                                <UploadCloud className="w-4 h-4" /> Загрузить файлы
-                            </button>
-                            <button onClick={handleAddPhoto} className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center gap-2 transition-colors text-sm">
-                                <Plus className="w-4 h-4" /> Пустая карточка
+                            <button onClick={handleDownloadHtml} className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
+                                <Download className="w-4 h-4" /> Скачать HTML
                             </button>
                             <button onClick={handleExtractExif} className="px-3 py-2 bg-teal-700 hover:bg-teal-600 text-white rounded-lg flex items-center gap-2 transition-colors text-sm" title="Извлечь описания из метаданных EXIF">
-                                <Download className="w-4 h-4" /> Извлечь EXIF
-                            </button>
-                            <button onClick={handleDownloadHtml} className="px-3 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2 transition-colors text-sm" title="Скачать HTML галерею">
-                                <Download className="w-4 h-4" /> Скачать HTML
+                                <Wand2 className="w-4 h-4" /> Извлечь описания из EXIF
                             </button>
                         </div>
                     </div>
 
-                    <div ref={photoListRef} className="space-y-4 pb-20">
-                        {sessionData.photos.photos.map((photo, index) => (
-                            <div
-                                key={photo.id}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, index)}
-                                className="bg-gray-800 rounded-lg border border-gray-700 p-4 flex flex-col md:flex-row gap-4 items-start transition-colors hover:border-gray-600"
-                            >
-                                <div className="flex md:flex-col items-center gap-2 text-gray-500">
-                                    <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-1 hover:text-white disabled:opacity-30"><ArrowUp className="w-5 h-5" /></button>
-                                    <span className="font-mono text-xs select-none">{index + 1}</span>
-                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-1 hover:text-white disabled:opacity-30"><ArrowDown className="w-5 h-5" /></button>
-                                </div>
-
-                                <div className="relative group flex-shrink-0">
-                                    <img src={photo.url || 'https://via.placeholder.com/150?text=No+Image'} alt={`Фото ${photo.id}`} className="w-32 h-32 object-cover rounded-lg bg-gray-900" />
-                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg pointer-events-none">
-                                        <span className="text-xs text-white font-mono">{photo.id}</span>
+                    {sessionData.photos.photos.length === 0 ? (
+                        <div
+                            className="border-2 border-dashed border-gray-700 rounded-lg p-12 flex flex-col items-center justify-center text-gray-500 bg-gray-800/30 transition-colors hover:bg-gray-800/50 hover:border-gray-500 cursor-pointer"
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <UploadCloud className="w-16 h-16 mb-4 text-gray-600" />
+                            <p className="text-lg font-medium">Перетащите сюда фотографии для загрузки</p>
+                            <p className="text-sm mt-2">или кликните, чтобы выбрать файлы</p>
+                        </div>
+                    ) : (
+                        <div ref={photoListRef} className="space-y-4 pb-20">
+                            {sessionData.photos.photos.map((photo, index) => (
+                                <div key={photo.id} draggable onDragStart={(e) => handleDragStart(e, index)} className="bg-gray-800 rounded-lg border border-gray-700 p-4 flex flex-col md:flex-row gap-4 items-start transition-colors hover:border-gray-600">
+                                    <div className="flex md:flex-col items-center gap-2 text-gray-500">
+                                        <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-1 hover:text-white disabled:opacity-30"><ArrowUp className="w-5 h-5" /></button>
+                                        <span className="font-mono text-xs select-none">{index + 1}</span>
+                                        <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-1 hover:text-white disabled:opacity-30"><ArrowDown className="w-5 h-5" /></button>
                                     </div>
-                                </div>
-
-                                <div className="flex-grow space-y-3 w-full">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">URL изображения</label>
-                                            <input
-                                                type="text"
-                                                value={photo.url}
-                                                onChange={(e) => handlePhotoChange(index, 'url', e.target.value)}
-                                                className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm font-mono"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs text-gray-400">Группа</label>
-                                            <select
-                                                value={photo.groupId || ''}
-                                                onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)}
-                                                className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
-                                            >
-                                                <option value="">-- Без группы --</option>
-                                                {availableGroups.map(([gId, gData]) => (
-                                                    <option key={gId} value={gId}>{gData.name}</option>
-                                                ))}
-                                            </select>
+                                    <div className="relative group flex-shrink-0">
+                                        <img src={photo.url || 'https://via.placeholder.com/150?text=No+Image'} alt={`Фото ${photo.id}`} className="w-32 h-32 object-cover rounded-lg bg-gray-900" />
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg pointer-events-none">
+                                            <span className="text-xs text-white font-mono">{photo.id}</span>
                                         </div>
                                     </div>
-
-                                    <div className="space-y-1">
-                                        <div className="flex justify-between items-center">
-                                            <label className="text-xs text-gray-400">Описание</label>
-                                            <button
-                                                onClick={() => handleGenerateCaption(index)}
-                                                disabled={generatingCaptionFor === photo.id}
-                                                className="text-xs flex items-center gap-1 text-indigo-400 hover:text-indigo-300 disabled:opacity-50 disabled:cursor-wait"
-                                            >
-                                                {generatingCaptionFor === photo.id ? <Loader className="w-3 h-3 animate-spin"/> : <Wand2 className="w-3 h-3"/>}
-                                                Сгенерировать (Gemini)
+                                    <div className="flex-grow space-y-3 w-full">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-xs text-gray-400">URL изображения</label>
+                                                <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm font-mono" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-xs text-gray-400">Группа</label>
+                                                <select value={photo.groupId || ''} onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm">
+                                                    <option value="">-- Без группы --</option>
+                                                    {availableGroups.map(([gId, gData]) => (
+                                                        <option key={gId} value={gId}>{gData.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-xs text-gray-400">Описание</label>
+                                                <button onClick={() => handleGenerateCaption(index)} disabled={generatingCaptionFor === photo.id} className="text-xs flex items-center gap-1 text-indigo-400 hover:text-indigo-300 disabled:opacity-50 disabled:cursor-wait">
+                                                    {generatingCaptionFor === photo.id ? <Loader className="w-3 h-3 animate-spin"/> : <Wand2 className="w-3 h-3"/>}
+                                                    Сгенерировать (Gemini)
+                                                </button>
+                                            </div>
+                                            <textarea value={photo.caption} onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)} rows={2} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" />
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
+                                                <input type="checkbox" checked={!!photo.isOutOfCompetition} onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)} className="rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-indigo-500" />
+                                                Вне конкурса
+                                            </label>
+                                            <button onClick={() => handleDeletePhoto(index)} className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1 ml-auto">
+                                                <Trash2 className="w-4 h-4" /> Удалить
                                             </button>
                                         </div>
-                                        <textarea
-                                            value={photo.caption}
-                                            onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)}
-                                            rows={2}
-                                            className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm"
-                                        />
-                                    </div>
-
-                                    <div className="flex items-center gap-4">
-                                        <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
-                                            <input
-                                                type="checkbox"
-                                                checked={!!photo.isOutOfCompetition}
-                                                onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)}
-                                                className="rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                            Вне конкурса
-                                        </label>
-                                        <button onClick={() => handleDeletePhoto(index)} className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1 ml-auto">
-                                            <Trash2 className="w-4 h-4" /> Удалить
-                                        </button>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg">
+                    <div className="flex gap-2">
+                        <button onClick={() => fileInputRef.current?.click()} className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg flex items-center gap-2 transition-colors font-semibold">
+                            <UploadCloud className="w-5 h-5" /> Загрузить фото
+                        </button>
+                        <button onClick={handleAddPhoto} className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center gap-2 transition-colors font-semibold">
+                            <Plus className="w-5 h-5" /> Добавить пустую карточку
+                        </button>
                     </div>
                 </div>
 
