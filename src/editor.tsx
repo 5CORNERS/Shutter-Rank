@@ -318,11 +318,14 @@ const EditorApp: React.FC = () => {
             },
         };
 
+        // Sanitize data to remove undefined values
+        const sanitizedData = JSON.parse(JSON.stringify(finalSessionData));
+
         try {
             const updates: { [key: string]: any } = {};
-            updates[`/sessions/${sessionId}/config`] = finalSessionData.config;
-            updates[`/sessions/${sessionId}/photos`] = finalSessionData.photos;
-            updates[`/sessions/${sessionId}/groups`] = finalSessionData.groups || {};
+            updates[`/sessions/${sessionId}/config`] = sanitizedData.config;
+            updates[`/sessions/${sessionId}/photos`] = sanitizedData.photos;
+            updates[`/sessions/${sessionId}/groups`] = sanitizedData.groups || {};
 
             await update(ref(db), updates);
 
@@ -330,7 +333,7 @@ const EditorApp: React.FC = () => {
             await fetchData(sessionId);
         } catch (error: any) {
             console.error("Ошибка сохранения в Firebase:", error);
-            alert(`Не удалось сохранить изменения. Проверьте правила безопасности. Подробности в консоли разработчика (F12).`);
+            alert(`Не удалось сохранить изменения. ${error.message}`);
         } finally {
             setIsSaving(false);
         }
