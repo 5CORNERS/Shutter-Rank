@@ -65,6 +65,7 @@ const App: React.FC = () => {
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+    const [closingGroupId, setClosingGroupId] = useState<string | null>(null); // New state to track closing animation
     const [expertViewGroupId, setExpertViewGroupId] = useState<string | null>(null);
 
     const [groupSelections, setGroupSelections] = useState<Record<string, number | null>>({});
@@ -74,6 +75,7 @@ const App: React.FC = () => {
 
     const { isTouchDevice } = useDeviceType();
     const headerRef = useRef<HTMLDivElement>(null);
+    const closingTimeoutRef = useRef<number | null>(null);
 
     const openConfirmation = (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
         setConfirmation({ isOpen: true, title, message, onConfirm, onCancel });
@@ -754,6 +756,25 @@ const App: React.FC = () => {
         });
     }, []);
 
+    const handleExpandGroup = (groupId: string) => {
+        if (closingTimeoutRef.current) {
+            clearTimeout(closingTimeoutRef.current);
+            closingTimeoutRef.current = null;
+        }
+        setExpandedGroupId(groupId);
+        setClosingGroupId(null);
+    };
+
+    const handleCollapseGroup = (groupId: string) => {
+        setClosingGroupId(groupId);
+        setExpandedGroupId(null);
+
+        // Match the CSS transition duration
+        closingTimeoutRef.current = window.setTimeout(() => {
+            setClosingGroupId(null);
+        }, 500);
+    };
+
     const StatsInfo = ({isCompact = false}) => {
         if (!config) return null;
         if (isCompact) {
@@ -943,6 +964,7 @@ const App: React.FC = () => {
                         sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
                                 const isExpanded = expandedGroupId === item.groupId;
+                                const isClosing = closingGroupId === item.groupId;
                                 const groupWrapperId = `expanded-group-wrapper-${item.groupId}`;
                                 const groupData = groups[item.groupId];
                                 const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
@@ -952,7 +974,7 @@ const App: React.FC = () => {
                                     wrapperClassName = 'break-inside-avoid';
                                 }
 
-                                if (isExpanded) {
+                                if (isExpanded || isClosing) {
                                     if (settings.layout === 'original') {
                                         wrapperClassName += ' col-span-all';
                                     } else {
@@ -960,15 +982,21 @@ const App: React.FC = () => {
                                     }
                                 }
 
+                                // Calculate fixed width classes for the stack wrapper when expanded/closing to prevent giant card effect
+                                let stackWrapperClass = "stack-transition-wrapper";
+                                if (isExpanded || isClosing) {
+                                    stackWrapperClass += " w-full sm:w-[calc(50%-12px)] md:w-[calc(33.33%-16px)] lg:w-[calc(25%-18px)]";
+                                }
+
                                 return (
                                     <div key={item.groupId} className={wrapperClassName}>
-                                        <div className={`stack-transition-wrapper ${isExpanded ? 'hidden-stack' : ''}`}>
+                                        <div className={`${stackWrapperClass} ${isExpanded ? 'hidden-stack' : ''}`}>
                                             <PhotoStackComponent
                                                 stack={item}
                                                 groupName={groupData?.name || ''}
                                                 onRate={handleRate}
                                                 onImageClick={handleImageClick}
-                                                onExpand={() => setExpandedGroupId(item.groupId)}
+                                                onExpand={() => handleExpandGroup(item.groupId)}
                                                 displayVotes={false}
                                                 layoutMode={settings.layout}
                                                 gridAspectRatio={settings.gridAspectRatio}
@@ -983,7 +1011,7 @@ const App: React.FC = () => {
                                                             <h3 className="text-lg font-bold text-gray-200">Группа: «{groupData?.name || ''}»</h3>
                                                             {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
                                                         </div>
-                                                        <button onClick={() => setExpandedGroupId(null)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors flex-shrink-0 ml-4">
+                                                        <button onClick={() => handleCollapseGroup(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors flex-shrink-0 ml-4">
                                                             <ChevronUp size={18}/>
                                                             Свернуть группу
                                                         </button>
@@ -1021,7 +1049,7 @@ const App: React.FC = () => {
                                                         })}
                                                     </div>
                                                     <div className="flex justify-center pt-6">
-                                                        <button onClick={() => setExpandedGroupId(null)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                                                        <button onClick={() => handleCollapseGroup(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
                                                             <ChevronUp size={18}/>
                                                             Свернуть группу
                                                         </button>

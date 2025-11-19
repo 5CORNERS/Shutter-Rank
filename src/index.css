@@ -84,17 +84,21 @@
 .expanded-group-wrapper {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 0.4s ease-in-out;
+    transition: grid-template-rows 0.5s ease-in-out;
 }
 .expanded-group-wrapper.expanded {
     grid-template-rows: 1fr;
 }
 .expanded-group-container {
     overflow: hidden;
+    min-height: 0; /* Important for grid to work properly */
 }
 
 .expanded-group-content {
     @apply bg-gray-800/50 p-4 rounded-lg border border-gray-700/50 mb-6;
+    /* Ensure content doesn't shrink when container shrinks */
+    width: 100%;
+    min-height: fit-content;
 }
 
 /* Smooth transition for stack card disappearing */
