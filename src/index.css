@@ -53,12 +53,12 @@
 
 /* Animation for stack expansion */
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .animate-fadeIn {
-    animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 0.3s ease-out forwards;
 }
 
 /* New Selection Control */
@@ -73,21 +73,23 @@
 }
 
 @keyframes fade-out {
-    from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.95); }
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
 }
 .animate-hide {
-    animation: fade-out 0.4s ease-out forwards;
+  animation: fade-out 0.4s ease-out forwards;
 }
 
 /* Styles for inline expanded groups with animation */
 .expanded-group-wrapper {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 0.5s ease-in-out;
+    transition: grid-template-rows 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0.5;
 }
 .expanded-group-wrapper.expanded {
     grid-template-rows: 1fr;
+    opacity: 1;
 }
 .expanded-group-container {
     overflow: hidden;
@@ -95,27 +97,10 @@
 }
 
 .expanded-group-content {
-    @apply bg-gray-800/50 p-4 rounded-lg border border-gray-700/50 mb-6;
+    @apply bg-gray-800/50 p-4 rounded-lg border border-gray-700/50 mb-6 mt-2;
     /* Ensure content doesn't shrink when container shrinks */
     width: 100%;
     min-height: fit-content;
-}
-
-/* Smooth transition for stack card disappearing */
-.stack-transition-wrapper {
-    transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
-    opacity: 1;
-    max-height: 600px; /* Arbitrary max height that exceeds card height */
-    transform-origin: top center;
-    overflow: hidden;
-}
-
-.stack-transition-wrapper.hidden-stack {
-    opacity: 0;
-    max-height: 0;
-    margin-bottom: 0;
-    transform: scale(0.95) translateY(-10px);
-    pointer-events: none;
 }
 
 
