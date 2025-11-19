@@ -84,9 +84,8 @@
 .expanded-group-wrapper {
     display: grid;
     grid-template-rows: 0fr;
-    /* Step 1: Height transition (0.5s) */
-    transition: grid-template-rows 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    /* Ensure overflow hidden so we can animate height cleanly */
+    /* Step 1: Height transition (slower for cinematic feel) */
+    transition: grid-template-rows 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
 }
 
@@ -100,21 +99,29 @@
 }
 
 .expanded-group-content {
-    @apply bg-gray-800 p-4 rounded-lg border border-gray-700/50 mb-6 mt-2;
+    @apply bg-gray-800 rounded-lg border border-gray-700/50;
     width: 100%;
     min-height: fit-content;
     margin: 0 auto;
+    /* Initial padding/margin state for collapsed item to prevent jump */
+    padding: 0 1rem;
+    margin-top: 0;
+    margin-bottom: 0;
 
     /* Step 2: Width/Reveal transition */
     /* Start state (collapsed): Narrow beam (simulating the tab) */
     clip-path: inset(0 45% 0 45%);
-    /* Transition clip-path with a delay, so it starts expanding AFTER height grows */
-    transition: clip-path 0.4s ease-in-out 0.3s;
+
+    /* Add margin/padding to transitions to animate the vertical space collapse */
+    transition: clip-path 0.6s ease-in-out 0.5s, margin 0.6s ease-in-out, padding 0.6s ease-in-out;
 }
 
 .expanded-group-wrapper.expanded .expanded-group-content {
-    /* End state (expanded): Full width */
+    /* End state (expanded): Full width and proper spacing */
     clip-path: inset(0 0 0 0);
+    margin-top: 0.5rem; /* mt-2 */
+    margin-bottom: 1.5rem; /* mb-6 */
+    padding: 1rem; /* p-4 */
 }
 
 /* Step 3: Content Fade In */

@@ -774,7 +774,7 @@ const App: React.FC = () => {
 
         closingTimeoutRef.current = window.setTimeout(() => {
             setClosingGroupId(null);
-        }, 700); // Animation duration matches CSS
+        }, 1300); // Increased animation duration matches CSS for slow closing
     };
 
     // Components for cleaner render
@@ -1080,7 +1080,13 @@ const App: React.FC = () => {
                                                 groupName={groups[item.groupId]?.name || ''}
                                                 onRate={handleRate}
                                                 onImageClick={handleImageClick}
-                                                onExpand={() => handleExpandGroup(item.groupId)}
+                                                onExpand={() => {
+                                                    if (expandedGroupId === item.groupId) {
+                                                        handleCollapseGroup(item.groupId);
+                                                    } else {
+                                                        handleExpandGroup(item.groupId);
+                                                    }
+                                                }}
                                                 displayVotes={false}
                                                 layoutMode={settings.layout}
                                                 gridAspectRatio={settings.gridAspectRatio}
