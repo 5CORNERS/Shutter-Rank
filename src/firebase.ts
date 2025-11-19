@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
-import { getAuth } from 'firebase/auth';
+import * as firebaseAuth from 'firebase/auth';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -28,4 +28,5 @@ export const db = getDatabase(app);
 export const storage = getStorage(app, "gs://shutter-rank-storage");
 
 // Export instance of Auth
-export const auth = getAuth(app);
+export const auth = firebaseAuth.getAuth(app);
+export const signInAnonymously = firebaseAuth.signInAnonymously;

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import { db, storage, auth } from './firebase';
+import { db, storage, auth, signInAnonymously } from './firebase';
 import { ref, get, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { signInAnonymously } from 'firebase/auth';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud } from 'lucide-react';
