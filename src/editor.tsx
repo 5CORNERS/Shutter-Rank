@@ -4,7 +4,7 @@ import { db, auth, signInAnonymously } from './firebase';
 import { ref, get, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2, ChevronRight, ChevronDown } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2, ChevronRight, ChevronDown, HelpCircle } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
@@ -39,9 +39,9 @@ const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: str
     });
 };
 
-const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const StorageHelpModal: React.FC<{ onClose: () => void, mode?: 'upload' | 'read' }> = ({ onClose, mode = 'upload' }) => {
     const [copied, setCopied] = useState(false);
-    const bucketName = "shutter-rank-storage";
+    const bucketName = "shutter-rank-storage"; // Replace with your bucket name if different
 
     const corsConfig = `[
   {
@@ -52,7 +52,14 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
   }
 ]`;
 
-    const command = `echo '${corsConfig.replace(/\n/g, '').replace(/\s+/g, ' ')}' > cors.json && gcloud storage buckets update gs://${bucketName} --cors-file=cors.json`;
+    const corsCommand = `echo '${corsConfig.replace(/\n/g, '').replace(/\s+/g, ' ')}' > cors.json && gcloud storage buckets update gs://${bucketName} --cors-file=cors.json`;
+    const publicReadCommand = `gcloud storage buckets add-iam-policy-binding gs://${bucketName} --member=allUsers --role=roles/storage.objectViewer`;
+
+    const command = mode === 'read' ? publicReadCommand : corsCommand;
+    const title = mode === 'read' ? 'Файлы не открываются (Access Denied)' : 'Файлы не загружаются (CORS)';
+    const description = mode === 'read'
+        ? 'Файл успешно загружен, но у "всех пользователей" нет прав на его просмотр. Нужно добавить роль Storage Object Viewer.'
+        : 'Браузер блокирует загрузку. Скорее всего, не настроена CORS-политика для бакета.';
 
     const handleCopy = () => {
         navigator.clipboard.writeText(command);
@@ -68,9 +75,9 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                         <AlertTriangle className="w-8 h-8 text-red-500" />
                     </div>
                     <div className="flex-grow">
-                        <h3 className="text-xl font-bold text-white mb-2">Проблема с загрузкой</h3>
+                        <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
                         <p className="text-gray-300 text-sm mb-4">
-                            Файл не загрузился. В 99% случаев это означает, что у вашего бакета не настроены права доступа (CORS) или права на запись.
+                            {description}
                         </p>
 
                         <div className="bg-gray-950 rounded-lg p-4 border border-gray-800 font-mono text-xs text-green-400 overflow-x-auto relative mb-4">
@@ -85,16 +92,12 @@ const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                         </div>
 
                         <div className="text-sm text-gray-400 space-y-2">
-                            <p><strong className="text-white">Как исправить (займет 1 минуту):</strong></p>
+                            <p><strong className="text-white">Как исправить (1 минута):</strong></p>
                             <ol className="list-decimal list-inside space-y-1">
-                                <li>Откройте <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google Cloud Console</a>.</li>
+                                <li>Откройте <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google Cloud Console</a> (Cloud Shell).</li>
                                 <li>Нажмите иконку терминала <strong>(&gt;_)</strong> в правом верхнем углу.</li>
                                 <li>Вставьте скопированную команду и нажмите Enter.</li>
-                                <li>Подождите 1 минуту и попробуйте загрузить файл снова.</li>
                             </ol>
-                            <p className="mt-2 pt-2 border-t border-gray-700/50">
-                                Также убедитесь, что в <strong>Permissions</strong> бакета добавлена роль <strong>Storage Object User</strong> для <strong>allUsers</strong> (если вы не настраивали Firebase Auth).
-                            </p>
                         </div>
                     </div>
                     <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-6 h-6" /></button>
@@ -188,7 +191,8 @@ const EditorApp: React.FC = () => {
     const [geminiCustomPrompt, setGeminiCustomPrompt] = useState<string>(() => localStorage.getItem(GEMINI_CUSTOM_PROMPT_STORAGE_KEY) || DEFAULT_PROMPT);
     const [uploadProgress, setUploadProgress] = useState<{current: number, total: number} | null>(null);
     const [authStatus, setAuthStatus] = useState<'pending' | 'signed_in' | 'failed'>('pending');
-    const [showCorsModal, setShowCorsModal] = useState(false);
+    const [showHelpModal, setShowHelpModal] = useState(false);
+    const [helpModalMode, setHelpModalMode] = useState<'upload' | 'read'>('upload');
     const [isIntroExpanded, setIsIntroExpanded] = useState(false);
 
     // For Drag and Drop
@@ -197,7 +201,6 @@ const EditorApp: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const draggedItemIndex = useRef<number | null>(null);
     const scrollInterval = useRef<number | null>(null);
-    const dragCounter = useRef(0);
 
     useEffect(() => {
         const initAuth = async () => {
@@ -206,7 +209,7 @@ const EditorApp: React.FC = () => {
                 console.log("Signed in anonymously to Firebase");
                 setAuthStatus('signed_in');
             } catch (error: any) {
-                console.warn("Firebase Auth failed.", error);
+                console.warn("Firebase Auth failed (Public mode).", error);
                 setAuthStatus('failed');
             }
         };
@@ -313,7 +316,7 @@ const EditorApp: React.FC = () => {
             },
         };
 
-        // Clean up undefined values before saving
+        // Clean up undefined values before saving to avoid Firebase error
         const sanitizedData = JSON.parse(JSON.stringify(finalSessionData));
 
         try {
@@ -359,15 +362,6 @@ const EditorApp: React.FC = () => {
             setSessionData({
                 ...sessionData,
                 config: { ...sessionData.config, [name]: parsedValue },
-            });
-        }
-    };
-
-    const handleIntroChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        if (sessionData) {
-            setSessionData({
-                ...sessionData,
-                photos: { ...sessionData.photos, introArticleMarkdown: e.target.value },
             });
         }
     };
@@ -594,7 +588,6 @@ const EditorApp: React.FC = () => {
         placeholderRef.current?.remove();
         stopScrolling();
         draggedItemIndex.current = null;
-        dragCounter.current = 0;
         const overlay = document.getElementById('drop-overlay');
         if (overlay) overlay.style.display = 'none';
     }, [stopScrolling]);
@@ -648,7 +641,6 @@ const EditorApp: React.FC = () => {
     const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
-        dragCounter.current++;
         if (e.dataTransfer.types.includes('Files')) {
             const overlay = document.getElementById('drop-overlay');
             if (overlay) overlay.style.display = 'flex';
@@ -658,10 +650,20 @@ const EditorApp: React.FC = () => {
     const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
-        dragCounter.current--;
-        if (dragCounter.current === 0) {
+        if (e.relatedTarget && (e.relatedTarget as HTMLElement).id !== 'drop-overlay') {
             const overlay = document.getElementById('drop-overlay');
             if (overlay) overlay.style.display = 'none';
+        }
+    }
+
+    // Helper to verify if the uploaded file is public accessible
+    const verifyPublicAccess = async (url: string): Promise<boolean> => {
+        try {
+            const response = await fetch(url, { method: 'HEAD' });
+            return response.ok;
+        } catch (e) {
+            console.warn("Verification check failed", e);
+            return false;
         }
     }
 
@@ -673,17 +675,21 @@ const EditorApp: React.FC = () => {
         setUploadProgress({ current: 0, total });
 
         let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
-        const bucketName = "shutter-rank-storage";
+        const bucketName = "shutter-rank-storage"; // Replace with your bucket name if different
+
+        // Flag to show help modal only once per batch
+        let hasVerificationError = false;
+        let hasUploadError = false;
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             if (!file.type.startsWith('image/')) continue;
             try {
-                const filename = `${Date.now()}_${file.name}`;
+                const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
                 const filePath = `sessions/${sessionId}/${filename}`;
 
-                // Use direct upload to Google Cloud Storage JSON API to bypass Firebase SDK issues
-                // Since the bucket is public for writing (allUsers -> Storage Object User), this works without auth headers
+                // DIRECT UPLOAD to Google Cloud Storage JSON API
+                // Bypasses Firebase SDK which requires auth headers for cross-project access
                 const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o?uploadType=media&name=${encodeURIComponent(filePath)}`;
 
                 const response = await fetch(uploadUrl, {
@@ -698,8 +704,14 @@ const EditorApp: React.FC = () => {
                     throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
                 }
 
-                // Construct the public URL manually
+                // Construct public URL
                 const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+
+                // Verification step: Check if we can read it back
+                const isReadable = await verifyPublicAccess(publicUrl);
+                if (!isReadable) {
+                    hasVerificationError = true;
+                }
 
                 maxId++;
                 newPhotos.push({
@@ -711,12 +723,13 @@ const EditorApp: React.FC = () => {
                 });
             } catch (error: any) {
                 console.warn(`Error uploading ${file.name}:`, error);
-                setShowCorsModal(true);
+                hasUploadError = true;
             } finally {
                 current++;
                 setUploadProgress({ current, total });
             }
         }
+
         if (newPhotos.length > 0) {
             setSessionData(prev => {
                 if(!prev) return null;
@@ -726,8 +739,18 @@ const EditorApp: React.FC = () => {
                 }
             });
         }
+
         setUploadProgress(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
+
+        // Show help modal based on errors encountered
+        if (hasUploadError) {
+            setHelpModalMode('upload');
+            setShowHelpModal(true);
+        } else if (hasVerificationError) {
+            setHelpModalMode('read');
+            setShowHelpModal(true);
+        }
     }
 
     const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -735,28 +758,34 @@ const EditorApp: React.FC = () => {
         e.stopPropagation();
         const overlay = document.getElementById('drop-overlay');
         if (overlay) overlay.style.display = 'none';
-        dragCounter.current = 0;
+
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             handleUploadFiles(e.dataTransfer.files);
             return;
         }
+
         if (draggedItemIndex.current === null || !sessionData) {
             handleDragEnd();
             return;
         }
+
         const placeholder = placeholderRef.current;
         if (!placeholder || !placeholder.parentElement) {
             handleDragEnd();
             return;
         }
+
         const children = Array.from(placeholder.parentElement.children);
         const newIndex = children.indexOf(placeholder) - 1;
+
         const newPhotos = [...sessionData.photos.photos];
         const [draggedItem] = newPhotos.splice(draggedItemIndex.current, 1);
+
         if (newIndex >= 0) {
             newPhotos.splice(newIndex, 0, draggedItem);
             setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         }
+
         handleDragEnd();
     }, [sessionData, handleDragEnd]);
 
@@ -768,14 +797,16 @@ const EditorApp: React.FC = () => {
         const availableGroups = sessionData.groups ? (Object.entries(sessionData.groups) as [string, GroupData][]) : [];
 
         return (
-            <div className="space-y-8 relative" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-                {showCorsModal && <CorsTroubleshootModal onClose={() => setShowCorsModal(false)} />}
+            <div className="space-y-8" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+                {showHelpModal && <StorageHelpModal onClose={() => setShowHelpModal(false)} mode={helpModalMode} />}
                 <input type="file" ref={fileInputRef} onChange={(e) => handleUploadFiles(e.target.files)} className="hidden" multiple accept="image/*" />
+
                 <div id="drop-overlay" className="hidden fixed inset-0 z-50 bg-black/80 flex-col items-center justify-center text-white backdrop-blur-sm transition-opacity pointer-events-none">
                     <UploadCloud className="w-24 h-24 text-indigo-500 mb-4 animate-bounce" />
                     <p className="text-2xl font-bold">Отпустите файлы для загрузки</p>
                     <p className="text-gray-400 mt-2">Они будут добавлены в конец списка</p>
                 </div>
+
                 {uploadProgress && (
                     <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm">
                         <div className="bg-gray-800 p-8 rounded-xl shadow-2xl text-center border border-gray-700">
@@ -789,224 +820,199 @@ const EditorApp: React.FC = () => {
                     </div>
                 )}
 
-                <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-200 flex items-center gap-2">
-                        Настройки сессии
-                        {isSaving && <span className="text-sm text-gray-400 font-normal flex items-center"><Loader className="w-4 h-4 animate-spin mr-1"/>Сохранение...</span>}
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-1">
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Session Name</label>
-                            <input type="text" name="name" value={sessionData.config.name || ''} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                        </div>
+                <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
+                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Настройки сессии</summary>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Grid Aspect Ratio</label>
-                            <select name="defaultGridAspectRatio" value={sessionData.config.defaultGridAspectRatio} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
-                                <option value="4/3">4:3</option>
-                                <option value="3/2">3:2</option>
-                                <option value="1/1">1:1</option>
-                            </select>
+                            <label className="block text-sm font-medium text-gray-400">Session Name</label>
+                            <input type="text" name="name" value={sessionData.config.name || ''} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
                         </div>
+                        {Object.entries(sessionData.config).filter(([key]) => key !== 'name').map(([key, value]) => (
+                            <div key={key}>
+                                <label className="block text-sm font-medium text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
+                                {typeof value === 'number' ? (
+                                    <input type="number" name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white"/>
+                                ) : (
+                                    <select name={key} value={value} onChange={handleConfigChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white">
+                                        {key.includes('Layout') ? <>
+                                            <option value="grid">Grid</option>
+                                            <option value="original">Original</option>
+                                        </> : <>
+                                            <option value="1/1">1/1</option>
+                                            <option value="4/3">4/3</option>
+                                            <option value="3/2">3/2</option>
+                                        </>}
+                                    </select>
+                                )}
+                            </div>
+                        ))}
                         <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Layout Desktop</label>
-                            <select name="defaultLayoutDesktop" value={sessionData.config.defaultLayoutDesktop} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
-                                <option value="grid">Grid</option>
-                                <option value="original">Original</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Default Layout Mobile</label>
-                            <select name="defaultLayoutMobile" value={sessionData.config.defaultLayoutMobile} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
-                                <option value="original">Original</option>
-                                <option value="grid">Grid</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Rated Photo Limit</label>
-                            <input type="number" name="ratedPhotoLimit" value={sessionData.config.ratedPhotoLimit} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Total Stars Limit</label>
-                            <input type="number" name="totalStarsLimit" value={sessionData.config.totalStarsLimit} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Unlock Five Stars Threshold Percent</label>
-                            <input type="number" name="unlockFiveStarsThresholdPercent" value={sessionData.config.unlockFiveStarsThresholdPercent ?? 50} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Unlock Four Stars Threshold Percent</label>
-                            <input type="number" name="unlockFourStarsThresholdPercent" value={sessionData.config.unlockFourStarsThresholdPercent ?? 20} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                        </div>
-                        <div className="md:col-span-2 lg:col-span-1">
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Google AI API Key</label>
-                            <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} placeholder="Вставьте ваш ключ" className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                            <label htmlFor="geminiApiKey" className="block text-sm font-medium text-gray-400">Google AI API Key</label>
+                            <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white" placeholder="Вставьте ваш ключ"/>
                             <p className="text-xs text-gray-500 mt-1">Ключ сохраняется в вашем браузере и не передается на сервер.</p>
                         </div>
-                        <div className="md:col-span-2 lg:col-span-3">
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Стиль описаний от ИИ (промпт)</label>
-                            <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={3} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-sm" />
-                            <p className="text-xs text-gray-500 mt-1">Инструкция для Gemini. Сохраняется в вашем браузере.</p>
+                    </div>
+                    <div className="mt-4">
+                        <label htmlFor="geminiCustomPrompt" className="block text-sm font-medium text-gray-400">Стиль описаний от ИИ (промпт)</label>
+                        <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={4} className="mt-1 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-xs" placeholder="Задайте стиль для генерации..."/>
+                        <p className="text-xs text-gray-500 mt-1">Инструкция для Gemini. Сохраняется в вашем браузере.</p>
+                    </div>
+                </details>
+
+                <details className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
+                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Вступительная статья (Markdown)</summary>
+                    <textarea
+                        value={sessionData.photos.introArticleMarkdown}
+                        onChange={(e) => setSessionData({...sessionData, photos: {...sessionData.photos, introArticleMarkdown: e.target.value}})}
+                        rows={10}
+                        className="mt-4 w-full p-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-sm"
+                    />
+                </details>
+
+                <details open className="space-y-4 bg-gray-900/50 p-4 rounded-lg">
+                    <summary className="text-xl font-semibold text-gray-300 cursor-pointer">Группы фотографий</summary>
+                    <div className="mt-4 space-y-4">
+                        <div className="flex gap-2 p-3 bg-gray-700/50 rounded-lg">
+                            <input
+                                type="text"
+                                value={newGroupName}
+                                onChange={(e) => setNewGroupName(e.target.value)}
+                                className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-800 text-white"
+                                placeholder="Название новой группы"
+                            />
+                            <button onClick={handleAddGroup} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                                <Plus className="w-5 h-5"/> Добавить
+                            </button>
                         </div>
-                    </div>
-                </div>
-
-                <div className="cursor-pointer" onClick={() => setIsIntroExpanded(!isIntroExpanded)}>
-                    <div className="flex items-center gap-2 text-lg font-semibold text-gray-200 mb-2 hover:text-indigo-400 transition-colors">
-                        {isIntroExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                        Вступительная статья (Markdown)
-                    </div>
-                </div>
-                {isIntroExpanded && (
-                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm animate-fade-in">
-                         <textarea
-                             value={sessionData.photos.introArticleMarkdown}
-                             onChange={handleIntroChange}
-                             rows={10}
-                             className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white font-mono text-sm"
-                             placeholder="# Заголовок\n\nТекст статьи..."
-                         />
-                    </div>
-                )}
-
-                <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
-                    <h2 className="text-xl font-semibold mb-4 text-gray-200">Группы фотографий</h2>
-                    <div className="flex gap-2 mb-4">
-                        <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="flex-grow p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="Название новой группы" />
-                        <button onClick={handleAddGroup} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors">
-                            <Plus className="w-4 h-4" /> Добавить
-                        </button>
-                    </div>
-                    {availableGroups.length > 0 ? (
-                        <div className="space-y-3">
-                            {availableGroups.map(([groupId, group]) => (
-                                <div key={groupId} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
-                                    <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
-                                        <input type="text" value={group.name} onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Название" />
-                                        <input type="text" value={group.caption || ''} onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Описание группы (необязательно)" />
+                        {availableGroups.length > 0 && (
+                            <div className="space-y-3">
+                                {availableGroups.map(([id, groupData]) => (
+                                    <div key={id} className="space-y-2 p-3 bg-gray-700/50 rounded-lg">
+                                        <div className="flex items-center justify-between">
+                                            <input
+                                                type="text"
+                                                value={groupData.name}
+                                                onChange={(e) => handleGroupChange(id, 'name', e.target.value)}
+                                                className="flex-grow p-1 border-b border-gray-600 bg-transparent text-gray-200 focus:outline-none focus:border-indigo-500 font-semibold"
+                                                placeholder="Название группы"
+                                            />
+                                            <button onClick={() => handleDeleteGroup(id)} className="ml-2 p-1 text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4"/></button>
+                                        </div>
+                                        <textarea
+                                            value={groupData.caption || ''}
+                                            onChange={(e) => handleGroupChange(id, 'caption', e.target.value)}
+                                            rows={2}
+                                            className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
+                                            placeholder="Описание группы (необязательно)"
+                                        />
                                     </div>
-                                    <button onClick={() => handleDeleteGroup(groupId)} className="text-red-400 hover:text-red-300 p-2" title="Удалить группу">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-gray-500 italic">Группы пока не созданы.</p>
-                    )}
-                </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </details>
 
                 <div className="space-y-4">
-                    <div className="flex flex-wrap justify-between items-center gap-4">
-                        <h2 className="text-xl font-semibold text-gray-200">Фотографии ({sessionData.photos.photos.length})</h2>
-                        <div className="flex flex-wrap gap-2">
-                            <button onClick={handleDownloadHtml} className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg flex items-center gap-2 transition-colors text-sm font-medium">
-                                <Download className="w-4 h-4" /> Скачать HTML
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <h2 className="text-xl font-semibold text-gray-300">Фотографии ({sessionData.photos.photos.length})</h2>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                onClick={() => { setHelpModalMode('upload'); setShowHelpModal(true); }}
+                                className="inline-flex items-center gap-x-2 px-3 py-2 text-sm font-semibold rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                            >
+                                <HelpCircle className="w-4 h-4"/> Проблемы с фото?
                             </button>
-                            <button onClick={handleExtractExif} className="px-3 py-2 bg-teal-700 hover:bg-teal-600 text-white rounded-lg flex items-center gap-2 transition-colors text-sm" title="Извлечь описания из метаданных EXIF">
-                                <Wand2 className="w-4 h-4" /> Извлечь описания из EXIF
+                            <button onClick={handleDownloadHtml} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white transition-colors">
+                                <Download className="w-5 h-5"/> Скачать HTML
+                            </button>
+                            <button onClick={handleExtractExif} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 text-white transition-colors">
+                                <Wand2 className="w-5 h-5"/> Извлечь описания из EXIF
                             </button>
                         </div>
                     </div>
+                    <div ref={photoListRef} className="space-y-3">
+                        {sessionData.photos.photos.map((photo, index) => (
+                            <div key={photo.id}
+                                 draggable
+                                 onDragStart={(e) => handleDragStart(e, index)}
+                                 className={`flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg transition-opacity duration-300`}
+                            >
+                                <div className="flex-shrink-0 self-center flex md:flex-col items-center gap-2 drag-handle cursor-grab active:cursor-grabbing">
+                                    <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowUp className="w-4 h-4"/></button>
+                                    <div className="text-gray-500">☰</div>
+                                    <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-2 bg-gray-600/50 rounded hover:bg-gray-600 disabled:opacity-50"><ArrowDown className="w-4 h-4"/></button>
+                                </div>
+                                <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0 self-center" />
+                                <div className="flex-grow space-y-2">
+                                    <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm" placeholder="URL"/>
+                                    <div className="relative">
+                                        <textarea
+                                            value={photo.caption}
+                                            onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)}
+                                            rows={2}
+                                            className="w-full p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm pr-10"
+                                            placeholder="Описание"
+                                        />
+                                        <button
+                                            onClick={() => handleGenerateCaption(index)}
+                                            disabled={generatingCaptionFor === photo.id}
+                                            className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5 text-gray-400 hover:text-indigo-400 transition-colors disabled:cursor-not-allowed disabled:text-gray-600"
+                                            title="Сгенерировать описание с помощью Gemini"
+                                        >
+                                            {generatingCaptionFor === photo.id ? (
+                                                <Loader className="w-5 h-5 animate-spin"/>
+                                            ) : (
+                                                <Wand2 className="w-5 h-5"/>
+                                            )}
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <select
+                                            value={photo.groupId || ''}
+                                            onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)}
+                                            className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white text-sm"
+                                            disabled={availableGroups.length === 0}
+                                        >
+                                            <option value="">Без группы</option>
+                                            {availableGroups.map(([id, groupData]) => (
+                                                <option key={id} value={id}>{groupData.name}</option>
+                                            ))}
+                                        </select>
 
-                    {sessionData.photos.photos.length === 0 ? (
-                        <div
-                            className="border-2 border-dashed border-gray-700 rounded-lg p-12 flex flex-col items-center justify-center text-gray-500 bg-gray-800/30 transition-colors hover:bg-gray-800/50 hover:border-gray-500 cursor-pointer"
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={handleDrop}
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            <UploadCloud className="w-16 h-16 mb-4 text-gray-600" />
-                            <p className="text-lg font-medium">Перетащите сюда фотографии для загрузки</p>
-                            <p className="text-sm mt-2">или кликните, чтобы выбрать файлы</p>
-                        </div>
-                    ) : (
-                        <div ref={photoListRef} className="space-y-4 pb-20">
-                            {sessionData.photos.photos.map((photo, index) => (
-                                <div key={photo.id} draggable onDragStart={(e) => handleDragStart(e, index)} className="bg-gray-800 rounded-lg border border-gray-700 p-4 flex flex-col md:flex-row gap-4 items-start transition-colors hover:border-gray-600">
-                                    <div className="flex md:flex-col items-center gap-2 text-gray-500">
-                                        <button onClick={() => handleMovePhoto(index, 'up')} disabled={index === 0} className="p-1 hover:text-white disabled:opacity-30"><ArrowUp className="w-5 h-5" /></button>
-                                        <span className="font-mono text-xs select-none">{index + 1}</span>
-                                        <button onClick={() => handleMovePhoto(index, 'down')} disabled={index === sessionData.photos.photos.length - 1} className="p-1 hover:text-white disabled:opacity-30"><ArrowDown className="w-5 h-5" /></button>
-                                    </div>
-                                    <div className="relative group flex-shrink-0">
-                                        <img src={photo.url || 'https://via.placeholder.com/150?text=No+Image'} alt={`Фото ${photo.id}`} className="w-32 h-32 object-cover rounded-lg bg-gray-900" />
-                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg pointer-events-none">
-                                            <span className="text-xs text-white font-mono">{photo.id}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex-grow space-y-3 w-full">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-1">
-                                                <label className="text-xs text-gray-400">URL изображения</label>
-                                                <input type="text" value={photo.url} onChange={(e) => handlePhotoChange(index, 'url', e.target.value)} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm font-mono" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <label className="text-xs text-gray-400">Группа</label>
-                                                <select value={photo.groupId || ''} onChange={(e) => handlePhotoChange(index, 'groupId', e.target.value)} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm">
-                                                    <option value="">-- Без группы --</option>
-                                                    {availableGroups.map(([gId, gData]) => (
-                                                        <option key={gId} value={gId}>{gData.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                            <div className="flex justify-between items-center">
-                                                <label className="text-xs text-gray-400">Описание</label>
-                                                <button onClick={() => handleGenerateCaption(index)} disabled={generatingCaptionFor === photo.id} className="text-xs flex items-center gap-1 text-indigo-400 hover:text-indigo-300 disabled:opacity-50 disabled:cursor-wait">
-                                                    {generatingCaptionFor === photo.id ? <Loader className="w-3 h-3 animate-spin"/> : <Wand2 className="w-3 h-3"/>}
-                                                    Сгенерировать (Gemini)
-                                                </button>
-                                            </div>
-                                            <textarea value={photo.caption} onChange={(e) => handlePhotoChange(index, 'caption', e.target.value)} rows={2} className="w-full p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" />
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
-                                                <input type="checkbox" checked={!!photo.isOutOfCompetition} onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)} className="rounded border-gray-600 bg-gray-900 text-indigo-600 focus:ring-indigo-500" />
-                                                Вне конкурса
-                                            </label>
-                                            <button onClick={() => handleDeletePhoto(index)} className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1 ml-auto">
-                                                <Trash2 className="w-4 h-4" /> Удалить
-                                            </button>
+                                        <div className="flex items-center">
+                                            <input type="checkbox" id={`ooc-${photo.id}`} checked={!!photo.isOutOfCompetition} onChange={(e) => handlePhotoChange(index, 'isOutOfCompetition', e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"/>
+                                            <label htmlFor={`ooc-${photo.id}`} className="ml-2 block text-sm text-gray-300">Вне конкурса</label>
                                         </div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-800/50 border border-gray-700/50 rounded-lg">
-                    <div className="flex gap-2">
-                        <button onClick={() => fileInputRef.current?.click()} className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg flex items-center gap-2 transition-colors font-semibold">
-                            <UploadCloud className="w-5 h-5" /> Загрузить фото
+                                <div className="self-center">
+                                    <button onClick={() => handleDeletePhoto(index)} className="p-2 text-red-500 hover:text-red-400"><Trash2 className="w-5 h-5"/></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-2 mt-4">
+                        <button onClick={() => fileInputRef.current?.click()} className="flex-1 inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white transition-colors">
+                            <UploadCloud className="w-5 h-5"/> Загрузить фото
                         </button>
-                        <button onClick={handleAddPhoto} className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center gap-2 transition-colors font-semibold">
-                            <Plus className="w-5 h-5" /> Добавить пустую карточку
+                        <button onClick={handleAddPhoto} className="flex-1 inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors">
+                            <Plus className="w-5 h-5"/> Добавить карточку
                         </button>
                     </div>
                 </div>
 
-                <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2">
-                    {authStatus === 'failed' && (
-                        <div className="bg-red-900/80 text-white text-xs px-3 py-1 rounded backdrop-blur-md border border-red-500/50 mb-2">
-                            Auth Failed (Public Mode)
-                        </div>
-                    )}
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-2xl shadow-green-900/50 flex items-center gap-3 font-bold text-lg transition-all hover:scale-105 disabled:opacity-70 disabled:hover:scale-100"
-                    >
-                        {isSaving ? <Loader className="w-6 h-6 animate-spin" /> : <Save className="w-6 h-6" />}
-                        {isSaving ? 'Сохранение...' : 'Сохранить изменения'}
+                <div className="mt-8 pt-6 border-t border-gray-700">
+                    <button onClick={handleSave} disabled={isSaving} className="w-full inline-flex items-center justify-center gap-x-2 px-4 py-3 font-semibold text-lg rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors disabled:bg-gray-600 disabled:cursor-wait">
+                        <Save className="w-6 h-6"/> {isSaving ? 'Сохранение...' : 'Сохранить все изменения'}
                     </button>
                 </div>
             </div>
         );
     };
 
-    return <AdminLayout title="Редактор сессии">{renderContent()}</AdminLayout>;
+    const pageTitle = `Редактор: ${sessionData?.config?.name || sessionId || '...'}`;
+
+    return <AdminLayout title={pageTitle}>{renderContent()}</AdminLayout>;
 };
 
 const rootElement = document.getElementById('root');
