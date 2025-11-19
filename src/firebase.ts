@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
-import * as firebaseAuth from 'firebase/auth';
+// @ts-ignore
+import { getAuth, signInAnonymously as firebaseSignInAnonymously } from 'firebase/auth';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,7 +16,6 @@ const firebaseConfig = {
     measurementId: "G-Q9B9CYFJMR"
 };
 
-
 // Initialize Firebase
 // @ts-ignore
 const app = initializeApp(firebaseConfig);
@@ -24,9 +24,9 @@ const app = initializeApp(firebaseConfig);
 export const db = getDatabase(app);
 
 // Export instance of Storage
-// Подключен внешний бакет Google Cloud Storage
+// Explicitly point to your custom Google Cloud Storage bucket
 export const storage = getStorage(app, "gs://shutter-rank-storage");
 
 // Export instance of Auth
-export const auth = firebaseAuth.getAuth(app);
-export const signInAnonymously = firebaseAuth.signInAnonymously;
+export const auth = getAuth(app);
+export const signInAnonymously = firebaseSignInAnonymously;

@@ -5,7 +5,7 @@ import { ref, get, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
@@ -124,6 +124,7 @@ const EditorApp: React.FC = () => {
     const [geminiApiKey, setGeminiApiKey] = useState<string>(() => localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || '');
     const [geminiCustomPrompt, setGeminiCustomPrompt] = useState<string>(() => localStorage.getItem(GEMINI_CUSTOM_PROMPT_STORAGE_KEY) || DEFAULT_PROMPT);
     const [uploadProgress, setUploadProgress] = useState<{current: number, total: number} | null>(null);
+    const [authStatus, setAuthStatus] = useState<'pending' | 'signed_in' | 'failed'>('pending');
 
 
     // For Drag and Drop
@@ -135,17 +136,18 @@ const EditorApp: React.FC = () => {
     const dragCounter = useRef(0);
 
     useEffect(() => {
-        // Sign in anonymously to allow Storage operations if rules require auth
-        // If auth is not configured in console, we catch the error and proceed, hoping for public bucket access
-        signInAnonymously(auth)
-            .then(() => console.log("Signed in anonymously"))
-            .catch((error) => {
-                if (error.code === 'auth/configuration-not-found') {
-                    console.warn("Anonymous auth not enabled in Firebase Console. Uploads may fail if bucket is not public.");
-                } else {
-                    console.error("Error signing in anonymously:", error);
-                }
-            });
+        const initAuth = async () => {
+            try {
+                await signInAnonymously(auth);
+                console.log("Signed in anonymously to Firebase");
+                setAuthStatus('signed_in');
+            } catch (error: any) {
+                // We deliberately catch and log this without throwing, to allow "public bucket" access
+                console.warn("Firebase Auth failed. Uploads will only work if the GCS bucket is publicly writable (allUsers -> Storage Object User). Error:", error);
+                setAuthStatus('failed');
+            }
+        };
+        initAuth();
     }, []);
 
     useEffect(() => {
@@ -658,20 +660,8 @@ const EditorApp: React.FC = () => {
     const handleUploadFiles = async (files: FileList | null) => {
         if (!files || files.length === 0 || !sessionData || !sessionId) return;
 
-        // Attempt to sign in if not signed in, but don't block entirely
-        if (!auth.currentUser) {
-            try {
-                await signInAnonymously(auth);
-            } catch (err: any) {
-                if (err.code === 'auth/configuration-not-found') {
-                    console.warn("Anonymous Auth not enabled. Attempting upload without explicit auth token...");
-                } else {
-                    console.error("Auth check error:", err);
-                    alert("Ошибка авторизации. Подробности в консоли.");
-                    return;
-                }
-            }
-        }
+        // We deliberately DO NOT check for auth.currentUser here to allow uploading
+        // if the bucket is public, even if auth failed.
 
         const newPhotos: FirebasePhoto[] = [];
         const total = files.length;
@@ -730,7 +720,7 @@ const EditorApp: React.FC = () => {
         }
 
         if (failedUploads.length > 0) {
-            alert(`Не удалось загрузить следующие файлы (${failedUploads.length}):\n${failedUploads.join('\n')}\n\nВозможные причины:\n1. Не включен Anonymous Auth в Firebase Console.\n2. Бакет не публичный (нет прав allUsers -> Storage Object User).\n3. Не настроен CORS.`);
+            alert(`Не удалось загрузить следующие файлы (${failedUploads.length}):\n${failedUploads.join('\n')}\n\nВозможные причины:\n1. Ошибка сети.\n2. Бакет не публичный (нет прав allUsers -> Storage Object User).\n3. Не настроен CORS.\n4. Ошибки авторизации (если бакет требует вход).`);
         }
     }
 
@@ -820,6 +810,16 @@ const EditorApp: React.FC = () => {
                                     style={{width: `${(uploadProgress.current / uploadProgress.total) * 100}%`}}
                                 />
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {authStatus === 'failed' && (
+                    <div className="bg-yellow-900/30 border border-yellow-700/50 p-3 rounded-lg flex items-start gap-3 text-sm text-yellow-200">
+                        <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                        <div>
+                            <p className="font-bold">Внимание: Авторизация не удалась</p>
+                            <p className="mt-1 opacity-80">Загрузка файлов сработает, только если вы настроили публичный доступ к бакету (allUsers -&gt; Storage Object User) в консоли Google Cloud.</p>
                         </div>
                     </div>
                 )}
