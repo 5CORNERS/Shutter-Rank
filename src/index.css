@@ -53,12 +53,12 @@
 
 /* Animation for stack expansion */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
+    animation: fadeIn 0.3s ease-out forwards;
 }
 
 /* New Selection Control */
@@ -73,34 +73,55 @@
 }
 
 @keyframes fade-out {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.95); }
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
 }
 .animate-hide {
-  animation: fade-out 0.4s ease-out forwards;
+    animation: fade-out 0.4s ease-out forwards;
 }
 
 /* Styles for inline expanded groups with animation */
 .expanded-group-wrapper {
     display: grid;
     grid-template-rows: 0fr;
+    /* Step 1: Height transition (0.5s) */
     transition: grid-template-rows 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    opacity: 0.5;
+    /* Ensure overflow hidden so we can animate height cleanly */
+    overflow: hidden;
 }
+
 .expanded-group-wrapper.expanded {
     grid-template-rows: 1fr;
-    opacity: 1;
 }
+
 .expanded-group-container {
     overflow: hidden;
     min-height: 0; /* Important for grid to work properly */
 }
 
 .expanded-group-content {
-    @apply bg-gray-800/50 p-4 rounded-lg border border-gray-700/50 mb-6 mt-2;
-    /* Ensure content doesn't shrink when container shrinks */
+    @apply bg-gray-800 p-4 rounded-lg border border-gray-700/50 mb-6 mt-2;
     width: 100%;
     min-height: fit-content;
+    margin: 0 auto;
+
+    /* Step 2: Width/Reveal transition */
+    /* Start state (collapsed): Narrow beam (simulating the tab) */
+    clip-path: inset(0 45% 0 45%);
+    /* Transition clip-path with a delay, so it starts expanding AFTER height grows */
+    transition: clip-path 0.4s ease-in-out 0.3s;
+}
+
+.expanded-group-wrapper.expanded .expanded-group-content {
+    /* End state (expanded): Full width */
+    clip-path: inset(0 0 0 0);
+}
+
+/* Step 3: Content Fade In */
+/* Helper class added in App.tsx to the inner wrapper */
+.expanded-group-wrapper.expanded .expanded-group-grid-wrapper {
+    opacity: 1;
+    /* Delay fade-in until width is fully expanded */
 }
 
 
