@@ -5,7 +5,7 @@ import { ref, get, update } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { AdminLayout } from './components/AdminLayout';
 import { Spinner } from './components/Spinner';
-import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle } from 'lucide-react';
+import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, Terminal, CheckCircle2 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 import './index.css';
 import { Config, FirebasePhotoData, FirebasePhoto, FirebaseDataGroups, GroupData } from './types';
@@ -40,6 +40,67 @@ const urlToBase64 = async (url: string): Promise<{ base64: string; mimeType: str
     });
 };
 
+const CorsTroubleshootModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    const [copied, setCopied] = useState(false);
+    const bucketName = "shutter-rank-storage"; // Hardcoded based on your project
+
+    const corsConfig = `[
+  {
+    "origin": ["*"],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS"],
+    "responseHeader": ["Content-Type", "x-goog-resumable"],
+    "maxAgeSeconds": 3600
+  }
+]`;
+
+    const command = `echo '${corsConfig.replace(/\n/g, '').replace(/\s+/g, ' ')}' > cors.json && gcloud storage buckets update gs://${bucketName} --cors-file=cors.json`;
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(command);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex justify-center items-center p-4" onClick={onClose}>
+            <div className="bg-gray-900 border border-red-500/50 rounded-lg shadow-2xl max-w-2xl w-full p-6" onClick={e => e.stopPropagation()}>
+                <div className="flex items-start gap-4">
+                    <div className="p-3 bg-red-900/30 rounded-full">
+                        <AlertTriangle className="w-8 h-8 text-red-500" />
+                    </div>
+                    <div className="flex-grow">
+                        <h3 className="text-xl font-bold text-white mb-2">Ошибка загрузки (CORS или Права доступа)</h3>
+                        <p className="text-gray-300 text-sm mb-4">
+                            Браузер заблокировал загрузку. Это происходит, если у бакета не настроен CORS или нет прав на запись.
+                        </p>
+
+                        <div className="bg-gray-950 rounded-lg p-4 border border-gray-800 font-mono text-xs text-green-400 overflow-x-auto relative mb-4">
+                            <code className="whitespace-pre-wrap break-all">{command}</code>
+                            <button
+                                onClick={handleCopy}
+                                className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded text-white transition-colors"
+                                title="Копировать команду"
+                            >
+                                {copied ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                        </div>
+
+                        <div className="text-sm text-gray-400 space-y-2">
+                            <p><strong className="text-white">Инструкция:</strong></p>
+                            <ol className="list-decimal list-inside space-y-1">
+                                <li>Откройте <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Google Cloud Console</a>.</li>
+                                <li>Нажмите иконку терминала <strong>(>_)</strong> в правом верхнем углу.</li>
+                                <li>Вставьте скопированную команду и нажмите Enter.</li>
+                                <li>Подождите 1 минуту и попробуйте загрузить файл снова.</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-gray-500 hover:text-white"><X className="w-6 h-6" /></button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const generateHtmlForDownload = (photosInOrder: FirebasePhoto[], sessionId: string): string => {
     const photoFiguresHtml = photosInOrder.map(photo => {
@@ -125,7 +186,7 @@ const EditorApp: React.FC = () => {
     const [geminiCustomPrompt, setGeminiCustomPrompt] = useState<string>(() => localStorage.getItem(GEMINI_CUSTOM_PROMPT_STORAGE_KEY) || DEFAULT_PROMPT);
     const [uploadProgress, setUploadProgress] = useState<{current: number, total: number} | null>(null);
     const [authStatus, setAuthStatus] = useState<'pending' | 'signed_in' | 'failed'>('pending');
-
+    const [showCorsModal, setShowCorsModal] = useState(false);
 
     // For Drag and Drop
     const photoListRef = useRef<HTMLDivElement>(null);
@@ -660,15 +721,13 @@ const EditorApp: React.FC = () => {
     const handleUploadFiles = async (files: FileList | null) => {
         if (!files || files.length === 0 || !sessionData || !sessionId) return;
 
-        // We deliberately DO NOT check for auth.currentUser here to allow uploading
-        // if the bucket is public, even if auth failed.
-
         const newPhotos: FirebasePhoto[] = [];
         const total = files.length;
         let current = 0;
         setUploadProgress({ current: 0, total });
 
         const failedUploads: string[] = [];
+        let corsErrorDetected = false;
 
         let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
 
@@ -692,9 +751,19 @@ const EditorApp: React.FC = () => {
                     order: sessionData.photos.photos.length + i
                 });
 
-            } catch (error) {
+            } catch (error: any) {
                 console.error(`Error uploading ${file.name}:`, error);
                 failedUploads.push(file.name);
+
+                // Detect CORS or Access related errors
+                if (
+                    error.code === 'storage/retry-limit-exceeded' ||
+                    error.message?.includes('network') ||
+                    error.message?.includes('CORS') ||
+                    error.status === 0
+                ) {
+                    corsErrorDetected = true;
+                }
             } finally {
                 current++;
                 setUploadProgress({ current, total });
@@ -720,7 +789,11 @@ const EditorApp: React.FC = () => {
         }
 
         if (failedUploads.length > 0) {
-            alert(`Не удалось загрузить следующие файлы (${failedUploads.length}):\n${failedUploads.join('\n')}\n\nВозможные причины:\n1. Ошибка сети.\n2. Бакет не публичный (нет прав allUsers -> Storage Object User).\n3. Не настроен CORS.\n4. Ошибки авторизации (если бакет требует вход).`);
+            if (corsErrorDetected) {
+                setShowCorsModal(true);
+            } else {
+                alert(`Не удалось загрузить следующие файлы (${failedUploads.length}):\n${failedUploads.join('\n')}`);
+            }
         }
     }
 
@@ -780,6 +853,8 @@ const EditorApp: React.FC = () => {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
             >
+                {showCorsModal && <CorsTroubleshootModal onClose={() => setShowCorsModal(false)} />}
+
                 {/* Hidden File Input */}
                 <input
                     type="file"
