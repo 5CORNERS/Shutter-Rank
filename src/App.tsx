@@ -778,16 +778,29 @@ const App: React.FC = () => {
     };
 
     // Components for cleaner render
-    const ExpandedGroupComponent = ({ item, groupData }: { item: PhotoStack, groupData: any }) => {
+    const ExpandedGroupComponent = ({ item, groupData, isClosing }: { item: PhotoStack, groupData: any, isClosing: boolean }) => {
         const isExpanded = expandedGroupId === item.groupId;
-        const isClosing = closingGroupId === item.groupId;
         const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
 
-        if (!isExpanded && !isClosing) return null;
+        // Internal state to trigger the class application AFTER mount
+        const [animateOpen, setAnimateOpen] = useState(false);
+
+        useEffect(() => {
+            if (isExpanded) {
+                // Force a reflow/paint in the collapsed state first
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        setAnimateOpen(true);
+                    });
+                });
+            } else if (isClosing) {
+                setAnimateOpen(false);
+            }
+        }, [isExpanded, isClosing]);
 
         return (
             <div className="col-span-full" key={`expanded-${item.groupId}`}>
-                <div id={`expanded-group-wrapper-${item.groupId}`} className={`expanded-group-wrapper ${isExpanded ? 'expanded' : ''}`}>
+                <div id={`expanded-group-wrapper-${item.groupId}`} className={`expanded-group-wrapper ${animateOpen ? 'expanded' : ''}`}>
                     <div className="expanded-group-container">
                         <div className="expanded-group-content">
                             <div className="expanded-group-grid-wrapper opacity-0 transition-opacity duration-300 delay-[0.6s]">
@@ -1050,6 +1063,7 @@ const App: React.FC = () => {
 
                             let expandedItemToRender: PhotoStack | null = null;
                             let expandedGroupData: any = null;
+                            let isRenderedGroupClosing = false;
 
                             // We only do this in GRID layout. Original layout falls back to in-place expansion (simpler).
                             if (settings.layout === 'grid') {
@@ -1063,6 +1077,7 @@ const App: React.FC = () => {
                                         if (activeRow === currentRow && (isLastInRow || isLastItem)) {
                                             expandedItemToRender = sortedGalleryItems[activeItemIndex] as PhotoStack;
                                             expandedGroupData = groups[activeId];
+                                            isRenderedGroupClosing = closingGroupId === activeId;
                                         }
                                     }
                                 }
@@ -1093,7 +1108,11 @@ const App: React.FC = () => {
                                                 isTouchDevice={isTouchDevice}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
-                                                <ExpandedGroupComponent item={item} groupData={groups[item.groupId]} />
+                                                <ExpandedGroupComponent
+                                                    item={item}
+                                                    groupData={groups[item.groupId]}
+                                                    isClosing={closingGroupId === item.groupId}
+                                                />
                                             )}
                                         </div>
                                     ) : (
@@ -1114,7 +1133,11 @@ const App: React.FC = () => {
 
                                     {/* Inject Expanded Row if applicable (Grid Mode Only) */}
                                     {expandedItemToRender && (
-                                        <ExpandedGroupComponent item={expandedItemToRender} groupData={expandedGroupData} />
+                                        <ExpandedGroupComponent
+                                            item={expandedItemToRender}
+                                            groupData={expandedGroupData}
+                                            isClosing={isRenderedGroupClosing}
+                                        />
                                     )}
                                 </React.Fragment>
                             );

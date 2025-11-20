@@ -84,13 +84,20 @@
 .expanded-group-wrapper {
     display: grid;
     grid-template-rows: 0fr;
-    /* Step 1: Height transition (slower for cinematic feel) */
-    transition: grid-template-rows 0.6s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
+    /* Default (Closing) Transition Sequence: */
+    /* 1. Opacity (instant or fast) */
+    /* 2. Width/Clip-path (closes first) */
+    /* 3. Height (closes last, after width is done) */
+    transition: grid-template-rows 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.6s;
 }
 
 .expanded-group-wrapper.expanded {
+    /* Opening Transition Sequence: */
+    /* 1. Height (opens first) */
+    /* 2. Width/Clip-path (opens after height) */
     grid-template-rows: 1fr;
+    transition: grid-template-rows 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0s;
 }
 
 .expanded-group-container {
@@ -103,32 +110,52 @@
     width: 100%;
     min-height: fit-content;
     margin: 0 auto;
-    /* Initial padding/margin state for collapsed item to prevent jump */
-    padding: 0 1rem;
+
+    /* CLOSED STATE (Start/End) */
     margin-top: 0;
     margin-bottom: 0;
-
-    /* Step 2: Width/Reveal transition */
-    /* Start state (collapsed): Narrow beam (simulating the tab) */
+    padding: 0 1rem;
     clip-path: inset(0 45% 0 45%);
+    opacity: 0;
 
-    /* Add margin/padding to transitions to animate the vertical space collapse */
-    transition: clip-path 0.6s ease-in-out 0.5s, margin 0.6s ease-in-out, padding 0.6s ease-in-out;
+    /* Closing Transition (Reverse): */
+    /* Width closes immediately (0s delay), Margins/Padding close with it */
+    /* Opacity fades out immediately */
+    transition:
+            clip-path 0.6s ease-in-out 0s,
+            margin 0.6s ease-in-out 0s,
+            padding 0.6s ease-in-out 0s,
+            opacity 0.3s ease-out 0s;
 }
 
 .expanded-group-wrapper.expanded .expanded-group-content {
-    /* End state (expanded): Full width and proper spacing */
+    /* OPEN STATE */
     clip-path: inset(0 0 0 0);
     margin-top: 0.5rem; /* mt-2 */
     margin-bottom: 1.5rem; /* mb-6 */
     padding: 1rem; /* p-4 */
+    opacity: 1;
+
+    /* Opening Transition: */
+    /* Width/Clip/Margin wait 0.6s for height to open */
+    /* Opacity waits 1.0s for width to almost finish */
+    transition:
+            clip-path 0.6s ease-in-out 0.6s,
+            margin 0.6s ease-in-out 0.6s,
+            padding 0.6s ease-in-out 0.6s,
+            opacity 0.3s ease-out 1.0s;
 }
 
-/* Step 3: Content Fade In */
-/* Helper class added in App.tsx to the inner wrapper */
+/* Step 3: Content Fade In (Inner Wrapper) */
+.expanded-group-grid-wrapper {
+    opacity: 0;
+    transition: opacity 0.3s ease-out 0s;
+}
+
 .expanded-group-wrapper.expanded .expanded-group-grid-wrapper {
     opacity: 1;
-    /* Delay fade-in until width is fully expanded */
+    /* Wait for the box to fully form before showing content */
+    transition: opacity 0.5s ease-out 1.2s;
 }
 
 
