@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent layout thrashing when scrollbar appears/disappears */
+html {
+    scrollbar-gutter: stable;
+}
+
 .dragging {
     opacity: 0.4;
     background: #1f2937; /* gray-800 */
@@ -85,16 +90,14 @@
     display: grid;
     grid-template-rows: 0fr;
     overflow: hidden;
-    /* Closing Transition Sequence (Smoother & Visible): */
-    /* Height shrinks only after width has shrunk */
-    transition: grid-template-rows 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.5s;
+    /* CLOSING PHASE 2: Height shrinks (Wait 0.5s for width to close first) */
+    transition: grid-template-rows 0.5s ease-in-out 0.5s;
 }
 
 .expanded-group-wrapper.expanded {
-    /* Opening Transition Sequence (Faster): */
-    /* Height opens immediately */
+    /* OPENING PHASE 1: Height grows immediately */
     grid-template-rows: 1fr;
-    transition: grid-template-rows 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0s;
+    transition: grid-template-rows 0.5s ease-in-out 0s;
 }
 
 .expanded-group-container {
@@ -112,18 +115,16 @@
     margin-top: 0;
     margin-bottom: 0;
     padding: 0 1rem;
-    /* Make the tab clip slightly wider to be more visible during closing */
-    clip-path: inset(0 40% 0 40%);
+    /* Narrow clip-path for tab effect */
+    clip-path: inset(0 45% 0 45%);
     opacity: 0;
 
-    /* Closing Transition (Reverse): */
-    /* Width/Margin/Padding shrink immediately (0s delay) */
-    /* Opacity fades out WITH the width shrink (0s delay) so it stays visible */
+    /* CLOSING PHASE 1: Width/Opacity shrink immediately */
     transition:
             clip-path 0.5s ease-in-out 0s,
             margin 0.5s ease-in-out 0s,
             padding 0.5s ease-in-out 0s,
-            opacity 0.4s ease-out 0s;
+            opacity 0.5s ease-in-out 0s;
 }
 
 .expanded-group-wrapper.expanded .expanded-group-content {
@@ -134,17 +135,15 @@
     padding: 1rem; /* p-4 */
     opacity: 1;
 
-    /* Opening Transition (Faster): */
-    /* Width/Margin wait 0.5s for height to open */
-    /* Opacity waits 0.7s for width to be mostly open */
+    /* OPENING PHASE 2: Width/Opacity grow (Wait 0.4s for height) */
     transition:
-            clip-path 0.4s ease-in-out 0.5s,
-            margin 0.4s ease-in-out 0.5s,
-            padding 0.4s ease-in-out 0.5s,
-            opacity 0.3s ease-out 0.7s;
+            clip-path 0.4s ease-in-out 0.4s,
+            margin 0.4s ease-in-out 0.4s,
+            padding 0.4s ease-in-out 0.4s,
+            opacity 0.4s ease-in-out 0.4s;
 }
 
-/* Step 3: Content Fade In (Inner Wrapper) */
+/* Content Fade In (Inner Wrapper) */
 .expanded-group-grid-wrapper {
     opacity: 0;
     transition: opacity 0.3s ease-out 0s;
@@ -152,8 +151,8 @@
 
 .expanded-group-wrapper.expanded .expanded-group-grid-wrapper {
     opacity: 1;
-    /* Wait for the box to fully form before showing content */
-    transition: opacity 0.4s ease-out 0.9s;
+    /* Wait for everything else */
+    transition: opacity 0.4s ease-out 0.7s;
 }
 
 
