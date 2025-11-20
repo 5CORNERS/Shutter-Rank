@@ -90,14 +90,14 @@ html {
     display: grid;
     grid-template-rows: 0fr;
     overflow: hidden;
-    /* CLOSING PHASE 2: Height shrinks (Wait 0.5s for width to close first) */
-    transition: grid-template-rows 0.5s ease-in-out 0.5s;
+    /* CLOSING PHASE 2: Height shrinks (Wait 0.7s for width to close first) */
+    transition: grid-template-rows 0.7s ease-in-out 0.7s;
 }
 
 .expanded-group-wrapper.expanded {
     /* OPENING PHASE 1: Height grows immediately */
     grid-template-rows: 1fr;
-    transition: grid-template-rows 0.5s ease-in-out 0s;
+    transition: grid-template-rows 0.7s ease-in-out 0s;
 }
 
 .expanded-group-container {
@@ -121,10 +121,10 @@ html {
 
     /* CLOSING PHASE 1: Width/Opacity shrink immediately */
     transition:
-            clip-path 0.5s ease-in-out 0s,
-            margin 0.5s ease-in-out 0s,
-            padding 0.5s ease-in-out 0s,
-            opacity 0.5s ease-in-out 0s;
+            clip-path 0.7s ease-in-out 0s,
+            margin 0.7s ease-in-out 0s,
+            padding 0.7s ease-in-out 0s,
+            opacity 0.7s ease-in-out 0s;
 }
 
 .expanded-group-wrapper.expanded .expanded-group-content {
@@ -135,12 +135,12 @@ html {
     padding: 1rem; /* p-4 */
     opacity: 1;
 
-    /* OPENING PHASE 2: Width/Opacity grow (Wait 0.4s for height) */
+    /* OPENING PHASE 2: Width/Opacity grow (Wait 0.7s for height) */
     transition:
-            clip-path 0.4s ease-in-out 0.4s,
-            margin 0.4s ease-in-out 0.4s,
-            padding 0.4s ease-in-out 0.4s,
-            opacity 0.4s ease-in-out 0.4s;
+            clip-path 0.7s ease-in-out 0.7s,
+            margin 0.7s ease-in-out 0.7s,
+            padding 0.7s ease-in-out 0.7s,
+            opacity 0.7s ease-in-out 0.7s;
 }
 
 /* Content Fade In (Inner Wrapper) */
@@ -152,7 +152,7 @@ html {
 .expanded-group-wrapper.expanded .expanded-group-grid-wrapper {
     opacity: 1;
     /* Wait for everything else */
-    transition: opacity 0.4s ease-out 0.7s;
+    transition: opacity 0.7s ease-out 1s;
 }
 
 

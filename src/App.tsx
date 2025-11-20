@@ -39,6 +39,119 @@ const getUserId = (): string => {
     return userId;
 };
 
+// Extracted component to prevent re-mounting on parent state changes
+const ExpandedGroupComponent = ({
+                                    item,
+                                    groupData,
+                                    isClosing,
+                                    expandedGroupId,
+                                    showHiddenPhotos,
+                                    hidingPhotoId,
+                                    settings,
+                                    onCollapse,
+                                    onRate,
+                                    onImageClick,
+                                    onToggleVisibility,
+                                    groupSelections,
+                                    onSelectionChange,
+                                    isTouchDevice
+                                }: {
+    item: PhotoStack,
+    groupData: any,
+    isClosing: boolean,
+    expandedGroupId: string | null,
+    showHiddenPhotos: boolean,
+    hidingPhotoId: number | null,
+    settings: Settings | null,
+    onCollapse: (groupId: string) => void,
+    onRate: (photoId: number, rating: number) => void,
+    onImageClick: (photo: Photo) => void,
+    onToggleVisibility: (photoId: number) => void,
+    groupSelections: Record<string, number | null>,
+    onSelectionChange: (groupId: string, photoId: number | null) => void,
+    isTouchDevice: boolean
+}) => {
+    const isExpanded = expandedGroupId === item.groupId;
+    const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
+
+    // Internal state to trigger the class application AFTER mount
+    const [animateOpen, setAnimateOpen] = useState(false);
+
+    useEffect(() => {
+        if (isExpanded) {
+            // Force a reflow/paint in the collapsed state first
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setAnimateOpen(true);
+                });
+            });
+        } else if (isClosing) {
+            setAnimateOpen(false);
+        }
+    }, [isExpanded, isClosing]);
+
+    return (
+        <div className="col-span-full" key={`expanded-${item.groupId}`}>
+            <div id={`expanded-group-wrapper-${item.groupId}`} className={`expanded-group-wrapper ${animateOpen ? 'expanded' : ''}`}>
+                <div className="expanded-group-container">
+                    <div className="expanded-group-content">
+                        <div className="expanded-group-grid-wrapper opacity-0">
+                            <div className="flex justify-between items-start pt-1">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-200">Группа: «{groupData?.name || ''}»</h3>
+                                    {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
+                                </div>
+                                <button onClick={() => onCollapse(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors flex-shrink-0 ml-4">
+                                    <ChevronUp size={18}/>
+                                    Свернуть группу
+                                </button>
+                            </div>
+                            <div className={`pt-4 ${settings?.layout === 'grid'
+                                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+                                : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
+                            }`}>
+                                {photosToShow.map(photo => {
+                                    const isSelected = item.selectedPhotoId === photo.id;
+                                    const isDimmed = item.selectedPhotoId !== null && !isSelected;
+                                    return (
+                                        <div key={photo.id} className={settings?.layout === 'original' ? 'break-inside-avoid' : ''}>
+                                            <PhotoCard
+                                                photo={photo}
+                                                onRate={onRate}
+                                                onImageClick={onImageClick}
+                                                displayVotes={false}
+                                                layoutMode={settings?.layout || 'grid'}
+                                                gridAspectRatio={settings?.gridAspectRatio || '4/3'}
+                                                onToggleVisibility={onToggleVisibility}
+                                                isDimmed={isDimmed}
+                                                isHiding={hidingPhotoId === photo.id}
+                                                showSelectionControl={true}
+                                                isSelected={isSelected}
+                                                onSelect={() => {
+                                                    const currentSelection = groupSelections[item.groupId] || null;
+                                                    const newSelectedId = currentSelection === photo.id ? null : photo.id;
+                                                    onSelectionChange(item.groupId, newSelectedId);
+                                                }}
+                                                isFilterActive={showHiddenPhotos}
+                                            />
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            <div className="flex justify-center pt-6">
+                                <button onClick={() => onCollapse(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                                    <ChevronUp size={18}/>
+                                    Свернуть группу
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 const App: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [availableSessions, setAvailableSessions] = useState<SessionInfo[]>([]);
@@ -772,93 +885,11 @@ const App: React.FC = () => {
         setClosingGroupId(groupId);
         setExpandedGroupId(null);
 
+        // Increase timeout to match slower animation (1.4s total animation + buffer)
         closingTimeoutRef.current = window.setTimeout(() => {
             setClosingGroupId(null);
-        }, 1100); // Increased animation duration matches CSS for slow closing
+        }, 1500);
     };
-
-    // Components for cleaner render
-    const ExpandedGroupComponent = ({ item, groupData, isClosing }: { item: PhotoStack, groupData: any, isClosing: boolean }) => {
-        const isExpanded = expandedGroupId === item.groupId;
-        const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
-
-        // Internal state to trigger the class application AFTER mount
-        const [animateOpen, setAnimateOpen] = useState(false);
-
-        useEffect(() => {
-            if (isExpanded) {
-                // Force a reflow/paint in the collapsed state first
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        setAnimateOpen(true);
-                    });
-                });
-            } else if (isClosing) {
-                setAnimateOpen(false);
-            }
-        }, [isExpanded, isClosing]);
-
-        return (
-            <div className="col-span-full" key={`expanded-${item.groupId}`}>
-                <div id={`expanded-group-wrapper-${item.groupId}`} className={`expanded-group-wrapper ${animateOpen ? 'expanded' : ''}`}>
-                    <div className="expanded-group-container">
-                        <div className="expanded-group-content">
-                            <div className="expanded-group-grid-wrapper opacity-0 transition-opacity duration-300 delay-[0.6s]">
-                                <div className="flex justify-between items-start pt-1">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-200">Группа: «{groupData?.name || ''}»</h3>
-                                        {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
-                                    </div>
-                                    <button onClick={() => handleCollapseGroup(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors flex-shrink-0 ml-4">
-                                        <ChevronUp size={18}/>
-                                        Свернуть группу
-                                    </button>
-                                </div>
-                                <div className={`pt-4 ${settings?.layout === 'grid'
-                                    ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-                                    : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
-                                }`}>
-                                    {photosToShow.map(photo => {
-                                        const isSelected = item.selectedPhotoId === photo.id;
-                                        const isDimmed = item.selectedPhotoId !== null && !isSelected;
-                                        return (
-                                            <div key={photo.id} className={settings?.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                                <PhotoCard
-                                                    photo={photo}
-                                                    onRate={handleRateInGroup}
-                                                    onImageClick={handleImageClick}
-                                                    displayVotes={false}
-                                                    layoutMode={settings?.layout || 'grid'}
-                                                    gridAspectRatio={settings?.gridAspectRatio || '4/3'}
-                                                    onToggleVisibility={handleToggleVisibility}
-                                                    isDimmed={isDimmed}
-                                                    isHiding={hidingPhotoId === photo.id}
-                                                    showSelectionControl={true}
-                                                    isSelected={isSelected}
-                                                    onSelect={() => {
-                                                        const currentSelection = groupSelections[item.groupId] || null;
-                                                        const newSelectedId = currentSelection === photo.id ? null : photo.id;
-                                                        handleGroupSelectionChange(item.groupId, newSelectedId);
-                                                    }}
-                                                    isFilterActive={showHiddenPhotos}
-                                                />
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                                <div className="flex justify-center pt-6">
-                                    <button onClick={() => handleCollapseGroup(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
-                                        <ChevronUp size={18}/>
-                                        Свернуть группу
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     const StatsInfo = ({isCompact = false}) => {
         if (!config) return null;
@@ -1112,6 +1143,17 @@ const App: React.FC = () => {
                                                     item={item}
                                                     groupData={groups[item.groupId]}
                                                     isClosing={closingGroupId === item.groupId}
+                                                    expandedGroupId={expandedGroupId}
+                                                    showHiddenPhotos={showHiddenPhotos}
+                                                    hidingPhotoId={hidingPhotoId}
+                                                    settings={settings}
+                                                    onCollapse={handleCollapseGroup}
+                                                    onRate={handleRateInGroup}
+                                                    onImageClick={handleImageClick}
+                                                    onToggleVisibility={handleToggleVisibility}
+                                                    groupSelections={groupSelections}
+                                                    onSelectionChange={handleGroupSelectionChange}
+                                                    isTouchDevice={isTouchDevice}
                                                 />
                                             )}
                                         </div>
@@ -1137,6 +1179,17 @@ const App: React.FC = () => {
                                             item={expandedItemToRender}
                                             groupData={expandedGroupData}
                                             isClosing={isRenderedGroupClosing}
+                                            expandedGroupId={expandedGroupId}
+                                            showHiddenPhotos={showHiddenPhotos}
+                                            hidingPhotoId={hidingPhotoId}
+                                            settings={settings}
+                                            onCollapse={handleCollapseGroup}
+                                            onRate={handleRateInGroup}
+                                            onImageClick={handleImageClick}
+                                            onToggleVisibility={handleToggleVisibility}
+                                            groupSelections={groupSelections}
+                                            onSelectionChange={handleGroupSelectionChange}
+                                            isTouchDevice={isTouchDevice}
                                         />
                                     )}
                                 </React.Fragment>
