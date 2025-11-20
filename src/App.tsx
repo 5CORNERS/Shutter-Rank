@@ -774,7 +774,7 @@ const App: React.FC = () => {
 
         closingTimeoutRef.current = window.setTimeout(() => {
             setClosingGroupId(null);
-        }, 1300); // Increased animation duration matches CSS for slow closing
+        }, 1100); // Increased animation duration matches CSS for slow closing
     };
 
     // Components for cleaner render
