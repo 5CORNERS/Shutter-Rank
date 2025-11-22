@@ -19,51 +19,21 @@ html {
     margin: 0.5rem 0; /* Adjusted margin */
 }
 
-/* Photo Stack Visual Effect */
-.photo-stack-visual {
-    position: relative;
-    cursor: pointer;
-}
-
-.photo-stack-visual::before,
-.photo-stack-visual::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: #1f2937; /* gray-800 */
-    border-radius: 0.5rem; /* rounded-lg */
-    border: 1px solid #4b5563; /* gray-600 */
-    transition: transform 0.3s ease-in-out;
-    z-index: 0;
-}
-
-.photo-stack-visual::before {
-    transform: rotate(-3deg);
-}
-
-.photo-stack-visual::after {
-    transform: rotate(3deg);
-}
-
-.photo-stack-visual:hover::before {
-    transform: rotate(-5deg) scale(1.02);
-}
-
-.photo-stack-visual:hover::after {
-    transform: rotate(5deg) scale(1.02);
+/* Dimmed effect for expanded stack */
+.dimmed-stack > div:first-child {
+    opacity: 0.4;
+    filter: grayscale(0.5) blur(0.5px);
+    transition: all 0.5s ease;
 }
 
 /* Animation for stack expansion */
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .animate-fadeIn {
-    animation: fadeIn 0.3s ease-out forwards;
+  animation: fadeIn 0.3s ease-out forwards;
 }
 
 /* New Selection Control */
@@ -78,11 +48,11 @@ html {
 }
 
 @keyframes fade-out {
-    from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.95); }
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
 }
 .animate-hide {
-    animation: fade-out 0.4s ease-out forwards;
+  animation: fade-out 0.4s ease-out forwards;
 }
 
 /* Styles for inline expanded groups with animation */
@@ -91,7 +61,7 @@ html {
     grid-template-rows: 0fr;
     overflow: hidden;
     /* CLOSING PHASE 2: Height shrinks (Wait 0.7s for width to close first) */
-    transition: grid-template-rows 0.7s ease-in-out 0.7s;
+    transition: grid-template-rows 0.7s ease-in-out 0.7s; 
 }
 
 .expanded-group-wrapper.expanded {
@@ -110,21 +80,21 @@ html {
     width: 100%;
     min-height: fit-content;
     margin: 0 auto;
-
+    
     /* CLOSED STATE (Start/End) */
     margin-top: 0;
     margin-bottom: 0;
     padding: 0 1rem;
     /* Narrow clip-path for tab effect */
-    clip-path: inset(0 45% 0 45%);
+    clip-path: inset(0 45% 0 45%); 
     opacity: 0;
-
+    
     /* CLOSING PHASE 1: Width/Opacity shrink immediately */
-    transition:
-            clip-path 0.7s ease-in-out 0s,
-            margin 0.7s ease-in-out 0s,
-            padding 0.7s ease-in-out 0s,
-            opacity 0.7s ease-in-out 0s;
+    transition: 
+        clip-path 0.7s ease-in-out 0s,
+        margin 0.7s ease-in-out 0s,
+        padding 0.7s ease-in-out 0s,
+        opacity 0.7s ease-in-out 0s;
 }
 
 .expanded-group-wrapper.expanded .expanded-group-content {
@@ -136,11 +106,11 @@ html {
     opacity: 1;
 
     /* OPENING PHASE 2: Width/Opacity grow (Wait 0.7s for height) */
-    transition:
-            clip-path 0.7s ease-in-out 0.7s,
-            margin 0.7s ease-in-out 0.7s,
-            padding 0.7s ease-in-out 0.7s,
-            opacity 0.7s ease-in-out 0.7s;
+    transition: 
+        clip-path 0.7s ease-in-out 0.7s,
+        margin 0.7s ease-in-out 0.7s,
+        padding 0.7s ease-in-out 0.7s,
+        opacity 0.7s ease-in-out 0.7s;
 }
 
 /* Content Fade In (Inner Wrapper) */
@@ -152,7 +122,7 @@ html {
 .expanded-group-wrapper.expanded .expanded-group-grid-wrapper {
     opacity: 1;
     /* Wait for everything else */
-    transition: opacity 0.7s ease-out 1s;
+    transition: opacity 0.7s ease-out 1s; 
 }
 
 
