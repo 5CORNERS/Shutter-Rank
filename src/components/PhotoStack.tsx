@@ -17,20 +17,20 @@ interface PhotoStackProps {
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
-    stack, groupName, onRate, onImageClick, onExpand, displayVotes, layoutMode, gridAspectRatio, onShowToast
-}) => {
-    
+                                                                   stack, groupName, onRate, onImageClick, onExpand, displayVotes, layoutMode, gridAspectRatio, onShowToast
+                                                               }) => {
+
     // Determine which photos to show in the stack layers
     const { topPhoto, middlePhoto, bottomPhoto } = useMemo(() => {
         const selected = stack.photos.find(p => p.id === stack.selectedPhotoId);
         // If a photo is selected, it MUST be on top.
         // If not, show the first photo on top (grayed out).
         const top = selected || stack.photos[0];
-        
+
         // Find distinct photos for the layers beneath
         // Prefer photos that are NOT the top photo
         const others = stack.photos.filter(p => p.id !== top.id);
-        
+
         let middle = others[0];
         let bottom = others[1];
 
@@ -58,82 +58,87 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
             onRate(photoId, rating);
         }
     };
-    
+
     if (!topPhoto) return null;
 
     return (
         <div id={`photo-stack-wrapper-${stack.groupId}`} className={`relative group pb-8 ${isExpanded ? 'dimmed-stack' : ''}`}>
             <div id={`photo-stack-${topPhoto.id}`} className="relative cursor-pointer h-full" onClick={onExpand}>
-                
-                {/* Stack Layers Container */}
-                <div className="relative z-10">
-                    {/* Bottom Layer (Rotated Right) - Z: 10 */}
-                    <div className="absolute inset-0 transform translate-x-2 translate-y-2 rotate-6 z-10 opacity-90 transition-transform duration-300 group-hover:rotate-12 group-hover:translate-x-3">
-                        <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-500 ring-1 ring-black/50 brightness-75 contrast-125">
-                             <PhotoCard
-                                photo={bottomPhoto}
-                                onRate={()=>{}}
-                                onImageClick={()=>{}}
-                                onToggleVisibility={()=>{}}
-                                displayVotes={false}
-                                layoutMode={layoutMode}
-                                gridAspectRatio={gridAspectRatio}
-                                isReadOnly={true}
-                                showRatingControls={false}
-                                showVisibilityToggle={false}
-                            />
-                        </div>
-                    </div>
 
-                    {/* Middle Layer (Rotated Left) - Z: 20 */}
-                    <div className="absolute inset-0 transform -translate-x-1 translate-y-1 -rotate-3 z-20 opacity-95 transition-transform duration-300 group-hover:-rotate-6 group-hover:-translate-x-2">
-                         <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-500 ring-1 ring-black/50 brightness-75 contrast-110">
-                             <PhotoCard
-                                photo={middlePhoto}
-                                onRate={()=>{}}
-                                onImageClick={()=>{}}
-                                onToggleVisibility={()=>{}}
-                                displayVotes={false}
-                                layoutMode={layoutMode}
-                                gridAspectRatio={gridAspectRatio}
-                                isReadOnly={true}
-                                showRatingControls={false}
-                                showVisibilityToggle={false}
-                            />
-                        </div>
-                    </div>
+                {/*
+                   Stack Construction (Z-Index Order):
+                   Z-0:  Bottom Card (Background)
+                   Z-10: Middle Card (Background)
+                   Z-20: Tab (Name) - Must be above background cards but below top card
+                   Z-30: Top Card (Cover)
+                */}
 
-                    {/* Top Layer (Main Card) - Z: 30 (Highest) */}
-                    <div className="relative z-30 transition-transform duration-300 group-hover:-translate-y-1">
+                {/* Bottom Layer (Rotated Right + Shifted) - Z: 0 */}
+                <div className="absolute inset-0 transform translate-x-4 translate-y-3 rotate-6 z-0 opacity-90 transition-transform duration-300 group-hover:rotate-12 group-hover:translate-x-6 group-hover:translate-y-4">
+                    <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-500 ring-1 ring-black/50 brightness-75 contrast-125">
                         <PhotoCard
-                            photo={topPhoto}
-                            onRate={handleRateCover}
-                            onImageClick={onExpand}
-                            onToggleVisibility={() => {}} 
-                            displayVotes={displayVotes}
+                            photo={bottomPhoto}
+                            onRate={()=>{}}
+                            onImageClick={()=>{}}
+                            onToggleVisibility={()=>{}}
+                            displayVotes={false}
                             layoutMode={layoutMode}
                             gridAspectRatio={gridAspectRatio}
-                            showVisibilityToggle={false} // Hide toggle on stack cover
-                            isGrayscale={!isSelected} // Gray if nothing selected
+                            isReadOnly={true}
+                            showRatingControls={false}
+                            showVisibilityToggle={false}
                         />
-                        
-                        {/* Count Badge */}
-                        <div className="absolute top-2 right-2 z-40 bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 pointer-events-none shadow-lg border border-white/10">
-                            <Layers size={16} className="text-indigo-400" />
-                            <span>{stack.photos.length}</span>
-                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Tab / Label - Z: 0 (Lowest, behind stack) */}
-            <div 
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 h-9 bg-gray-800 border border-t-0 border-gray-600 rounded-b-lg flex items-center justify-center gap-2 text-xs text-gray-300 cursor-pointer group-hover:bg-gray-700 group-hover:text-white transition-all px-4 shadow-lg z-0"
-                onClick={onExpand}
-                style={{ maxWidth: '90%', minWidth: '120px' }}
-            >
-                <span className="truncate font-medium">Группа «{groupName}»</span>
-                <ChevronDown className="w-3 h-3 flex-shrink-0 text-indigo-400" />
+                {/* Middle Layer (Rotated Left + Shifted) - Z: 10 */}
+                <div className="absolute inset-0 transform -translate-x-2 -translate-y-1 -rotate-3 z-10 opacity-95 transition-transform duration-300 group-hover:-rotate-6 group-hover:-translate-x-4 group-hover:-translate-y-2">
+                    <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-500 ring-1 ring-black/50 brightness-75 contrast-110">
+                        <PhotoCard
+                            photo={middlePhoto}
+                            onRate={()=>{}}
+                            onImageClick={()=>{}}
+                            onToggleVisibility={()=>{}}
+                            displayVotes={false}
+                            layoutMode={layoutMode}
+                            gridAspectRatio={gridAspectRatio}
+                            isReadOnly={true}
+                            showRatingControls={false}
+                            showVisibilityToggle={false}
+                        />
+                    </div>
+                </div>
+
+                {/* Tab / Label - Z: 20 (Between Middle and Top) */}
+                <div
+                    className="absolute bottom-0 left-1/2 -translate-x-1/2 h-9 bg-gray-800 border border-t-0 border-gray-600 rounded-b-lg flex items-center justify-center gap-2 text-xs text-gray-300 cursor-pointer group-hover:bg-gray-700 group-hover:text-white transition-all px-4 shadow-lg z-20"
+                    onClick={(e) => { e.stopPropagation(); onExpand(); }}
+                    style={{ maxWidth: '90%', minWidth: '120px' }}
+                >
+                    <span className="truncate font-medium">Группа «{groupName}»</span>
+                    <ChevronDown className="w-3 h-3 flex-shrink-0 text-indigo-400" />
+                </div>
+
+                {/* Top Layer (Main Card) - Z: 30 (Highest) */}
+                <div className="relative z-30 transition-transform duration-300 group-hover:-translate-y-1">
+                    <PhotoCard
+                        photo={topPhoto}
+                        onRate={handleRateCover}
+                        onImageClick={onExpand}
+                        onToggleVisibility={() => {}}
+                        displayVotes={displayVotes}
+                        layoutMode={layoutMode}
+                        gridAspectRatio={gridAspectRatio}
+                        showVisibilityToggle={false} // Hide toggle on stack cover
+                        isGrayscale={!isSelected} // Gray if nothing selected (but color on hover via CSS)
+                    />
+
+                    {/* Count Badge */}
+                    <div className="absolute top-2 right-2 z-40 bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 pointer-events-none shadow-lg border border-white/10">
+                        <Layers size={16} className="text-indigo-400" />
+                        <span>{stack.photos.length}</span>
+                    </div>
+                </div>
             </div>
         </div>
     )
