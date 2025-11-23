@@ -177,7 +177,8 @@ const App: React.FC = () => {
     const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
     const [immersivePhotoId, setImmersivePhotoId] = useState<number | null>(null);
 
-    const [sortBy, setSortBy] = useState<SortMode>('id');
+    const [votingSort, setVotingSort] = useState<'id' | 'score'>('id');
+    const [resultsSort, setResultsSort] = useState<SortMode>('stars');
     const [votingPhase, setVotingPhase] = useState<VotingPhase>('voting');
     const [status, setStatus] = useState<AppStatus>('loading');
     const [isScrolled, setIsScrolled] = useState(false);
@@ -201,6 +202,7 @@ const App: React.FC = () => {
     const columnsCount = useColumnCount();
     const headerRef = useRef<HTMLDivElement>(null);
     const closingTimeoutRef = useRef<number | null>(null);
+    const frozenOrderRef = useRef<string[] | null>(null);
 
     const openConfirmation = (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
         setConfirmation({ isOpen: true, title, message, onConfirm, onCancel });
@@ -729,59 +731,90 @@ const App: React.FC = () => {
             }).filter((item): item is GalleryItem => item !== null);
         }
 
-        if (sortBy === 'id') {
-            return itemsCopy;
+        const currentSortMode = votingPhase === 'voting' ? votingSort : resultsSort;
+
+        const performSort = (items: GalleryItem[]) => {
+            if (currentSortMode === 'id') return items;
+
+            return [...items].sort((a, b) => {
+                let photoA: Photo;
+                let photoB: Photo;
+
+                if (a.type === 'photo') {
+                    photoA = a;
+                } else {
+                    if (votingPhase === 'voting') {
+                        photoA = a.photos.find(p => p.id === a.selectedPhotoId) || a.photos[0];
+                    } else {
+                        // Find best photo in stack based on current sort criteria
+                        photoA = a.photos.reduce((best, current) => {
+                            return comparePhotos(current, best, currentSortMode) < 0 ? current : best;
+                        }, a.photos[0]);
+                    }
+                }
+
+                if (b.type === 'photo') {
+                    photoB = b;
+                } else {
+                    if (votingPhase === 'voting') {
+                        photoB = b.photos.find(p => p.id === b.selectedPhotoId) || b.photos[0];
+                    } else {
+                        photoB = b.photos.reduce((best, current) => {
+                            return comparePhotos(current, best, currentSortMode) < 0 ? current : best;
+                        }, b.photos[0]);
+                    }
+                }
+
+                if (votingPhase === 'voting') {
+                    // Simple sort by user rating in voting mode
+                    if (currentSortMode === 'score') {
+                        const scoreA = photoA.userRating || 0;
+                        const scoreB = photoB.userRating || 0;
+                        if (scoreB !== scoreA) return scoreB - scoreA;
+                    }
+                } else {
+                    // Complex sort in results mode
+                    const comparison = comparePhotos(photoA, photoB, currentSortMode);
+                    if (comparison !== 0) return comparison;
+                }
+
+                // Fallback to original order
+                const orderA = a.type === 'photo' ? (a.order ?? a.id) : (a.photos[0]?.order ?? a.photos[0]?.id ?? 0);
+                const orderB = b.type === 'photo' ? (b.order ?? b.id) : (b.photos[0]?.order ?? b.photos[0]?.id ?? 0);
+                return orderA - orderB;
+            });
+        };
+
+        if (expandedGroupId) {
+            // If a group is open, try to use the frozen order
+            if (!frozenOrderRef.current) {
+                // First render after open: sort and freeze
+                const sorted = performSort(itemsCopy);
+                frozenOrderRef.current = sorted.map(i => i.type === 'stack' ? i.groupId : String(i.id));
+                return sorted;
+            } else {
+                // Subsequent renders: restore frozen order
+                const itemMap = new Map(itemsCopy.map(i => [i.type === 'stack' ? i.groupId : String(i.id), i]));
+                const preservedList: GalleryItem[] = [];
+
+                frozenOrderRef.current.forEach(key => {
+                    const item = itemMap.get(key);
+                    if (item) {
+                        preservedList.push(item);
+                        itemMap.delete(key);
+                    }
+                });
+                // Append any items that might have been added or lost (fallback)
+                preservedList.push(...itemMap.values());
+                return preservedList;
+            }
+        } else {
+            // Group closed: clear freeze and sort normally
+            frozenOrderRef.current = null;
+            return performSort(itemsCopy);
         }
 
-        itemsCopy.sort((a, b) => {
-            let photoA: Photo;
-            let photoB: Photo;
-
-            if (a.type === 'photo') {
-                photoA = a;
-            } else {
-                if (votingPhase === 'voting') {
-                    photoA = a.photos.find(p => p.id === a.selectedPhotoId) || a.photos[0];
-                } else {
-                    // Find best photo in stack based on current sort criteria
-                    photoA = a.photos.reduce((best, current) => {
-                        return comparePhotos(current, best, sortBy) < 0 ? current : best;
-                    }, a.photos[0]);
-                }
-            }
-
-            if (b.type === 'photo') {
-                photoB = b;
-            } else {
-                if (votingPhase === 'voting') {
-                    photoB = b.photos.find(p => p.id === b.selectedPhotoId) || b.photos[0];
-                } else {
-                    photoB = b.photos.reduce((best, current) => {
-                        return comparePhotos(current, best, sortBy) < 0 ? current : best;
-                    }, b.photos[0]);
-                }
-            }
-
-            if (votingPhase === 'voting') {
-                // Simple sort by user rating in voting mode
-                const scoreA = photoA.userRating || 0;
-                const scoreB = photoB.userRating || 0;
-                if (scoreB !== scoreA) return scoreB - scoreA;
-            } else {
-                // Complex sort in results mode
-                const comparison = comparePhotos(photoA, photoB, sortBy);
-                if (comparison !== 0) return comparison;
-            }
-
-            // Fallback to original order
-            const orderA = a.type === 'photo' ? (a.order ?? a.id) : (a.photos[0]?.order ?? a.photos[0]?.id ?? 0);
-            const orderB = b.type === 'photo' ? (b.order ?? b.id) : (b.photos[0]?.order ?? b.photos[0]?.id ?? 0);
-            return orderA - orderB;
-        });
-
-        return itemsCopy;
-
-    }, [galleryItems, showHiddenPhotos, sortBy, votingPhase, hidingPhotoId, expandedGroupId, comparePhotos]);
+    }, [galleryItems, showHiddenPhotos, votingPhase, hidingPhotoId, expandedGroupId, comparePhotos, votingSort, resultsSort]);
 
     const photosForViewer = useMemo(() => {
         // Create a flat list of all photos for seamless navigation in viewers.
@@ -873,10 +906,6 @@ const App: React.FC = () => {
 
     const handleTogglePhase = () => {
         setVotingPhase(p => p === 'voting' ? 'results' : 'voting');
-        // Default to stars sort when switching to results if currently on ID
-        if (votingPhase === 'voting' && sortBy === 'id') {
-            setSortBy('stars');
-        }
     };
 
     const handleSaveSettings = (settings: Settings) => {
@@ -1242,15 +1271,15 @@ const App: React.FC = () => {
                                     <span className="text-gray-400 text-sm self-center w-full sm:w-auto text-center">Сортировать по:</span>
                                     {votingPhase === 'voting' ? (
                                         <>
-                                            <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>№</button>
-                                            <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Мой рейтинг</button>
+                                            <button onClick={() => setVotingSort('id')} className={`px-3 py-1 text-sm rounded-md ${votingSort === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>№</button>
+                                            <button onClick={() => setVotingSort('score')} className={`px-3 py-1 text-sm rounded-md ${votingSort === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Мой рейтинг</button>
                                         </>
                                     ) : (
                                         <>
-                                            <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>№</button>
-                                            <button onClick={() => setSortBy('stars')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'stars' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Звездам</button>
-                                            <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Баллам</button>
-                                            <button onClick={() => setSortBy('count')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'count' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Голосам</button>
+                                            <button onClick={() => setResultsSort('id')} className={`px-3 py-1 text-sm rounded-md ${resultsSort === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>№</button>
+                                            <button onClick={() => setResultsSort('stars')} className={`px-3 py-1 text-sm rounded-md ${resultsSort === 'stars' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Звездам</button>
+                                            <button onClick={() => setResultsSort('score')} className={`px-3 py-1 text-sm rounded-md ${resultsSort === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Баллам</button>
+                                            <button onClick={() => setResultsSort('count')} className={`px-3 py-1 text-sm rounded-md ${resultsSort === 'count' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Голосам</button>
                                         </>
                                     )}
                                 </div>
@@ -1372,9 +1401,9 @@ const App: React.FC = () => {
                     ) : (
                         sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
-                                // Find best photo in stack based on current sort mode (or score by default)
+                                // Find best photo in stack based on current sort mode
                                 const bestPhoto = item.photos.reduce((best, current) => {
-                                    return comparePhotos(current, best, sortBy) < 0 ? current : best;
+                                    return comparePhotos(current, best, resultsSort) < 0 ? current : best;
                                 }, item.photos[0]);
 
                                 if (!bestPhoto) return null;
