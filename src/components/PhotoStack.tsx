@@ -74,7 +74,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 */}
 
                 {/* Bottom Layer (Rotated Right + Shifted) - Z: 0 */}
-                <div className="absolute inset-0 transform translate-x-4 translate-y-3 rotate-3 z-0 opacity-90 transition-transform duration-300 group-hover:rotate-6 group-hover:translate-x-6 group-hover:translate-y-4">
+                <div className="absolute inset-0 transform translate-x-2 translate-y-1 rotate-4 z-0 opacity-90 transition-transform duration-300 group-hover:rotate-6 group-hover:translate-x-3 group-hover:translate-y-2">
                     <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-500 ring-1 ring-black/50 brightness-75 contrast-125">
                         <PhotoCard
                             photo={bottomPhoto}
@@ -92,7 +92,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 </div>
 
                 {/* Middle Layer (Rotated Left + Shifted) - Z: 10 */}
-                <div className="absolute inset-0 transform -translate-x-2 -translate-y-1 -rotate-2 z-10 opacity-95 transition-transform duration-300 group-hover:-rotate-4 group-hover:-translate-x-4 group-hover:-translate-y-2">
+                <div className="absolute inset-0 transform -translate-x-1 translate-y-0 -rotate-2 z-10 opacity-95 transition-transform duration-300 group-hover:-rotate-3 group-hover:-translate-x-2 group-hover:translate-y-1">
                     <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-500 ring-1 ring-black/50 brightness-75 contrast-110">
                         <PhotoCard
                             photo={middlePhoto}
@@ -110,11 +110,11 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 </div>
 
                 {/* Tab / Label - Z: 20 (Between Middle and Top) */}
-                {/* Moved to -bottom-5 to poke out from under the card */}
+                {/* Set exactly to -2.25rem (-bottom-9 equivalent) as requested */}
                 <div
-                    className="absolute -bottom-5 left-1/2 -translate-x-1/2 h-9 bg-gray-800 border border-t-0 border-gray-600 rounded-b-lg flex items-center justify-center gap-2 text-xs text-gray-300 cursor-pointer group-hover:bg-gray-700 group-hover:text-white transition-all px-4 shadow-lg z-20"
+                    className="absolute left-1/2 -translate-x-1/2 h-9 bg-gray-800 border border-t-0 border-gray-600 rounded-b-lg flex items-center justify-center gap-2 text-xs text-gray-300 cursor-pointer group-hover:bg-gray-700 group-hover:text-white transition-all px-4 shadow-lg z-20"
                     onClick={(e) => { e.stopPropagation(); onExpand(); }}
-                    style={{ maxWidth: '90%', minWidth: '120px' }}
+                    style={{ bottom: '-2.25rem', maxWidth: '90%', minWidth: '120px' }}
                 >
                     <span className="truncate font-medium">Группа «{groupName}»</span>
                     <ChevronDown className="w-3 h-3 flex-shrink-0 text-indigo-400" />
