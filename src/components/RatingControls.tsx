@@ -90,7 +90,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
           >
             <Star
               className={`${starSizeClass} transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''} ${disabled ? 'opacity-50' : ''}`}
-              fill={isFilled && variant === 'default' ? 'currentColor' : 'none'} // Don't fill in gray mode usually, or fill with gray
+              fill={isFilled && variant === 'default' ? 'currentColor' : 'none'} 
               strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}
             />
           </button>
