@@ -19,12 +19,13 @@ html {
     margin: 0.5rem 0; /* Adjusted margin */
 }
 
-/* Dimmed effect for expanded stack */
-.dimmed-stack > div:first-child {
-    opacity: 0.4;
-    filter: grayscale(0.5) blur(0.5px);
-    transition: all 0.5s ease;
+/* Dimmed effect for expanded stack wrapper */
+.dimmed-stack {
+    transition: opacity 0.5s ease;
+    opacity: 0.6; /* Dim the whole stack */
+    filter: grayscale(0.3);
 }
+/* But ensure the Tab remains readable or follows suit. */
 
 /* Animation for stack expansion */
 @keyframes fadeIn {

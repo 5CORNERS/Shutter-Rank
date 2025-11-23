@@ -99,13 +99,15 @@ const ExpandedGroupComponent = ({
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-1 gap-3">
                                 <div className="flex items-center gap-4">
                                     <div>
-                                        <h3 className="text-lg font-bold text-gray-200">Группа: «{groupData?.name || ''}»</h3>
+                                        <h3 className="text-lg font-bold text-gray-200 flex items-center gap-3">
+                                            Группа «{groupData?.name || ''}»
+                                            <button onClick={() => onCollapse(item.groupId)} className="flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 hover:text-indigo-200 font-semibold transition-colors flex-shrink-0 ml-2">
+                                                <ChevronUp size={16}/>
+                                                Свернуть
+                                            </button>
+                                        </h3>
                                         {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
                                     </div>
-                                    <button onClick={() => onCollapse(item.groupId)} className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-full bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 hover:text-indigo-200 font-semibold transition-colors flex-shrink-0">
-                                        <ChevronUp size={16}/>
-                                        Свернуть
-                                    </button>
                                 </div>
                             </div>
                             <div className={`pt-4 ${settings?.layout === 'grid'
@@ -455,12 +457,13 @@ const App: React.FC = () => {
                     ? item.photos 
                     : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
                 
-                // If only 1 or 0 photos are visible, convert stack to individual photos
-                if (visiblePhotosInGroup.length <= 1 && !showHiddenPhotos) {
+                // MODIFIED LOGIC: If a group has only 1 photo (even if filter hides others), render as single photo.
+                // User request: "Если в группе (с учетом фильтров) осталась 1 фотография, она перестает быть стопкой"
+                if (visiblePhotosInGroup.length <= 1) {
                      visiblePhotosInGroup.forEach(p => {
                          finalGalleryItems.push({ ...p, type: 'photo' });
                      });
-                } else if (visiblePhotosInGroup.length > 0) {
+                } else {
                      // Verify selectedPhotoId validity
                      if (item.selectedPhotoId && !item.photos.some(p => p.id === item.selectedPhotoId)) {
                          item.selectedPhotoId = null;
@@ -767,6 +770,7 @@ const App: React.FC = () => {
         };
         
         // Special Case: Unselecting a photo that has a rating
+        // MODIFIED: If unselecting (newSelectedId is null), and old had rating, ALWAYS remove rating
         if (newSelectedId === null && oldSelectedPhoto?.userRating) {
              handleRate(oldSelectedPhoto.id, 0); // Remove rating
              performSelectionChange();
@@ -900,8 +904,6 @@ const App: React.FC = () => {
     }, []);
 
     const handleExpandGroup = (groupId: string) => {
-        // Logic for clicking gray stack cover (optional toast) can be added here if needed,
-        // but currently PhotoStack just calls this, which opens the group.
         if (closingTimeoutRef.current) {
             clearTimeout(closingTimeoutRef.current);
             closingTimeoutRef.current = null;
@@ -1159,6 +1161,7 @@ const App: React.FC = () => {
                                                 layoutMode={settings.layout}
                                                 gridAspectRatio={settings.gridAspectRatio}
                                                 isTouchDevice={isTouchDevice}
+                                                onShowToast={(msg) => setToastMessage(msg)}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
                                                 <ExpandedGroupComponent 
