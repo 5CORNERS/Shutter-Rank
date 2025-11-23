@@ -1,3 +1,4 @@
+
 import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
@@ -40,28 +41,29 @@ const getUserId = (): string => {
 
 const calculateNormalizedScore = (rating: number): number => {
     if (rating <= 0) return 0;
+    // Formula: 1 + (Rating - 1) * 0.25
     return 1 + (rating - 1) * 0.25;
 };
 
 // Extracted component to prevent re-mounting on parent state changes
-const ExpandedGroupComponent = ({ 
-    item, 
-    groupData, 
-    isClosing,
-    expandedGroupId,
-    showHiddenPhotos,
-    hidingPhotoId,
-    settings,
-    onCollapse,
-    onRate,
-    onImageClick,
-    onToggleVisibility,
-    groupSelections,
-    onSelectionChange,
-    isTouchDevice
-}: { 
-    item: PhotoStack, 
-    groupData: any, 
+const ExpandedGroupComponent = ({
+                                    item,
+                                    groupData,
+                                    isClosing,
+                                    expandedGroupId,
+                                    showHiddenPhotos,
+                                    hidingPhotoId,
+                                    settings,
+                                    onCollapse,
+                                    onRate,
+                                    onImageClick,
+                                    onToggleVisibility,
+                                    groupSelections,
+                                    onSelectionChange,
+                                    isTouchDevice
+                                }: {
+    item: PhotoStack,
+    groupData: any,
     isClosing: boolean,
     expandedGroupId: string | null,
     showHiddenPhotos: boolean,
@@ -90,7 +92,7 @@ const ExpandedGroupComponent = ({
                 });
             });
         } else if (isClosing) {
-             setAnimateOpen(false);
+            setAnimateOpen(false);
         }
     }, [isExpanded, isClosing]);
 
@@ -146,7 +148,7 @@ const ExpandedGroupComponent = ({
                                     )
                                 })}
                             </div>
-                                <div className="flex justify-center pt-6">
+                            <div className="flex justify-center pt-6">
                                 <button onClick={() => onCollapse(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
                                     <ChevronUp size={18}/>
                                     Свернуть группу
@@ -164,7 +166,7 @@ const App: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [availableSessions, setAvailableSessions] = useState<SessionInfo[]>([]);
     const [userId] = useState<string>(getUserId());
-    
+
     const [photos, setPhotos] = useState<Photo[]>([]);
     const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
     const [groups, setGroups] = useState<FirebaseDataGroups>({});
@@ -185,7 +187,7 @@ const App: React.FC = () => {
     const [isRatingInfoModalOpen, setIsRatingInfoModalOpen] = useState(false);
     const [showHiddenPhotos, setShowHiddenPhotos] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
-    
+
     const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
     const [closingGroupId, setClosingGroupId] = useState<string | null>(null);
     const [expertViewGroupId, setExpertViewGroupId] = useState<string | null>(null);
@@ -213,7 +215,7 @@ const App: React.FC = () => {
             const hash = decodeURIComponent(window.location.hash.slice(1));
             setSessionId(hash || null);
         };
-        
+
         window.addEventListener('hashchange', handleHashChange);
         handleHashChange(); // Initial load
 
@@ -222,7 +224,7 @@ const App: React.FC = () => {
 
     useEffect(() => {
         let unsubscribeFromVotes: (() => void) | null = null;
-    
+
         const loadSessionData = async () => {
             if (!sessionId) {
                 try {
@@ -230,7 +232,7 @@ const App: React.FC = () => {
                     const snapshot = await get(sessionsRef);
                     if (snapshot.exists()) {
                         const data = snapshot.val();
-                         const sessionList: SessionInfo[] = Object.keys(data).map(id => ({
+                        const sessionList: SessionInfo[] = Object.keys(data).map(id => ({
                             id: id,
                             name: data[id]?.config?.name || id
                         }));
@@ -255,10 +257,10 @@ const App: React.FC = () => {
                     return;
                 }
                 const data = snapshot.val();
-    
+
                 const loadedConfig = data.config as Config;
                 setConfig(loadedConfig);
-                
+
                 // Safely handle potential missing data structures
                 const photosData = (data.photos || { photos: [], introArticleMarkdown: '' }) as FirebasePhotoData;
                 const groupsData = (data.groups || {}) as FirebaseDataGroups;
@@ -273,7 +275,7 @@ const App: React.FC = () => {
                         localStorage.setItem(hasSeenKey, 'true');
                     }
                 }
-    
+
                 const savedSettingsRaw = localStorage.getItem('userSettings');
                 if (savedSettingsRaw) {
                     setSettings(JSON.parse(savedSettingsRaw) as Settings);
@@ -283,14 +285,14 @@ const App: React.FC = () => {
                         gridAspectRatio: loadedConfig.defaultGridAspectRatio || '4/3'
                     });
                 }
-    
+
                 const groupSelectionsKey = `groupSelections_${sessionId}`;
                 const savedSelections = localStorage.getItem(groupSelectionsKey);
                 setGroupSelections(savedSelections ? JSON.parse(savedSelections) : {});
 
                 const initialPhotos = photosData.photos || [];
                 const initialVotes = data.votes || {};
-                
+
                 const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
                 const userVotesSnapshot = await get(userVotesRef);
                 const userRatings: Record<string, number> = userVotesSnapshot.exists() ? userVotesSnapshot.val() : {};
@@ -298,10 +300,9 @@ const App: React.FC = () => {
                 const visibilityKey = `userVisibility_${sessionId}`;
                 const savedVisibilityRaw = localStorage.getItem(visibilityKey);
                 const userVisibility: Record<string, boolean> = savedVisibilityRaw ? JSON.parse(savedVisibilityRaw) : {};
-    
+
                 const initialPhotoState: Photo[] = initialPhotos.map(p => {
                     const voteData = initialVotes[String(p.id)];
-                    // Handle legacy data (number) vs new data (object)
                     let votes = 0;
                     let voteCount = 0;
                     let normalizedScore = 0;
@@ -326,13 +327,13 @@ const App: React.FC = () => {
 
                 setPhotos(initialPhotoState);
                 setStatus('success');
-    
+
             } catch (error) {
                 console.error("Ошибка загрузки данных сессии из Firebase:", error);
                 setStatus('error');
             }
         };
-    
+
         loadSessionData().then(() => {
             if (sessionId) {
                 const votesRef = ref(db, `sessions/${sessionId}/votes`);
@@ -367,7 +368,7 @@ const App: React.FC = () => {
                 });
             }
         });
-    
+
         return () => {
             if (unsubscribeFromVotes) {
                 unsubscribeFromVotes();
@@ -406,7 +407,7 @@ const App: React.FC = () => {
         });
         localStorage.setItem(`userVisibility_${sessionId}`, JSON.stringify(userVisibility));
     }, [photos, status, sessionId]);
-    
+
     useEffect(() => {
         const isAnyModalOpen = isSettingsModalOpen || isArticleModalOpen || isRatingInfoModalOpen || !!expertViewGroupId || !!selectedPhotoId || immersivePhotoId !== null || confirmation.isOpen;
         if (isAnyModalOpen) {
@@ -435,23 +436,23 @@ const App: React.FC = () => {
 
     const photosWithMaxRating = useMemo(() => {
         if (!photos.length || !config) return photos;
-    
+
         const fourStarThreshold = config.unlockFourStarsThresholdPercent ?? 20;
         const fiveStarThreshold = config.unlockFiveStarsThresholdPercent ?? 50;
-        
+
         const photosInCompetition = photos.filter(p => !p.isOutOfCompetition);
         if (photosInCompetition.length === 0) {
             return photos.map(p => ({ ...p, maxRating: 3 }));
         }
 
         const totalVotes = photosInCompetition.reduce((sum, p) => sum + p.votes, 0);
-        
+
         if (totalVotes === 0) {
             return photos.map(p => ({ ...p, maxRating: 3 }));
         }
-    
+
         const averageVotes = totalVotes / photosInCompetition.length;
-    
+
         return photos.map(p => {
             if (p.isOutOfCompetition) return { ...p, maxRating: 3 };
 
@@ -487,28 +488,27 @@ const App: React.FC = () => {
                 grouped.push({ ...photo, type: 'photo' });
             }
         });
-        
+
         // Second pass to check visibility/count within stacks and potential downgrades
         const finalGalleryItems: GalleryItem[] = [];
 
         grouped.forEach(item => {
             if (item.type === 'stack') {
-                const visiblePhotosInGroup = showHiddenPhotos 
-                    ? item.photos 
+                const visiblePhotosInGroup = showHiddenPhotos
+                    ? item.photos
                     : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
-                
-                // MODIFIED LOGIC: If a group has only 1 photo (even if filter hides others), render as single photo.
-                // User request: "Если в группе (с учетом фильтров) осталась 1 фотография, она перестает быть стопкой"
+
+                // If a group has only 1 photo (even if filter hides others), render as single photo.
                 if (visiblePhotosInGroup.length <= 1) {
-                     visiblePhotosInGroup.forEach(p => {
-                         finalGalleryItems.push({ ...p, type: 'photo' });
-                     });
+                    visiblePhotosInGroup.forEach(p => {
+                        finalGalleryItems.push({ ...p, type: 'photo' });
+                    });
                 } else {
-                     // Verify selectedPhotoId validity
-                     if (item.selectedPhotoId && !item.photos.some(p => p.id === item.selectedPhotoId)) {
-                         item.selectedPhotoId = null;
-                     }
-                     finalGalleryItems.push(item);
+                    // Verify selectedPhotoId validity
+                    if (item.selectedPhotoId && !item.photos.some(p => p.id === item.selectedPhotoId)) {
+                        item.selectedPhotoId = null;
+                    }
+                    finalGalleryItems.push(item);
                 }
             } else {
                 finalGalleryItems.push(item);
@@ -524,10 +524,10 @@ const App: React.FC = () => {
 
     const handleRate = useCallback((photoId: number, rating: number) => {
         if (!config || !sessionId || !userId) return;
-    
+
         const photoToUpdate = photosWithMaxRating.find(p => p.id === photoId);
         if (!photoToUpdate || photoToUpdate.isOutOfCompetition) return;
-    
+
         const currentRating = photoToUpdate.userRating || 0;
         let newRating = rating;
 
@@ -535,23 +535,23 @@ const App: React.FC = () => {
             setIsRatingInfoModalOpen(true);
             return;
         }
-    
+
         if (newRating === currentRating) {
             newRating = 0; // Toggle off rating
         }
-    
+
         const isNewRating = currentRating === 0 && newRating > 0;
         if (isNewRating && ratedPhotosCount >= config.ratedPhotoLimit) {
             setToastMessage(`Можно оценить не более ${config.ratedPhotoLimit} фотографий.`);
             return;
         }
-    
+
         const starsDifference = newRating - currentRating;
         if (starsUsed + starsDifference > config.totalStarsLimit) {
             setToastMessage(`Общее количество звезд не может превышать ${config.totalStarsLimit}.`);
             return;
         }
-    
+
         // Optimistic UI update
         setPhotos(prevPhotos =>
             prevPhotos.map(p => {
@@ -565,14 +565,14 @@ const App: React.FC = () => {
                 return p;
             })
         );
-    
+
         // Save individual vote to Firebase
         const userVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${photoId}`);
         const userVotePromise: Promise<void> = newRating === 0 ? remove(userVoteRef) : set(userVoteRef, newRating);
 
         // Update aggregate score TRANSACTION
         const aggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${photoId}`);
-        
+
         const aggregateVotePromise: Promise<TransactionResult> = runTransaction(aggregateVoteRef, (currentData: any) => {
             // currentData can be:
             // 1. null (no votes yet)
@@ -585,9 +585,7 @@ const App: React.FC = () => {
 
             if (typeof currentData === 'number') {
                 stars = currentData;
-                // We don't know the count/normalized score for legacy data, so we assume 0 or keep as is.
-                // Best effort: treat existing as 0 for count/norm to avoid corruption, 
-                // OR just start tracking from now on.
+                // We don't know the count/normalized score for legacy data, so we assume 0.
             } else if (currentData) {
                 stars = currentData.s || 0;
                 count = currentData.c || 0;
@@ -596,11 +594,11 @@ const App: React.FC = () => {
 
             // Calculate deltas
             const starDelta = newRating - currentRating;
-            
+
             let countDelta = 0;
             if (currentRating === 0 && newRating > 0) countDelta = 1; // New vote
             else if (currentRating > 0 && newRating === 0) countDelta = -1; // Removed vote
-            
+
             const oldNorm = calculateNormalizedScore(currentRating);
             const newNorm = calculateNormalizedScore(newRating);
             const normDelta = newNorm - oldNorm;
@@ -617,13 +615,13 @@ const App: React.FC = () => {
                 n: newNormalized
             };
         });
-        
+
         const promises: (Promise<void> | Promise<TransactionResult>)[] = [userVotePromise, aggregateVotePromise];
 
         Promise.all(promises).catch((error: Error) => {
             console.error("Firebase write failed: ", error);
             setToastMessage('Ошибка: не удалось сохранить вашу оценку.');
-             // Revert optimistic UI update on failure
+            // Revert optimistic UI update on failure
             setPhotos(prevPhotos =>
                 prevPhotos.map(p =>
                     p.id === photoId ? { ...p, userRating: currentRating === 0 ? undefined : currentRating, isVisible: photoToUpdate.isVisible } : p
@@ -632,16 +630,15 @@ const App: React.FC = () => {
         });
 
     }, [photosWithMaxRating, config, ratedPhotosCount, starsUsed, sessionId, userId]);
-    
+
     const handleToggleVisibility = useCallback((photoId: number) => {
         const photo = photos.find(p => p.id === photoId);
         if (!photo || photo.isOutOfCompetition) return;
 
         const currentVisibility = photo.isVisible !== false;
-        
+
         if (currentVisibility) {
             if (photo.userRating && photo.userRating > 0) {
-                // Now handled by disabled button, no toast needed.
                 return;
             }
 
@@ -649,13 +646,13 @@ const App: React.FC = () => {
             setTimeout(() => {
                 setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, isVisible: false } : p));
                 setHidingPhotoId(null);
-                
+
                 // If the hidden photo was viewed in a modal, navigate away
                 if (selectedPhotoId === photoId) handleNextPhoto();
                 if (immersivePhotoId === photoId) handleNextImmersive();
             }, 400); // Should match animation duration
         } else {
-             setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, isVisible: true } : p));
+            setPhotos(prev => prev.map(p => p.id === photoId ? { ...p, isVisible: true } : p));
         }
     }, [photos, selectedPhotoId, immersivePhotoId]);
 
@@ -684,7 +681,39 @@ const App: React.FC = () => {
             closeConfirmation
         );
     }, [sessionId, userId]);
-    
+
+    // Helper for nested sorting logic
+    const comparePhotos = useCallback((a: Photo, b: Photo, mode: SortMode) => {
+        if (mode === 'id') return 0;
+
+        const valA_stars = a.votes || 0;
+        const valB_stars = b.votes || 0;
+        const valA_score = a.normalizedScore || 0;
+        const valB_score = b.normalizedScore || 0;
+        const valA_count = a.voteCount || 0;
+        const valB_count = b.voteCount || 0;
+
+        if (mode === 'stars') {
+            // 1. Stars, 2. Score, 3. Count
+            if (valB_stars !== valA_stars) return valB_stars - valA_stars;
+            if (valB_score !== valA_score) return valB_score - valA_score;
+            return valB_count - valA_count;
+        }
+        if (mode === 'score') {
+            // 1. Score, 2. Count, 3. Stars
+            if (valB_score !== valA_score) return valB_score - valA_score;
+            if (valB_count !== valA_count) return valB_count - valA_count;
+            return valB_stars - valA_stars;
+        }
+        if (mode === 'count') {
+            // 1. Count, 2. Score, 3. Stars
+            if (valB_count !== valA_count) return valB_count - valA_count;
+            if (valB_score !== valA_score) return valB_score - valA_score;
+            return valB_stars - valA_stars;
+        }
+        return 0;
+    }, []);
+
     const sortedGalleryItems = useMemo(() => {
         let itemsCopy = [...galleryItems];
 
@@ -701,62 +730,50 @@ const App: React.FC = () => {
         }
 
         if (sortBy === 'id') {
-            // The default order is already sorted by the `order` field from initial load.
             return itemsCopy;
         }
 
-        // Helper to extract metric from item (single photo or stack representative)
-        const getMetric = (item: GalleryItem, metric: SortMode): number => {
-            let targetPhoto: Photo | undefined;
-            
-            if (item.type === 'photo') {
-                targetPhoto = item;
-            } else { // stack
-                // For voting phase: sort by selected photo (user's perspective)
-                // For results phase: sort by the best photo in the stack (aggregate perspective)
+        itemsCopy.sort((a, b) => {
+            let photoA: Photo;
+            let photoB: Photo;
+
+            if (a.type === 'photo') {
+                photoA = a;
+            } else {
                 if (votingPhase === 'voting') {
-                    targetPhoto = item.photos.find(p => p.id === item.selectedPhotoId);
+                    photoA = a.photos.find(p => p.id === a.selectedPhotoId) || a.photos[0];
                 } else {
-                    // Find photo with max score/votes/count based on sort mode
-                     targetPhoto = item.photos.reduce((best, current) => {
-                         const bestVal = metric === 'stars' ? best.votes 
-                                       : metric === 'score' ? (best.normalizedScore || 0)
-                                       : metric === 'count' ? (best.voteCount || 0)
-                                       : 0;
-                         const currentVal = metric === 'stars' ? current.votes 
-                                          : metric === 'score' ? (current.normalizedScore || 0)
-                                          : metric === 'count' ? (current.voteCount || 0)
-                                          : 0;
-                         return currentVal > bestVal ? current : best;
-                     }, item.photos[0]);
+                    // Find best photo in stack based on current sort criteria
+                    photoA = a.photos.reduce((best, current) => {
+                        return comparePhotos(current, best, sortBy) < 0 ? current : best;
+                    }, a.photos[0]);
                 }
             }
 
-            if (!targetPhoto) return 0;
+            if (b.type === 'photo') {
+                photoB = b;
+            } else {
+                if (votingPhase === 'voting') {
+                    photoB = b.photos.find(p => p.id === b.selectedPhotoId) || b.photos[0];
+                } else {
+                    photoB = b.photos.reduce((best, current) => {
+                        return comparePhotos(current, best, sortBy) < 0 ? current : best;
+                    }, b.photos[0]);
+                }
+            }
 
             if (votingPhase === 'voting') {
-                // In voting mode, we only really sort by User Rating ('score'/'stars' imply user rating here)
-                // or ID. 'count' doesn't make sense for local user view, but if selected, fallback to rating.
-                 return targetPhoto.userRating || 0;
+                // Simple sort by user rating in voting mode
+                const scoreA = photoA.userRating || 0;
+                const scoreB = photoB.userRating || 0;
+                if (scoreB !== scoreA) return scoreB - scoreA;
             } else {
-                // Results phase
-                switch (metric) {
-                    case 'stars': return targetPhoto.votes;
-                    case 'score': return targetPhoto.normalizedScore || 0;
-                    case 'count': return targetPhoto.voteCount || 0;
-                    default: return 0;
-                }
+                // Complex sort in results mode
+                const comparison = comparePhotos(photoA, photoB, sortBy);
+                if (comparison !== 0) return comparison;
             }
-        };
 
-        itemsCopy.sort((a, b) => {
-            const scoreB = getMetric(b, sortBy);
-            const scoreA = getMetric(a, sortBy);
-            
-            if (scoreB !== scoreA) {
-                return scoreB - scoreA;
-            }
-            // Fallback to original order for items with the same score
+            // Fallback to original order
             const orderA = a.type === 'photo' ? (a.order ?? a.id) : (a.photos[0]?.order ?? a.photos[0]?.id ?? 0);
             const orderB = b.type === 'photo' ? (b.order ?? b.id) : (b.photos[0]?.order ?? b.photos[0]?.id ?? 0);
             return orderA - orderB;
@@ -764,7 +781,7 @@ const App: React.FC = () => {
 
         return itemsCopy;
 
-    }, [galleryItems, showHiddenPhotos, sortBy, votingPhase, hidingPhotoId, expandedGroupId]);
+    }, [galleryItems, showHiddenPhotos, sortBy, votingPhase, hidingPhotoId, expandedGroupId, comparePhotos]);
 
     const photosForViewer = useMemo(() => {
         // Create a flat list of all photos for seamless navigation in viewers.
@@ -824,14 +841,14 @@ const App: React.FC = () => {
     const handleCloseImmersive = useCallback((lastViewedPhotoId?: number) => {
         const finalPhotoId = lastViewedPhotoId ?? immersivePhotoId;
         setImmersivePhotoId(null);
-        
+
         if (!isTouchDevice && finalPhotoId !== null) {
             setSelectedPhotoId(finalPhotoId);
         } else {
             scrollToPhoto(finalPhotoId);
         }
     }, [isTouchDevice, immersivePhotoId, scrollToPhoto]);
-    
+
     const handleOpenGroupFromViewer = useCallback((groupId: string) => {
         setSelectedPhotoId(null);
         setImmersivePhotoId(null);
@@ -856,6 +873,10 @@ const App: React.FC = () => {
 
     const handleTogglePhase = () => {
         setVotingPhase(p => p === 'voting' ? 'results' : 'voting');
+        // Default to stars sort when switching to results if currently on ID
+        if (votingPhase === 'voting' && sortBy === 'id') {
+            setSortBy('stars');
+        }
     };
 
     const handleSaveSettings = (settings: Settings) => {
@@ -863,13 +884,13 @@ const App: React.FC = () => {
         localStorage.setItem('userSettings', JSON.stringify(settings));
         setIsSettingsModalOpen(false);
     };
-    
+
     const handleGroupSelectionChange = useCallback((groupId: string, newSelectedId: number | null, initiatedByRate = false) => {
         const oldSelectedId = groupSelections[groupId] || null;
         if (oldSelectedId === newSelectedId) return;
-    
+
         const oldSelectedPhoto = oldSelectedId ? photos.find(p => p.id === oldSelectedId) : null;
-        
+
         const performSelectionChange = () => {
             const newSelections = { ...groupSelections, [groupId]: newSelectedId };
             setGroupSelections(newSelections);
@@ -877,13 +898,12 @@ const App: React.FC = () => {
                 localStorage.setItem(`groupSelections_${sessionId}`, JSON.stringify(newSelections));
             }
         };
-        
+
         // Special Case: Unselecting a photo that has a rating
-        // MODIFIED: If unselecting (newSelectedId is null), and old had rating, ALWAYS remove rating
         if (newSelectedId === null && oldSelectedPhoto?.userRating) {
-             handleRate(oldSelectedPhoto.id, 0); // Remove rating
-             performSelectionChange();
-             return;
+            handleRate(oldSelectedPhoto.id, 0); // Remove rating
+            performSelectionChange();
+            return;
         }
 
         const transferRating = () => {
@@ -905,7 +925,7 @@ const App: React.FC = () => {
             const fromAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${oldSelectedId}`);
             const toUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${newSelectedId}`);
             const toAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${newSelectedId}`);
-            
+
             const ratingNorm = calculateNormalizedScore(ratingToTransfer);
 
             const promises = [
@@ -915,7 +935,7 @@ const App: React.FC = () => {
                     let s = 0, c = 0, n = 0;
                     if(typeof data === 'number') { s = data; }
                     else if(data) { s = data.s||0; c = data.c||0; n = data.n||0; }
-                    
+
                     return { s: s - ratingToTransfer, c: c - 1, n: n - ratingNorm };
                 }),
                 set(toUserVoteRef, ratingToTransfer),
@@ -924,11 +944,11 @@ const App: React.FC = () => {
                     let s = 0, c = 0, n = 0;
                     if(typeof data === 'number') { s = data; }
                     else if(data) { s = data.s||0; c = data.c||0; n = data.n||0; }
-                    
+
                     return { s: s + ratingToTransfer, c: c + 1, n: n + ratingNorm };
                 }),
             ];
-            
+
             Promise.all(promises).catch((error: Error) => {
                 console.error("Firebase write failed during rating transfer: ", error);
                 setToastMessage('Ошибка: не удалось перенести оценку.');
@@ -942,7 +962,7 @@ const App: React.FC = () => {
             });
             performSelectionChange();
         };
-        
+
         if (newSelectedId !== null && oldSelectedPhoto && oldSelectedPhoto.userRating && !initiatedByRate) {
             openConfirmation(
                 "Перенести отметку?",
@@ -955,7 +975,7 @@ const App: React.FC = () => {
             );
             return;
         }
-        
+
         performSelectionChange();
 
     }, [groupSelections, sessionId, photos, userId, handleRate]);
@@ -967,15 +987,15 @@ const App: React.FC = () => {
             handleRate(photoId, rating); // Fallback for safety
             return;
         }
-    
+
         const groupId = photo.groupId;
         const currentSelectedId = groupSelections[groupId];
         const currentSelectedPhoto = currentSelectedId ? photos.find(p => p.id === currentSelectedId) : null;
         const isClearingRating = rating === 0 || rating === photo.userRating;
         const isNewRating = rating > 0 && !isClearingRating;
-    
+
         if (isNewRating && currentSelectedId && currentSelectedId !== photoId && currentSelectedPhoto?.userRating) {
-             openConfirmation(
+            openConfirmation(
                 "Перенести отметку?",
                 "В этой группе отмечена другая фотография. Перенести оценку с нее на этот снимок?",
                 () => {
@@ -989,19 +1009,19 @@ const App: React.FC = () => {
             );
         } else {
             handleRate(photoId, rating);
-    
+
             if (isNewRating) {
-                 handleGroupSelectionChange(groupId, photoId, true);
+                handleGroupSelectionChange(groupId, photoId, true);
             } else if (isClearingRating && currentSelectedId === photoId) {
                 // Unconditionally remove selection when rating is cleared from selected photo.
                 handleGroupSelectionChange(groupId, null, true);
             }
         }
     };
-    
+
     const findGroupDetails = useCallback((photoId: number | null): { id: string; name: string; caption?: string; photos: Photo[] } | null => {
         if (photoId === null) return null;
-        
+
         const photo = photos.find(p => p.id === photoId);
         if (!photo || !photo.groupId) return null;
 
@@ -1025,7 +1045,7 @@ const App: React.FC = () => {
         navigator.clipboard.writeText(url).then(() => {
             setToastMessage('Ссылка скопирована в буфер обмена');
         }).catch(() => {
-             setToastMessage('Не удалось скопировать ссылку');
+            setToastMessage('Не удалось скопировать ссылку');
         });
     }, []);
 
@@ -1041,7 +1061,7 @@ const App: React.FC = () => {
     const handleCollapseGroup = (groupId: string) => {
         setClosingGroupId(groupId);
         setExpandedGroupId(null);
-        
+
         closingTimeoutRef.current = window.setTimeout(() => {
             setClosingGroupId(null);
         }, 1500);
@@ -1075,16 +1095,16 @@ const App: React.FC = () => {
             </div>
         );
     }
-    
+
     if (status === 'selecting_session') {
         return (
             <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center text-white p-4 text-center">
-                 <List className="w-12 h-12 text-indigo-400 mb-4" />
+                <List className="w-12 h-12 text-indigo-400 mb-4" />
                 <h1 className="text-3xl font-bold mb-6">Выберите сессию голосования</h1>
                 <div className="max-w-sm w-full space-y-3">
                     {availableSessions.length > 0 ? (
                         availableSessions.map(session => (
-                            <a 
+                            <a
                                 key={session.id}
                                 href={`#${session.id}`}
                                 className="block w-full text-center px-6 py-3 text-lg font-semibold rounded-lg bg-gray-700 hover:bg-indigo-600 focus:ring-indigo-500 text-white transition-colors"
@@ -1093,7 +1113,7 @@ const App: React.FC = () => {
                             </a>
                         ))
                     ) : (
-                         <p className="text-gray-400">Доступных сессий не найдено.</p>
+                        <p className="text-gray-400">Доступных сессий не найдено.</p>
                     )}
                 </div>
             </div>
@@ -1108,7 +1128,7 @@ const App: React.FC = () => {
                 <p className="mt-2 text-gray-400 max-w-md">
                     Не удалось загрузить данные для сессии "{sessionId || 'неизвестно'}". Проверьте, что сессия с таким ID существует в Firebase и данные в ней корректны.
                 </p>
-                 <a href="#" className="mt-6 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                <a href="#" className="mt-6 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
                     Вернуться к выбору сессии
                 </a>
             </div>
@@ -1123,7 +1143,7 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
             <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
-            <ConfirmationModal 
+            <ConfirmationModal
                 isOpen={confirmation.isOpen}
                 title={confirmation.title}
                 message={confirmation.message}
@@ -1142,11 +1162,11 @@ const App: React.FC = () => {
                     onSave={handleSaveSettings}
                 />
             )}
-            
+
             {isRatingInfoModalOpen && (
                 <RatingInfoModal onClose={() => setIsRatingInfoModalOpen(false)} />
             )}
-            
+
             {expertViewStack && (
                 <GroupModal
                     isOpen={!!expertViewGroupId}
@@ -1213,13 +1233,13 @@ const App: React.FC = () => {
                                     </button>
                                 </div>
                             </div>
-    
+
                             {/* Вид */}
                             <div className="flex flex-col items-center gap-3 p-3 rounded-lg bg-gray-900/40">
                                 <h3 className="font-semibold text-gray-400">Вид</h3>
-                                 <ToggleSwitch id="main-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label="Показывать скрытые" />
+                                <ToggleSwitch id="main-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label="Показывать скрытые" />
                                 <div className="flex flex-wrap justify-center gap-2">
-                                    <span className="text-gray-400 text-sm self-center w-full sm:w-auto text-center">Сортировка:</span>
+                                    <span className="text-gray-400 text-sm self-center w-full sm:w-auto text-center">Сортировать по:</span>
                                     {votingPhase === 'voting' ? (
                                         <>
                                             <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>№</button>
@@ -1228,9 +1248,9 @@ const App: React.FC = () => {
                                     ) : (
                                         <>
                                             <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>№</button>
-                                            <button onClick={() => setSortBy('stars')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'stars' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Звезды</button>
-                                            <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Баллы</button>
-                                            <button onClick={() => setSortBy('count')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'count' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Голоса</button>
+                                            <button onClick={() => setSortBy('stars')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'stars' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Звездам</button>
+                                            <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Баллам</button>
+                                            <button onClick={() => setSortBy('count')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'count' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Голосам</button>
                                         </>
                                     )}
                                 </div>
@@ -1245,28 +1265,22 @@ const App: React.FC = () => {
                 }>
                     {votingPhase === 'voting' ? (
                         sortedGalleryItems.map((item, index) => {
-                            
+
                             // LOGIC FOR "ROW EXPANDER"
-                            // We check if there is an expanded (or closing) group that belongs to this row.
-                            // If yes, and this item is the last one in that row (or last in list), we inject the expansion block.
-                            
                             const currentRow = Math.floor(index / columnsCount);
                             const isLastInRow = (index + 1) % columnsCount === 0;
                             const isLastItem = index === sortedGalleryItems.length - 1;
-                            
+
                             let expandedItemToRender: PhotoStack | null = null;
                             let expandedGroupData: any = null;
                             let isRenderedGroupClosing = false;
 
-                            // We only do this in GRID layout. Original layout falls back to in-place expansion (simpler).
                             if (settings.layout === 'grid') {
                                 const activeId = expandedGroupId || closingGroupId;
                                 if (activeId) {
-                                    // Find the item object for the active group
                                     const activeItemIndex = sortedGalleryItems.findIndex(i => i.type === 'stack' && i.groupId === activeId);
                                     if (activeItemIndex !== -1) {
                                         const activeRow = Math.floor(activeItemIndex / columnsCount);
-                                        // If the active group is in THIS row, and we are at the end of THIS row (or list)
                                         if (activeRow === currentRow && (isLastInRow || isLastItem)) {
                                             expandedItemToRender = sortedGalleryItems[activeItemIndex] as PhotoStack;
                                             expandedGroupData = groups[activeId];
@@ -1276,12 +1290,10 @@ const App: React.FC = () => {
                                 }
                             }
 
-                            // Render the Item itself
                             const itemElement = (
                                 <React.Fragment key={item.type === 'stack' ? item.groupId : item.id}>
                                     {item.type === 'stack' ? (
                                         <div className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                            {/* Standard Group Card */}
                                             <PhotoStackComponent
                                                 stack={item}
                                                 groupName={groups[item.groupId]?.name || ''}
@@ -1301,9 +1313,9 @@ const App: React.FC = () => {
                                                 onShowToast={(msg) => setToastMessage(msg)}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
-                                                <ExpandedGroupComponent 
-                                                    item={item} 
-                                                    groupData={groups[item.groupId]} 
+                                                <ExpandedGroupComponent
+                                                    item={item}
+                                                    groupData={groups[item.groupId]}
                                                     isClosing={closingGroupId === item.groupId}
                                                     expandedGroupId={expandedGroupId}
                                                     showHiddenPhotos={showHiddenPhotos}
@@ -1334,12 +1346,11 @@ const App: React.FC = () => {
                                             />
                                         </div>
                                     )}
-                                    
-                                    {/* Inject Expanded Row if applicable (Grid Mode Only) */}
+
                                     {expandedItemToRender && (
-                                        <ExpandedGroupComponent 
-                                            item={expandedItemToRender} 
-                                            groupData={expandedGroupData} 
+                                        <ExpandedGroupComponent
+                                            item={expandedItemToRender}
+                                            groupData={expandedGroupData}
                                             isClosing={isRenderedGroupClosing}
                                             expandedGroupId={expandedGroupId}
                                             showHiddenPhotos={showHiddenPhotos}
@@ -1356,32 +1367,21 @@ const App: React.FC = () => {
                                     )}
                                 </React.Fragment>
                             );
-                            
                             return itemElement;
                         })
                     ) : (
-                         sortedGalleryItems.map(item => {
+                        sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
                                 // Find best photo in stack based on current sort mode (or score by default)
-                                const sortMetric = sortBy === 'id' ? 'score' : sortBy;
-                                
                                 const bestPhoto = item.photos.reduce((best, current) => {
-                                    const bestVal = sortMetric === 'stars' ? best.votes 
-                                                  : sortMetric === 'score' ? (best.normalizedScore || 0)
-                                                  : sortMetric === 'count' ? (best.voteCount || 0)
-                                                  : (best.normalizedScore || 0);
-                                    const currentVal = sortMetric === 'stars' ? current.votes 
-                                                  : sortMetric === 'score' ? (current.normalizedScore || 0)
-                                                  : sortMetric === 'count' ? (current.voteCount || 0)
-                                                  : (current.normalizedScore || 0);
-                                    return currentVal > bestVal ? current : best;
+                                    return comparePhotos(current, best, sortBy) < 0 ? current : best;
                                 }, item.photos[0]);
 
                                 if (!bestPhoto) return null;
                                 const groupData = groups[item.groupId];
                                 return (
                                     <div key={item.groupId} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                         <PhotoCard
+                                        <PhotoCard
                                             photo={bestPhoto}
                                             onRate={handleRate}
                                             onImageClick={handleImageClick}
@@ -1397,11 +1397,11 @@ const App: React.FC = () => {
                                     </div>
                                 );
                             }
-                             return (
+                            return (
                                 <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                    <PhotoCard 
-                                        photo={item} 
-                                        onRate={()=>{}} 
+                                    <PhotoCard
+                                        photo={item}
+                                        onRate={()=>{}}
                                         onImageClick={handleImageClick}
                                         displayVotes={true}
                                         layoutMode={settings.layout}

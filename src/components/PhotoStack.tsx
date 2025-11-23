@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Photo, PhotoStack, LayoutMode, GridAspectRatio } from '../types';
 import { PhotoCard } from './PhotoCard';
@@ -141,5 +142,5 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 </div>
             </div>
         </div>
-    )
+    );
 };
