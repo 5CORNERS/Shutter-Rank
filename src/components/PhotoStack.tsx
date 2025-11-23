@@ -66,7 +66,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
         <div id={`photo-stack-wrapper-${stack.groupId}`} className={`relative group pb-8 ${isExpanded ? 'dimmed-stack' : ''}`}>
             <div id={`photo-stack-${topPhoto.id}`} className="relative cursor-pointer h-full" onClick={onExpand}>
 
-                {/* 
+                {/*
                    Stack Construction (Z-Index Order):
                    Z-0:  Bottom Card (Background)
                    Z-10: Middle Card (Background)
@@ -75,7 +75,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 */}
 
                 {/* Bottom Layer (Rotated Right + Shifted) - Z: 0 */}
-                <div className="absolute inset-0 transform translate-x-2 translate-y-1 rotate-6 z-0 opacity-90 transition-all duration-300 group-hover:rotate-6 group-hover:translate-x-3 group-hover:translate-y-2 group-hover:shadow-indigo-500/40">
+                <div className="absolute inset-0 transform translate-x-2 translate-y-1 rotate-6 z-0 opacity-90 transition-all duration-300 group-hover:rotate-6 group-hover:translate-x-3 group-hover:translate-y-2 shadow-indigo-500/30 group-hover:shadow-indigo-500/50">
                     <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-600 ring-1 ring-black/50 brightness-90 contrast-125">
                         <PhotoCard
                             photo={bottomPhoto}
@@ -93,7 +93,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 </div>
 
                 {/* Middle Layer (Rotated Left + Shifted) - Z: 10 */}
-                <div className="absolute inset-0 transform -translate-x-1 translate-y-0 -rotate-3 z-10 opacity-95 transition-all duration-300 group-hover:-rotate-3 group-hover:-translate-x-2 group-hover:translate-y-1 group-hover:shadow-indigo-500/40">
+                <div className="absolute inset-0 transform -translate-x-1 translate-y-0 -rotate-3 z-10 opacity-95 transition-all duration-300 group-hover:-rotate-3 group-hover:-translate-x-2 group-hover:translate-y-1 shadow-indigo-500/30 group-hover:shadow-indigo-500/50">
                     <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-600 ring-1 ring-black/50 brightness-90 contrast-110">
                         <PhotoCard
                             photo={middlePhoto}
@@ -121,7 +121,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 </div>
 
                 {/* Top Layer (Main Card) - Z: 30 (Highest) */}
-                <div className="relative z-30 transition-transform duration-300 group-hover:-translate-y-1">
+                <div className="relative z-30 transition-all duration-300 group-hover:-translate-y-1 transform rotate-1 group-hover:rotate-0">
                     <PhotoCard
                         photo={topPhoto}
                         onRate={handleRateCover}
