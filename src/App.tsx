@@ -17,7 +17,7 @@ import { ToggleSwitch } from './components/ToggleSwitch';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { useDeviceType } from './hooks/useDeviceType';
 import { useColumnCount } from './hooks/useColumnCount';
-import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, ChevronUp } from 'lucide-react';
+import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, ChevronUp, Send } from 'lucide-react';
 
 type VotingPhase = 'voting' | 'results';
 type AppStatus = 'loading' | 'success' | 'error' | 'selecting_session';
@@ -1078,6 +1078,12 @@ const App: React.FC = () => {
         });
     }, []);
 
+    const handleTelegramShare = useCallback(() => {
+        const url = encodeURIComponent(window.location.href);
+        const text = encodeURIComponent(`Голосуйте в сессии «${config?.name || sessionId}»!`);
+        window.open(`https://t.me/share/url?url=${url}&text=${text}`, '_blank');
+    }, [config, sessionId]);
+
     const handleExpandGroup = (groupId: string) => {
         if (closingTimeoutRef.current) {
             clearTimeout(closingTimeoutRef.current);
@@ -1229,8 +1235,11 @@ const App: React.FC = () => {
                     <div className="flex justify-center items-center gap-4 mb-2">
                         <h1 className="text-4xl font-bold tracking-tight">{sessionDisplayName}</h1>
                         <div className="flex items-center gap-2">
-                            <button onClick={handleShare} className="text-gray-400 hover:text-white transition-colors" title="Поделиться ссылкой">
+                            <button onClick={handleShare} className="text-gray-400 hover:text-white transition-colors" title="Копировать ссылку">
                                 <Share2 className="w-6 h-6" />
+                            </button>
+                            <button onClick={handleTelegramShare} className="text-gray-400 hover:text-blue-400 transition-colors" title="Отправить в Telegram">
+                                <Send className="w-6 h-6" />
                             </button>
                             <button onClick={() => setIsSettingsModalOpen(true)} className="text-gray-400 hover:text-white transition-colors" title="Настройки">
                                 <SettingsIcon className="w-6 h-6" />
