@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { Photo, PhotoStack, LayoutMode, GridAspectRatio } from '../types';
 import { PhotoCard } from './PhotoCard';
 import { RatingControls } from './RatingControls';
-import { Check, X } from 'lucide-react';
+import { Check, X, Star, BarChart2, Users } from 'lucide-react';
 
 interface GroupModalProps {
     isOpen: boolean;
@@ -98,7 +98,22 @@ export const GroupModal: React.FC<GroupModalProps> = ({
                     <div className="flex-grow">
                         <h3 className="text-lg sm:text-xl font-bold text-gray-200">Группа «{groupName}»</h3>
                         {selectedPhoto && displayVotes && (
-                            <div className="text-sm text-gray-400">Общий рейтинг выбранного фото: <span className="font-bold text-green-400">{selectedPhoto.votes}</span></div>
+                             <div className="flex gap-4 mt-1 text-xs">
+                                <div className="flex items-center gap-1" title="Сумма звезд">
+                                    <Star className="text-yellow-400 w-3 h-3" fill="currentColor" />
+                                    <span className="font-bold text-yellow-400">{selectedPhoto.votes}</span>
+                                </div>
+                                <div className="w-px h-4 bg-gray-600/50"></div>
+                                <div className="flex items-center gap-1" title="Нормированный балл">
+                                    <BarChart2 className="text-green-400 w-3 h-3" />
+                                    <span className="font-bold text-green-400">{(selectedPhoto.normalizedScore || 0).toFixed(2)}</span>
+                                </div>
+                                 <div className="w-px h-4 bg-gray-600/50"></div>
+                                <div className="flex items-center gap-1" title="Количество проголосовавших">
+                                    <Users className="text-blue-400 w-3 h-3" />
+                                    <span className="font-bold text-blue-400">{selectedPhoto.voteCount || 0}</span>
+                                </div>
+                            </div>
                         )}
                     </div>
                     <div className={`flex items-center flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>

@@ -8,7 +8,9 @@ export interface FirebasePhoto {
 }
 
 export interface Photo extends FirebasePhoto {
-  votes: number;
+  votes: number; // Sum of stars (Legacy + New)
+  voteCount?: number; // Number of people who voted
+  normalizedScore?: number; // Sum of normalized scores (1 + (N-1)*0.25)
   userRating?: number;
   isVisible?: boolean;
   maxRating?: number;
@@ -57,3 +59,5 @@ export interface Config {
   unlockFourStarsThresholdPercent?: number;
   unlockFiveStarsThresholdPercent?: number;
 }
+
+export type SortMode = 'id' | 'stars' | 'score' | 'count';

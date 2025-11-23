@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Photo, LayoutMode, GridAspectRatio } from '../types';
-import { Info, Eye, EyeOff, Check } from 'lucide-react';
+import { Info, Eye, EyeOff, Check, Star, BarChart2, Users } from 'lucide-react';
 import { RatingControls } from './RatingControls';
 
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: () => void;}> = ({isSelected, onSelect}) => {
@@ -42,7 +42,9 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
   const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isReadOnly) return;
+    if (isReadOnly && !displayVotes) return; 
+    // Allow click in readOnly if it's results view (displayVotes=true) so we can open modal
+    
     if (isCaptionVisible) {
       e.stopPropagation();
       setIsCaptionVisible(false);
@@ -51,17 +53,11 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
     onImageClick(photo);
   };
 
-  const getScoreColor = (score: number) => {
-    if (score > 0) return 'text-green-400';
-    if (score < 0) return 'text-red-400';
-    return 'text-gray-400';
-  };
-
   const isVisible = photo.isVisible !== false;
   const isOutOfComp = !!photo.isOutOfCompetition;
   const hasUserRating = photo.userRating && photo.userRating > 0;
 
-  const voteRingClass = hasUserRating && !isReadOnly
+  const voteRingClass = hasUserRating && !isReadOnly && !displayVotes
     ? 'ring-2 ring-offset-2 ring-offset-gray-900 ring-yellow-400/80'
     : '';
   
@@ -92,7 +88,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
 
   return (
     <div id={`photo-card-${photo.id}`} className={containerClasses} style={{opacity: isDimmed ? 0.5 : 1}}>
-      <div onClick={handleCardClick} className={`${!isReadOnly ? 'cursor-pointer' : ''} relative z-[1]`}>
+      <div onClick={handleCardClick} className={`${!isReadOnly || displayVotes ? 'cursor-pointer' : ''} relative z-[1]`}>
         <img
           src={photo.url}
           alt={`Фото ${photo.id}`}
@@ -120,8 +116,8 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
       {showSelectionControl && <SelectionControl isSelected={isSelected} onSelect={onSelect} />}
 
       <div className="absolute bottom-0 left-0 right-0 p-2 flex justify-between items-end z-[3]">
-        <div className="flex items-center gap-2">
-            {showRatingControls && !isReadOnly && (
+        <div className="flex items-center gap-2 w-full">
+            {showRatingControls && !isReadOnly && !displayVotes && (
                 <div className={`${controlsVisibilityClass} transition-opacity duration-300`} onClick={e => e.stopPropagation()}>
                     <RatingControls 
                         photo={photo} 
@@ -132,15 +128,45 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
                     />
                 </div>
             )}
+            
+            {/* RESULTS VIEW MODE */}
             {displayVotes && (
-                <div className={`text-lg font-bold ${getScoreColor(photo.votes)} bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-md`}>
-                  {photo.votes}
-                </div>
+                 <div className="flex flex-col w-full bg-black/60 backdrop-blur-sm rounded-md p-1.5 gap-1">
+                    <div className="flex justify-between items-center text-xs text-gray-400 border-b border-gray-600/50 pb-1 mb-1">
+                        <span>Результаты</span>
+                        <span className="font-mono opacity-50">#{photo.id}</span>
+                    </div>
+                    <div className="flex justify-between items-center gap-2">
+                         <div className="flex flex-col items-center flex-1">
+                             <span className="text-[10px] text-gray-400 uppercase">Звезды</span>
+                             <div className="flex items-center gap-1 text-yellow-400 font-bold">
+                                 <Star size={12} fill="currentColor"/>
+                                 <span>{photo.votes}</span>
+                             </div>
+                         </div>
+                         <div className="w-px h-6 bg-gray-600/50"></div>
+                         <div className="flex flex-col items-center flex-1">
+                             <span className="text-[10px] text-gray-400 uppercase">Баллы</span>
+                             <div className="flex items-center gap-1 text-green-400 font-bold">
+                                 <BarChart2 size={12}/>
+                                 <span>{(photo.normalizedScore || 0).toFixed(2)}</span>
+                             </div>
+                         </div>
+                         <div className="w-px h-6 bg-gray-600/50"></div>
+                         <div className="flex flex-col items-center flex-1">
+                             <span className="text-[10px] text-gray-400 uppercase">Голоса</span>
+                             <div className="flex items-center gap-1 text-blue-400 font-bold">
+                                 <Users size={12}/>
+                                 <span>{photo.voteCount || 0}</span>
+                             </div>
+                         </div>
+                    </div>
+                 </div>
             )}
         </div>
         
         <div className="relative">
-            {!isReadOnly && !isGrayscale && (
+            {!isReadOnly && !isGrayscale && !displayVotes && (
                 <>
                 <button onClick={(e) => { e.stopPropagation(); setIsCaptionVisible(p => !p); }} className="p-1.5 rounded-full bg-black/50 text-white/80 hover:bg-black/70 hover:text-white opacity-70 md:opacity-0 group-hover:opacity-100 transition-opacity duration-300"><Info className="w-5 h-5" /></button>
                 {isCaptionVisible && (

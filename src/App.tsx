@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { db } from './firebase';
 import { ref, get, onValue, runTransaction, DataSnapshot, set, remove, TransactionResult } from 'firebase/database';
-import { Photo, FirebasePhotoData, Settings, Config, GalleryItem, PhotoStack, FirebaseDataGroups } from './types';
+import { Photo, FirebasePhotoData, Settings, Config, GalleryItem, PhotoStack, FirebaseDataGroups, SortMode } from './types';
 import { PhotoCard } from './components/PhotoCard';
 import { Modal } from './components/Modal';
 import { ImmersiveView } from './components/ImmersiveView';
@@ -18,7 +18,6 @@ import { useDeviceType } from './hooks/useDeviceType';
 import { useColumnCount } from './hooks/useColumnCount';
 import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, ChevronUp } from 'lucide-react';
 
-type SortMode = 'score' | 'id';
 type VotingPhase = 'voting' | 'results';
 type AppStatus = 'loading' | 'success' | 'error' | 'selecting_session';
 type SessionInfo = { id: string; name: string };
@@ -37,6 +36,11 @@ const getUserId = (): string => {
         localStorage.setItem('shutterRankUserId', userId);
     }
     return userId;
+};
+
+const calculateNormalizedScore = (rating: number): number => {
+    if (rating <= 0) return 0;
+    return 1 + (rating - 1) * 0.25;
 };
 
 // Extracted component to prevent re-mounting on parent state changes
@@ -295,12 +299,31 @@ const App: React.FC = () => {
                 const savedVisibilityRaw = localStorage.getItem(visibilityKey);
                 const userVisibility: Record<string, boolean> = savedVisibilityRaw ? JSON.parse(savedVisibilityRaw) : {};
     
-                const initialPhotoState: Photo[] = initialPhotos.map(p => ({
-                    ...p,
-                    votes: initialVotes[String(p.id)] || 0,
-                    userRating: userRatings[p.id],
-                    isVisible: userVisibility[p.id] === undefined ? true : userVisibility[p.id]
-                })).sort((a,b) => (a.order ?? a.id) - (b.order ?? b.id));
+                const initialPhotoState: Photo[] = initialPhotos.map(p => {
+                    const voteData = initialVotes[String(p.id)];
+                    // Handle legacy data (number) vs new data (object)
+                    let votes = 0;
+                    let voteCount = 0;
+                    let normalizedScore = 0;
+
+                    if (typeof voteData === 'number') {
+                        votes = voteData;
+                    } else if (typeof voteData === 'object' && voteData !== null) {
+                        votes = voteData.s || 0;
+                        voteCount = voteData.c || 0;
+                        normalizedScore = voteData.n || 0;
+                    }
+
+                    return {
+                        ...p,
+                        votes,
+                        voteCount,
+                        normalizedScore,
+                        userRating: userRatings[p.id],
+                        isVisible: userVisibility[p.id] === undefined ? true : userVisibility[p.id]
+                    };
+                }).sort((a,b) => (a.order ?? a.id) - (b.order ?? b.id));
+
                 setPhotos(initialPhotoState);
                 setStatus('success');
     
@@ -314,13 +337,30 @@ const App: React.FC = () => {
             if (sessionId) {
                 const votesRef = ref(db, `sessions/${sessionId}/votes`);
                 unsubscribeFromVotes = onValue(votesRef, (voteSnapshot: DataSnapshot) => {
-                    const votes = voteSnapshot.val() || {};
+                    const votesData = voteSnapshot.val() || {};
                     setPhotos(prevPhotos => {
                         if (prevPhotos.length === 0) return prevPhotos;
-                        return prevPhotos.map(p => ({
-                            ...p,
-                            votes: votes[String(p.id)] || 0
-                        }));
+                        return prevPhotos.map(p => {
+                            const pVoteData = votesData[String(p.id)];
+                            let votes = 0;
+                            let voteCount = 0;
+                            let normalizedScore = 0;
+
+                            if (typeof pVoteData === 'number') {
+                                votes = pVoteData;
+                            } else if (typeof pVoteData === 'object' && pVoteData !== null) {
+                                votes = pVoteData.s || 0;
+                                voteCount = pVoteData.c || 0;
+                                normalizedScore = pVoteData.n || 0;
+                            }
+
+                            return {
+                                ...p,
+                                votes,
+                                voteCount,
+                                normalizedScore
+                            };
+                        });
                     });
                 }, (error: Error) => {
                     console.error("Ошибка Firebase listener:", error);
@@ -530,10 +570,52 @@ const App: React.FC = () => {
         const userVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${photoId}`);
         const userVotePromise: Promise<void> = newRating === 0 ? remove(userVoteRef) : set(userVoteRef, newRating);
 
-        // Update aggregate score
+        // Update aggregate score TRANSACTION
         const aggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${photoId}`);
-        const aggregateVotePromise: Promise<TransactionResult> = runTransaction(aggregateVoteRef, (currentVotes: number | null) => {
-            return (currentVotes || 0) + starsDifference;
+        
+        const aggregateVotePromise: Promise<TransactionResult> = runTransaction(aggregateVoteRef, (currentData: any) => {
+            // currentData can be:
+            // 1. null (no votes yet)
+            // 2. number (legacy format: just total stars)
+            // 3. object { s: stars, c: count, n: normalized } (new format)
+
+            let stars = 0;
+            let count = 0;
+            let normalized = 0;
+
+            if (typeof currentData === 'number') {
+                stars = currentData;
+                // We don't know the count/normalized score for legacy data, so we assume 0 or keep as is.
+                // Best effort: treat existing as 0 for count/norm to avoid corruption, 
+                // OR just start tracking from now on.
+            } else if (currentData) {
+                stars = currentData.s || 0;
+                count = currentData.c || 0;
+                normalized = currentData.n || 0;
+            }
+
+            // Calculate deltas
+            const starDelta = newRating - currentRating;
+            
+            let countDelta = 0;
+            if (currentRating === 0 && newRating > 0) countDelta = 1; // New vote
+            else if (currentRating > 0 && newRating === 0) countDelta = -1; // Removed vote
+            
+            const oldNorm = calculateNormalizedScore(currentRating);
+            const newNorm = calculateNormalizedScore(newRating);
+            const normDelta = newNorm - oldNorm;
+
+            // Apply
+            const newStars = stars + starDelta;
+            const newCount = count + countDelta;
+            const newNormalized = normalized + normDelta;
+
+            // Return new object structure
+            return {
+                s: newStars,
+                c: newCount,
+                n: newNormalized
+            };
         });
         
         const promises: (Promise<void> | Promise<TransactionResult>)[] = [userVotePromise, aggregateVotePromise];
@@ -623,27 +705,54 @@ const App: React.FC = () => {
             return itemsCopy;
         }
 
-        // sortBy === 'score'
-        const getScore = (item: GalleryItem): number => {
-            if (votingPhase === 'voting') {
-                if (item.type === 'photo') {
-                    return item.userRating || 0;
-                } else { // stack
-                    const selected = item.photos.find(p => p.id === item.selectedPhotoId);
-                    return selected?.userRating || 0;
+        // Helper to extract metric from item (single photo or stack representative)
+        const getMetric = (item: GalleryItem, metric: SortMode): number => {
+            let targetPhoto: Photo | undefined;
+            
+            if (item.type === 'photo') {
+                targetPhoto = item;
+            } else { // stack
+                // For voting phase: sort by selected photo (user's perspective)
+                // For results phase: sort by the best photo in the stack (aggregate perspective)
+                if (votingPhase === 'voting') {
+                    targetPhoto = item.photos.find(p => p.id === item.selectedPhotoId);
+                } else {
+                    // Find photo with max score/votes/count based on sort mode
+                     targetPhoto = item.photos.reduce((best, current) => {
+                         const bestVal = metric === 'stars' ? best.votes 
+                                       : metric === 'score' ? (best.normalizedScore || 0)
+                                       : metric === 'count' ? (best.voteCount || 0)
+                                       : 0;
+                         const currentVal = metric === 'stars' ? current.votes 
+                                          : metric === 'score' ? (current.normalizedScore || 0)
+                                          : metric === 'count' ? (current.voteCount || 0)
+                                          : 0;
+                         return currentVal > bestVal ? current : best;
+                     }, item.photos[0]);
                 }
-            } else { // results phase
-                 if (item.type === 'photo') {
-                    return item.votes || 0;
-                } else { // stack
-                    return Math.max(0, ...item.photos.map(p => p.votes || 0));
+            }
+
+            if (!targetPhoto) return 0;
+
+            if (votingPhase === 'voting') {
+                // In voting mode, we only really sort by User Rating ('score'/'stars' imply user rating here)
+                // or ID. 'count' doesn't make sense for local user view, but if selected, fallback to rating.
+                 return targetPhoto.userRating || 0;
+            } else {
+                // Results phase
+                switch (metric) {
+                    case 'stars': return targetPhoto.votes;
+                    case 'score': return targetPhoto.normalizedScore || 0;
+                    case 'count': return targetPhoto.voteCount || 0;
+                    default: return 0;
                 }
             }
         };
 
         itemsCopy.sort((a, b) => {
-            const scoreB = getScore(b);
-            const scoreA = getScore(a);
+            const scoreB = getMetric(b, sortBy);
+            const scoreA = getMetric(a, sortBy);
+            
             if (scoreB !== scoreA) {
                 return scoreB - scoreA;
             }
@@ -791,16 +900,33 @@ const App: React.FC = () => {
                 })
             );
 
+            // TRANSACTION FOR TRANSFER
             const fromUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${oldSelectedId}`);
             const fromAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${oldSelectedId}`);
             const toUserVoteRef = ref(db, `sessions/${sessionId}/userVotes/${userId}/${newSelectedId}`);
             const toAggregateVoteRef = ref(db, `sessions/${sessionId}/votes/${newSelectedId}`);
             
+            const ratingNorm = calculateNormalizedScore(ratingToTransfer);
+
             const promises = [
                 remove(fromUserVoteRef),
-                runTransaction(fromAggregateVoteRef, (currentVotes: number | null) => (currentVotes || 0) - ratingToTransfer),
+                // Decrement old
+                runTransaction(fromAggregateVoteRef, (data) => {
+                    let s = 0, c = 0, n = 0;
+                    if(typeof data === 'number') { s = data; }
+                    else if(data) { s = data.s||0; c = data.c||0; n = data.n||0; }
+                    
+                    return { s: s - ratingToTransfer, c: c - 1, n: n - ratingNorm };
+                }),
                 set(toUserVoteRef, ratingToTransfer),
-                runTransaction(toAggregateVoteRef, (currentVotes: number | null) => (currentVotes || 0) + ratingToTransfer),
+                // Increment new
+                runTransaction(toAggregateVoteRef, (data) => {
+                    let s = 0, c = 0, n = 0;
+                    if(typeof data === 'number') { s = data; }
+                    else if(data) { s = data.s||0; c = data.c||0; n = data.n||0; }
+                    
+                    return { s: s + ratingToTransfer, c: c + 1, n: n + ratingNorm };
+                }),
             ];
             
             Promise.all(promises).catch((error: Error) => {
@@ -1092,10 +1218,21 @@ const App: React.FC = () => {
                             <div className="flex flex-col items-center gap-3 p-3 rounded-lg bg-gray-900/40">
                                 <h3 className="font-semibold text-gray-400">Вид</h3>
                                  <ToggleSwitch id="main-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label="Показывать скрытые" />
-                                <div className="flex space-x-2">
-                                    <span className="text-gray-400 text-sm self-center">Сортировать:</span>
-                                    <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>По рейтингу</button>
-                                    <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>По порядку</button>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    <span className="text-gray-400 text-sm self-center w-full sm:w-auto text-center">Сортировка:</span>
+                                    {votingPhase === 'voting' ? (
+                                        <>
+                                            <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>№</button>
+                                            <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Мой рейтинг</button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button onClick={() => setSortBy('id')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'id' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>№</button>
+                                            <button onClick={() => setSortBy('stars')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'stars' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Звезды</button>
+                                            <button onClick={() => setSortBy('score')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'score' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Баллы</button>
+                                            <button onClick={() => setSortBy('count')} className={`px-3 py-1 text-sm rounded-md ${sortBy === 'count' ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>Голоса</button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1225,9 +1362,23 @@ const App: React.FC = () => {
                     ) : (
                          sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
-                                const groupData = groups[item.groupId];
-                                const bestPhoto = item.photos.reduce((best, current) => (current.votes > best.votes ? current : best), item.photos[0]);
+                                // Find best photo in stack based on current sort mode (or score by default)
+                                const sortMetric = sortBy === 'id' ? 'score' : sortBy;
+                                
+                                const bestPhoto = item.photos.reduce((best, current) => {
+                                    const bestVal = sortMetric === 'stars' ? best.votes 
+                                                  : sortMetric === 'score' ? (best.normalizedScore || 0)
+                                                  : sortMetric === 'count' ? (best.voteCount || 0)
+                                                  : (best.normalizedScore || 0);
+                                    const currentVal = sortMetric === 'stars' ? current.votes 
+                                                  : sortMetric === 'score' ? (current.normalizedScore || 0)
+                                                  : sortMetric === 'count' ? (current.voteCount || 0)
+                                                  : (current.normalizedScore || 0);
+                                    return currentVal > bestVal ? current : best;
+                                }, item.photos[0]);
+
                                 if (!bestPhoto) return null;
+                                const groupData = groups[item.groupId];
                                 return (
                                     <div key={item.groupId} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
                                          <PhotoCard
