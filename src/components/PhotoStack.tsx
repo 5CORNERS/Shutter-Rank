@@ -111,9 +111,9 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
 
                 {/* Tab / Label - Z: 20 (Between Middle and Top) */}
                 <div
-                    className="absolute left-1/2 -translate-x-1/2 h-8 bg-gray-800 border border-t-0 border-gray-600 rounded-b-lg flex items-center justify-center gap-2 text-xs text-gray-300 cursor-pointer group-hover:bg-gray-700 group-hover:text-white group-hover:-translate-y-1 transition-all duration-300 px-3 shadow-lg z-20"
+                    className={`absolute left-1/2 -translate-x-1/2 bg-gray-800 border border-t-0 border-gray-600 rounded-b-lg flex items-center justify-center gap-2 text-xs text-gray-300 cursor-pointer group-hover:bg-gray-700 group-hover:text-white group-hover:-translate-y-1 transition-all duration-300 px-3 shadow-lg z-20 ${isSelected ? 'h-9 pt-1' : 'h-8'}`}
                     onClick={(e) => { e.stopPropagation(); onExpand(); }}
-                    style={{ bottom: '-1.5rem', maxWidth: '80%', minWidth: '100px' }}
+                    style={{ bottom: isSelected ? '-1.85rem' : '-1.5rem', maxWidth: '80%', minWidth: '100px' }}
                 >
                     <span className="truncate font-medium">Группа «{groupName}»</span>
                     <ChevronDown className="w-3 h-3 flex-shrink-0 text-indigo-400" />
