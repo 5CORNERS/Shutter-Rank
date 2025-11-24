@@ -43,7 +43,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
                                                         gridAspectRatio, showRatingControls = true, isDimmed = false, isReadOnly = false, isHiding = false,
                                                         showVisibilityToggle = true, showSelectionControl = false, isSelected = false, onSelect = () => {},
                                                         isFilterActive = false, isGrayscale = false,
-                                                        starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit
+                                                        starsUsed = 0, totalStarsLimit = 1000, ratedPhotosCount = 0, ratedPhotoLimit = 1000
                                                     }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
@@ -64,12 +64,40 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
     const hasUserRating = photo.userRating && photo.userRating > 0;
     const isCredit = !!photo.isCredit;
 
+    // --- Determine Limit States for styling (Ring & Shadow) ---
     let voteRingClass = '';
+    let shadowClass = !isReadOnly ? 'hover:shadow-indigo-500/30' : ''; // Default shadow
+
     if (hasUserRating && !isReadOnly && !displayVotes) {
-        if (isCredit) {
+        const currentRating = photo.userRating || 0;
+        // Calculate "Base" stats (as if this photo wasn't rated yet)
+        // If photo is CREDIT, it's not in valid stats, so base = current valid stats.
+        // If photo is VALID, we remove it to find base.
+        const shouldRefund = !isCredit && currentRating > 0;
+
+        const basePhotosCount = ratedPhotosCount - (shouldRefund ? 1 : 0);
+        const baseStarsUsed = starsUsed - (shouldRefund ? currentRating : 0);
+
+        // Check projected usage
+        const isCountOverflow = basePhotosCount + 1 > ratedPhotoLimit;
+        const isStarOverflow = baseStarsUsed + currentRating > totalStarsLimit;
+
+        if (isCountOverflow && isStarOverflow) {
+            // Double Credit -> Bordeaux (Rose-600/700)
+            voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-rose-700';
+            shadowClass = 'hover:shadow-rose-600/60 hover:shadow-xl';
+        } else if (isCountOverflow) {
+            // Count Credit Only -> Orange
+            voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-orange-500';
+            shadowClass = 'hover:shadow-orange-500/60 hover:shadow-xl';
+        } else if (isStarOverflow) {
+            // Star Credit Only -> Cyan (Blue)
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-cyan-400/80';
+            shadowClass = 'hover:shadow-cyan-500/60 hover:shadow-xl';
         } else {
+            // Normal -> Yellow
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-yellow-400/80';
+            shadowClass = 'hover:shadow-indigo-500/60 hover:shadow-xl';
         }
     }
 
@@ -83,12 +111,6 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         '3/2': 'aspect-[3/2]',
     };
     const aspectRatioClass = aspectRatioMap[gridAspectRatio];
-
-    // Adjust shadow intensity based on whether there is a ring (hasUserRating) to ensure glow is visible
-    // Increased intensity to /60 and spread to xl when rated to punch through the ring visual noise
-    const shadowClass = !isReadOnly
-        ? (hasUserRating ? (isCredit ? 'hover:shadow-cyan-500/60 hover:shadow-xl' : 'hover:shadow-indigo-500/60 hover:shadow-xl') : 'hover:shadow-indigo-500/30')
-        : '';
 
     // Note: opacity logic moved from here to allow external control or specific stacking context
     const containerClasses = `group relative overflow-hidden rounded-lg shadow-lg bg-gray-800 transition-all duration-300 ${shadowClass} ${competitionClass} ${voteRingClass} ${layoutMode === 'original' ? 'break-inside-avoid' : ''} ${isHiding ? 'animate-hide' : ''}`;

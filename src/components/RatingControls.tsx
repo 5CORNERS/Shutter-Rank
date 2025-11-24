@@ -62,13 +62,13 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         ? 'sm:opacity-0 sm:group-hover:opacity-100'
         : '';
 
-    // CORE LOGIC FIX:
+    // CORE LOGIC: Determine "Base" stats (before this photo's rating is applied)
     const isCredit = !!photo.isCredit;
     const currentPhotoRating = photo.userRating || 0;
 
     // If the photo is VALID (not credit) and has a rating, its stars are currently counted in 'starsUsed'.
-    // We need to subtract them to find the "baseline" available budget before this photo was rated.
-    // BUT if the photo is CREDIT, its stars are NOT in 'starsUsed' (valid stats). So we shouldn't subtract anything.
+    // We need to subtract them to find the "baseline" available budget.
+    // If the photo is CREDIT, its stars are NOT in 'starsUsed' (valid stats), so base = current.
     const shouldRefund = !isCredit && currentPhotoRating > 0;
 
     const baseStarsUsed = starsUsed - (shouldRefund ? currentPhotoRating : 0);
@@ -82,43 +82,42 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 const maxRating = photo.maxRating ?? 3;
                 const isLocked = star > maxRating;
 
-                // --- Logic for Credit Color (Blue) ---
-                let isCreditStar = false;
+                // --- Logic for Limit Visualization (Yellow / Cyan / Orange / Rose) ---
+                let colorClass = variant === 'default' ? 'text-yellow-400' : 'text-gray-400'; // Default
 
-                // Only calculate color if we are actually displaying a "filled" or "highlighted" state for this star
+                // Only calculate credit color if we are actually displaying a "filled" or "highlighted" state
                 if (isFilled || isHighlighted) {
-                    // 1. Photo Count Check
+                    // 1. Check Photo Count Limit
                     // Does adding this photo (if it wasn't already a VALID rated photo) exceed the count limit?
-                    // If it was already valid (shouldRefund=true), adding it back doesn't increase count from baseline.
-                    // If it was new or credit, adding it increases count by 1.
                     const projectedCount = basePhotosCount + 1;
-                    const countExceeded = projectedCount > ratedPhotoLimit;
+                    const isCountExceeded = projectedCount > ratedPhotoLimit;
 
-                    if (countExceeded) {
-                        // If we are out of photo slots, ALL stars for this photo are credit
-                        isCreditStar = true;
+                    // 2. Check Star Limit
+                    // We check if the CUMULATIVE stars up to THIS star fit in the budget.
+                    const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
+                    const isStarExceeded = projectedTotalStarsAtThisLevel > totalStarsLimit;
+
+                    if (isCountExceeded && isStarExceeded) {
+                        // Double Credit (Bordeaux/Rose)
+                        colorClass = 'text-rose-500';
+                    } else if (isCountExceeded) {
+                        // Photo Count Credit (Orange)
+                        colorClass = 'text-orange-500';
+                    } else if (isStarExceeded) {
+                        // Star Limit Credit (Cyan/Blue)
+                        colorClass = 'text-cyan-400';
                     } else {
-                        // 2. Star Limit Check
-                        // We check if the CUMULATIVE stars up to THIS star fit in the budget.
-                        // e.g. Base 23. Star 1 (24) fits. Star 2 (25) fits. Star 3 (26) -> Credit.
-                        const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
-
-                        if (projectedTotalStarsAtThisLevel > totalStarsLimit) {
-                            isCreditStar = true;
-                        }
+                        // Valid (Yellow)
+                        colorClass = variant === 'default' ? 'text-yellow-400' : 'text-gray-400';
                     }
+                } else {
+                    // Empty / Inactive star
+                    colorClass = 'text-gray-500';
                 }
 
-                let starColor = 'text-gray-500';
-
-                if (isFilled) {
-                    starColor = isCreditStar ? 'text-cyan-400' : (variant === 'default' ? 'text-yellow-400' : 'text-gray-400');
-                } else if (isHighlighted) {
-                    if (isLocked) {
-                        starColor = 'text-red-500';
-                    } else {
-                        starColor = isCreditStar ? 'text-cyan-400' : (variant === 'default' ? 'text-yellow-400' : 'text-gray-500');
-                    }
+                // Override for Locked state on hover
+                if (isHighlighted && isLocked) {
+                    colorClass = 'text-red-500';
                 }
 
                 const titleText = isLocked
@@ -136,8 +135,8 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                         title={titleText}
                     >
                         <Star
-                            className={`${starSizeClass} transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''} ${disabled ? 'opacity-50' : ''}`}
-                            fill={isFilled && (variant === 'default' || isCreditStar) ? 'currentColor' : 'none'}
+                            className={`${starSizeClass} transition-colors ${colorClass} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''} ${disabled ? 'opacity-50' : ''}`}
+                            fill={(isFilled || (isHighlighted && !isLocked)) && (colorClass !== 'text-gray-500' && colorClass !== 'text-gray-400') ? 'currentColor' : 'none'}
                             strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}
                         />
                     </button>
