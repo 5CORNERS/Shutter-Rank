@@ -82,42 +82,46 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 const maxRating = photo.maxRating ?? 3;
                 const isLocked = star > maxRating;
 
-                // --- Logic for Limit Visualization (Yellow / Cyan / Indigo / Rose) ---
-                let colorClass = variant === 'default' ? 'text-yellow-400' : 'text-gray-400'; // Default
+                let colorClass = 'text-gray-500'; // Default inactive color
 
-                // Only calculate credit color if we are actually displaying a "filled" or "highlighted" state
-                if (isFilled || isHighlighted) {
-                    // 1. Check Photo Count Limit
-                    // Does adding this photo (if it wasn't already a VALID rated photo) exceed the count limit?
-                    const projectedCount = basePhotosCount + 1;
-                    const isCountExceeded = projectedCount > ratedPhotoLimit;
+                if (variant === 'default') {
+                    // --- Standard Rating Logic with Credit Colors ---
+                    if (isFilled || isHighlighted) {
+                        // 1. Check Photo Count Limit
+                        // Does adding this photo (if it wasn't already a VALID rated photo) exceed the count limit?
+                        const projectedCount = basePhotosCount + 1;
+                        const isCountExceeded = projectedCount > ratedPhotoLimit;
 
-                    // 2. Check Star Limit
-                    // We check if the CUMULATIVE stars up to THIS star fit in the budget.
-                    const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
-                    const isStarExceeded = projectedTotalStarsAtThisLevel > totalStarsLimit;
+                        // 2. Check Star Limit
+                        // We check if the CUMULATIVE stars up to THIS star fit in the budget.
+                        const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
+                        const isStarExceeded = projectedTotalStarsAtThisLevel > totalStarsLimit;
 
-                    if (isCountExceeded && isStarExceeded) {
-                        // Double Credit (Rose)
-                        colorClass = 'text-rose-500';
-                    } else if (isCountExceeded) {
-                        // Photo Count Credit (Indigo)
-                        colorClass = 'text-indigo-400';
-                    } else if (isStarExceeded) {
-                        // Star Limit Credit (Cyan/Blue)
-                        colorClass = 'text-cyan-400';
-                    } else {
-                        // Valid (Yellow)
-                        colorClass = variant === 'default' ? 'text-yellow-400' : 'text-gray-400';
+                        if (isCountExceeded && isStarExceeded) {
+                            // Double Credit (Rose/Bordeaux)
+                            colorClass = 'text-rose-500';
+                        } else if (isCountExceeded) {
+                            // Photo Count Credit (Indigo)
+                            colorClass = 'text-indigo-400';
+                        } else if (isStarExceeded) {
+                            // Star Limit Credit (Cyan/Blue)
+                            colorClass = 'text-cyan-400';
+                        } else {
+                            // Valid (Yellow)
+                            colorClass = 'text-yellow-400';
+                        }
+                    }
+
+                    // Override for Locked state on hover
+                    if (isHighlighted && isLocked) {
+                        colorClass = 'text-red-500';
                     }
                 } else {
-                    // Empty / Inactive star
-                    colorClass = 'text-gray-500';
-                }
-
-                // Override for Locked state on hover
-                if (isHighlighted && isLocked) {
-                    colorClass = 'text-red-500';
+                    // --- Gray Variant Logic (e.g. Stack Cover) ---
+                    // Ignore limits, just show visual feedback
+                    if (isFilled || isHighlighted) {
+                        colorClass = 'text-gray-300'; // Active/Hover state for gray variant
+                    }
                 }
 
                 const titleText = isLocked
