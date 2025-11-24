@@ -83,7 +83,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         const isStarOverflow = baseStarsUsed + currentRating > totalStarsLimit;
 
         if (isCountOverflow && isStarOverflow) {
-            // Double Credit -> Rose/Bordeaux (Not counted + No Stars)
+            // Double Credit -> Bordeaux/Rose (Not counted + No Stars)
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-rose-700';
             shadowClass = 'hover:shadow-rose-600/60 hover:shadow-xl';
         } else if (isCountOverflow) {

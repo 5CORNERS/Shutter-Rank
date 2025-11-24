@@ -751,8 +751,25 @@ const App: React.FC = () => {
         const projectedTotalCount = stats.total.count + (isNewVote ? 1 : 0);
         const projectedTotalStars = stats.total.stars - currentRating + newRating;
 
-        // "Fits in budget" now means "Fits in Global Limit"
-        const fitsInBudget = projectedTotalCount <= config.ratedPhotoLimit && projectedTotalStars <= config.totalStarsLimit;
+        // "Fits in budget" now means "Fits in Global Limit" AND "Does NOT jump queue"
+        // If we have credit votes (stats.credit.count > 0), we should assume the queue is blocked,
+        // UNLESS this specific photo is ALREADY in the queue (updating credit vote).
+        // However, simplifying: if we exceed limit, we go to credit.
+        // Also if we are within limit but credit exists?
+        // No, if we are within limit, it means there IS space.
+        // BUT if there is space, why are credit votes still in credit?
+        // `checkAndPromote` runs automatically. If it left votes in credit, it means they didn't fit.
+        // If they didn't fit, but a NEW vote fits, it means the NEW vote is smaller.
+        // To enforce FIFO, we must NOT allow this smaller vote to take the spot.
+        // So: If `stats.credit.count > 0` and `!isCurrentCredit`, we force credit.
+
+        let fitsInBudget = projectedTotalCount <= config.ratedPhotoLimit && projectedTotalStars <= config.totalStarsLimit;
+
+        if (fitsInBudget && stats.credit.count > 0 && !isCurrentCredit) {
+            // Attempting to jump queue?
+            // This logic ensures new votes respect the waiting line.
+            fitsInBudget = false;
+        }
 
         // Warning triggers
         const warningKey = `hasSeenCreditWarning_${sessionId}`;
@@ -760,7 +777,7 @@ const App: React.FC = () => {
 
         // Determine if we are *reaching* or *exceeding* the limit
         const isReachingLimit = projectedTotalCount === config.ratedPhotoLimit || projectedTotalStars === config.totalStarsLimit;
-        const isExceeding = projectedTotalCount > config.ratedPhotoLimit || projectedTotalStars > config.totalStarsLimit;
+        // const isExceeding = projectedTotalCount > config.ratedPhotoLimit || projectedTotalStars > config.totalStarsLimit;
 
         if (fitsInBudget) {
             // If it was credit, remove from credit first
@@ -1526,9 +1543,9 @@ const App: React.FC = () => {
                                                 gridAspectRatio={settings.gridAspectRatio}
                                                 isTouchDevice={isTouchDevice}
                                                 onShowToast={(msg) => setToastMessage(msg)}
-                                                starsUsed={stats.total.stars}
+                                                starsUsed={stats.valid.stars}
                                                 totalStarsLimit={config.totalStarsLimit}
-                                                ratedPhotosCount={stats.total.count}
+                                                ratedPhotosCount={stats.valid.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
@@ -1547,9 +1564,9 @@ const App: React.FC = () => {
                                                     groupSelections={groupSelections}
                                                     onSelectionChange={handleGroupSelectionChange}
                                                     isTouchDevice={isTouchDevice}
-                                                    starsUsed={stats.total.stars}
+                                                    starsUsed={stats.valid.stars}
                                                     totalStarsLimit={config.totalStarsLimit}
-                                                    ratedPhotosCount={stats.total.count}
+                                                    ratedPhotosCount={stats.valid.count}
                                                     ratedPhotoLimit={config.ratedPhotoLimit}
                                                 />
                                             )}
@@ -1566,9 +1583,9 @@ const App: React.FC = () => {
                                                 onToggleVisibility={handleToggleVisibility}
                                                 isHiding={hidingPhotoId === item.id}
                                                 isFilterActive={showHiddenPhotos}
-                                                starsUsed={stats.total.stars}
+                                                starsUsed={stats.valid.stars}
                                                 totalStarsLimit={config.totalStarsLimit}
-                                                ratedPhotosCount={stats.total.count}
+                                                ratedPhotosCount={stats.valid.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
                                             />
                                         </div>
@@ -1590,9 +1607,9 @@ const App: React.FC = () => {
                                             groupSelections={groupSelections}
                                             onSelectionChange={handleGroupSelectionChange}
                                             isTouchDevice={isTouchDevice}
-                                            starsUsed={stats.total.stars}
+                                            starsUsed={stats.valid.stars}
                                             totalStarsLimit={config.totalStarsLimit}
-                                            ratedPhotosCount={stats.total.count}
+                                            ratedPhotosCount={stats.valid.count}
                                             ratedPhotoLimit={config.ratedPhotoLimit}
                                         />
                                     )}
@@ -1661,8 +1678,8 @@ const App: React.FC = () => {
                     hasNext={photosForViewer.length > 1}
                     hasPrev={photosForViewer.length > 1}
                     config={config}
-                    ratedPhotosCount={stats.total.count}
-                    starsUsed={stats.total.stars}
+                    ratedPhotosCount={stats.valid.count}
+                    starsUsed={stats.valid.stars}
                     groupInfo={selectedPhotoGroupInfo}
                     groupSelections={groupSelections}
                     onGroupSelectionChange={handleGroupSelectionChange}
@@ -1683,8 +1700,8 @@ const App: React.FC = () => {
                     onRate={handleRateInGroup}
                     onToggleVisibility={handleToggleVisibility}
                     displayVotes={votingPhase === 'results'}
-                    ratedPhotosCount={stats.total.count}
-                    starsUsed={stats.total.stars}
+                    ratedPhotosCount={stats.valid.count}
+                    starsUsed={stats.valid.stars}
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     totalStarsLimit={config.totalStarsLimit}
                     groupInfo={immersivePhotoGroupInfo}
