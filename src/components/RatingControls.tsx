@@ -87,7 +87,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 if (variant === 'default') {
                     // --- Standard Rating Logic with Credit Colors ---
                     if (isFilled || isHighlighted) {
-                        // 1. Check Photo Count Limit
+                        // 1. Check Photo Count Limit (Slot Limit)
                         // Does adding this photo (if it wasn't already a VALID rated photo) exceed the count limit?
                         const projectedCount = basePhotosCount + 1;
                         const isCountExceeded = projectedCount > ratedPhotoLimit;
@@ -98,16 +98,16 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                         const isStarExceeded = projectedTotalStarsAtThisLevel > totalStarsLimit;
 
                         if (isCountExceeded && isStarExceeded) {
-                            // Double Credit (Rose/Bordeaux)
+                            // Double Credit -> Rose/Bordeaux (Total Fail)
                             colorClass = 'text-rose-500';
                         } else if (isCountExceeded) {
-                            // Photo Count Credit (Indigo)
+                            // Slot Credit Only -> Indigo (Cool spectrum = Not Counted)
                             colorClass = 'text-indigo-400';
                         } else if (isStarExceeded) {
-                            // Star Limit Credit (Cyan/Blue)
-                            colorClass = 'text-cyan-400';
+                            // Star Credit Only -> Orange (Warm spectrum = Counted, but warning)
+                            colorClass = 'text-orange-400';
                         } else {
-                            // Valid (Yellow)
+                            // Valid -> Yellow
                             colorClass = 'text-yellow-400';
                         }
                     }

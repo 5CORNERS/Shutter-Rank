@@ -83,17 +83,17 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         const isStarOverflow = baseStarsUsed + currentRating > totalStarsLimit;
 
         if (isCountOverflow && isStarOverflow) {
-            // Double Credit -> Bordeaux (Rose-600/700)
+            // Double Credit -> Rose/Bordeaux (Not counted + No Stars)
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-rose-700';
             shadowClass = 'hover:shadow-rose-600/60 hover:shadow-xl';
         } else if (isCountOverflow) {
-            // Count Credit Only -> Indigo
+            // Slot Credit Only -> Indigo (Cool Spectrum = Not Counted)
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-indigo-500';
             shadowClass = 'hover:shadow-indigo-500/60 hover:shadow-xl';
         } else if (isStarOverflow) {
-            // Star Credit Only -> Cyan (Blue)
-            voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-cyan-400/80';
-            shadowClass = 'hover:shadow-cyan-500/60 hover:shadow-xl';
+            // Star Credit Only -> Orange (Warm Spectrum = Counted, but warning)
+            voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-orange-500';
+            shadowClass = 'hover:shadow-orange-500/60 hover:shadow-xl';
         } else {
             // Normal -> Yellow
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-yellow-400/80';
