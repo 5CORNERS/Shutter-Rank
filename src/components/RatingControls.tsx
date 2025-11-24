@@ -64,7 +64,9 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
 
   // Calculate base usage excluding this photo's current rating
   const currentPhotoRating = photo.userRating || 0;
+  // If this photo has a rating (yellow or blue), we temporarily "refund" it to calculate if the NEW rating fits
   const baseStarsUsed = starsUsed - currentPhotoRating;
+  // If this photo is currently rated, we refund the count (1) too.
   const basePhotosCount = ratedPhotosCount - (currentPhotoRating > 0 ? 1 : 0);
 
   return (
@@ -76,35 +78,38 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         const isLocked = star > maxRating;
 
         // --- Logic for Credit Color (Blue) ---
+        // We calculate if THIS specific star pushes us over the limit
         let isCreditStar = false;
 
-        // If currently filled, check if the photo itself is marked as credit
-        if (isFilled && photo.isCredit) {
-            isCreditStar = true;
-        } 
-        // If hovering, calculate hypothetical impact
-        else if (isHighlighted) {
-            // Count Check: If this is a new rating (was 0) AND we are at/over limit
-            const wouldBeNewPhoto = currentPhotoRating === 0;
-            const countExceeded = wouldBeNewPhoto && (basePhotosCount >= ratedPhotoLimit);
-            
-            // Stars Check: Does THIS specific star push us over the limit?
-            // The vote is atomic, but we want to show the breaking point.
-            const projectedTotal = baseStarsUsed + hoverRating;
-            const starsExceeded = projectedTotal > totalStarsLimit;
-            
-            // If count limit is broken, ALL highlighted stars are blue
+        const targetRating = isHighlighted ? hoverRating : (photo.userRating || 0);
+        
+        // Only calculate color if we are actually displaying a "filled" or "highlighted" state for this star
+        if (isFilled || isHighlighted) {
+            // 1. Photo Count Check
+            // If this photo was NOT rated before (0), adding any star increases count by 1.
+            // Does this increase push us over the limit?
+            const isNewPhotoRating = currentPhotoRating === 0;
+            // Note: If we are just changing rating (e.g. 3->4), count doesn't change.
+            const projectedCount = basePhotosCount + 1;
+            const countExceeded = isNewPhotoRating && (projectedCount > ratedPhotoLimit);
+
             if (countExceeded) {
+                // If we are out of photo slots, ALL stars for this photo are credit
                 isCreditStar = true;
-            } 
-            // If star limit is broken, only stars that are "overflowing" turn blue
-            else if (starsExceeded) {
-                 // Example: Used 24, Limit 25. Hovering 3 (Total 27).
-                 // Star 1 (25th): Yellow. Star 2 (26th): Blue. Star 3 (27th): Blue.
-                 const valueOfThisStarGlobal = baseStarsUsed + star; 
-                 if (valueOfThisStarGlobal > totalStarsLimit) {
-                     isCreditStar = true;
-                 }
+            } else {
+                // 2. Star Limit Check
+                // We check if the CUMULATIVE stars up to THIS star fit in the budget.
+                // e.g. Used 24/25. Rate 3. 
+                // Star 1 (25th) -> Fits. Star 2 (26th) -> Overflow.
+                
+                // If we are rendering Star N, does (Base + N) exceed limit?
+                // Note: We use 'star' (the index 1..5) because stars are additive. 
+                // Getting the 3rd star implies we have the 1st and 2nd.
+                const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
+                
+                if (projectedTotalStarsAtThisLevel > totalStarsLimit) {
+                    isCreditStar = true;
+                }
             }
         }
 

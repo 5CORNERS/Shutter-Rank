@@ -14,10 +14,16 @@ interface PhotoStackProps {
     gridAspectRatio: GridAspectRatio;
     isTouchDevice: boolean;
     onShowToast?: (msg: string) => void;
+    // Limit props
+    starsUsed?: number;
+    totalStarsLimit?: number;
+    ratedPhotosCount?: number;
+    ratedPhotoLimit?: number;
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
-    stack, groupName, onRate, onImageClick, onExpand, displayVotes, layoutMode, gridAspectRatio, onShowToast
+    stack, groupName, onRate, onImageClick, onExpand, displayVotes, layoutMode, gridAspectRatio, onShowToast,
+    starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit
 }) => {
     
     // Determine which photos to show in the stack layers
@@ -132,6 +138,10 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         showVisibilityToggle={false} // Hide toggle on stack cover
                         isGrayscale={!isSelected} // Gray if nothing selected (but color on hover via CSS)
                         showRatingControls={false} // Hide rating controls on cover for simpler UI, or keep them but handled carefully
+                        starsUsed={starsUsed}
+                        totalStarsLimit={totalStarsLimit}
+                        ratedPhotosCount={ratedPhotosCount}
+                        ratedPhotoLimit={ratedPhotoLimit}
                     />
                     
                     {/* Count Badge */}
