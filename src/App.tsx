@@ -687,10 +687,9 @@ const App: React.FC = () => {
                     hasChanges = true;
                     setToastMessage("Ваш голос из «кредита» был зачтен!");
                 } else {
-                    // Since it's FIFO, if the oldest doesn't fit, subsequent ones *might* fit if they are smaller (stars),
-                    // but usually blocked by count.
-                    // Let's break if blocked by count, but continue if blocked by stars (maybe a smaller rating fits)
-                    if (countSpace < 1) break;
+                    // STRICT FIFO: If the oldest doesn't fit, STOP.
+                    // Do NOT let newer/smaller votes skip the queue.
+                    break;
                 }
             }
 
@@ -743,67 +742,48 @@ const App: React.FC = () => {
         }
 
         // Case 2: Rating (Updating or New)
-        // Check if it fits in VALID limits
-        const isNewValidVote = !isCurrentCredit && currentRating === 0;
 
-        // Current valid stats
-        const { valid } = stats;
+        // CHECK AGAINST *TOTAL* LIMITS (including credit debt)
+        // This ensures that if we are already in debt (e.g. queue is not empty), new votes go to credit/queue
+        // instead of skipping the line.
 
-        // Calculate projected valid usage
-        let projectedValidCount = valid.count;
-        let projectedValidStars = valid.stars;
+        const isNewVote = currentRating === 0;
+        const projectedTotalCount = stats.total.count + (isNewVote ? 1 : 0);
+        const projectedTotalStars = stats.total.stars - currentRating + newRating;
 
-        if (!isCurrentCredit) {
-            // If it was already valid, we are just changing stars, count stays same.
-            // If it was 0, count increases.
-            if (currentRating === 0) projectedValidCount++;
-            projectedValidStars = projectedValidStars - currentRating + newRating;
-        } else {
-            // If it was credit, and we want to see if it FITS now...
-            // It behaves like a new valid vote
-            projectedValidCount++;
-            projectedValidStars += newRating;
-        }
-
-        const fitsInValid = projectedValidCount <= config.ratedPhotoLimit && projectedValidStars <= config.totalStarsLimit;
+        // "Fits in budget" now means "Fits in Global Limit"
+        const fitsInBudget = projectedTotalCount <= config.ratedPhotoLimit && projectedTotalStars <= config.totalStarsLimit;
 
         // Warning triggers
         const warningKey = `hasSeenCreditWarning_${sessionId}`;
         const hasSeenWarning = localStorage.getItem(warningKey);
 
         // Determine if we are *reaching* or *exceeding* the limit
-        const isReachingLimit = projectedValidCount === config.ratedPhotoLimit || projectedValidStars === config.totalStarsLimit;
-        const isExceeding = projectedValidCount > config.ratedPhotoLimit || projectedValidStars > config.totalStarsLimit;
+        const isReachingLimit = projectedTotalCount === config.ratedPhotoLimit || projectedTotalStars === config.totalStarsLimit;
+        const isExceeding = projectedTotalCount > config.ratedPhotoLimit || projectedTotalStars > config.totalStarsLimit;
 
-        if (fitsInValid) {
+        if (fitsInBudget) {
             // If it was credit, remove from credit first
             if (isCurrentCredit) {
                 const newCredits = { ...creditVotes };
                 delete newCredits[photoId];
                 setCreditVotes(newCredits);
             }
-            // Write to Firebase
-            // CRITICAL FIX: Use Ref to get true previous state
+            // Write to Firebase (Yellow/Valid)
             const truePreviousRating = userFirebaseRatingsRef.current[photoId] || 0;
-            // Update Ref synchronously
             userFirebaseRatingsRef.current[photoId] = newRating;
 
-            // If it was current credit, it wasn't in Firebase, so previous is 0.
-            // But userFirebaseRatingsRef tracks what is IN FIREBASE.
-            // So if isCurrentCredit is true, truePreviousRating should be 0 from the Ref anyway.
             await writeVoteToFirebase(photoId, newRating, truePreviousRating);
 
-            // Check for "Reaching Limit" warning
-            // We only show this if they just voted and hit the ceiling exactly, AND haven't seen the warning yet
             if (isReachingLimit && !hasSeenWarning) {
-                const limitType = projectedValidCount === config.ratedPhotoLimit ? 'count' : 'stars';
+                const limitType = projectedTotalCount === config.ratedPhotoLimit ? 'count' : 'stars';
                 setCreditWarning({ isOpen: true, limitType });
                 localStorage.setItem(warningKey, 'true');
             }
 
         } else {
-            // GOES TO CREDIT (Exceeding)
-            const limitType = projectedValidCount > config.ratedPhotoLimit ? 'count' : 'stars';
+            // GOES TO CREDIT (Blue/Exceeding)
+            const limitType = projectedTotalCount > config.ratedPhotoLimit ? 'count' : 'stars';
 
             // Show warning if not seen
             if (!hasSeenWarning) {
@@ -811,16 +791,14 @@ const App: React.FC = () => {
                 localStorage.setItem(warningKey, 'true');
             }
 
-            // Save to Credit
+            // Save to Credit (Local Storage)
             const newCredits = { ...creditVotes };
             newCredits[photoId] = { rating: newRating, timestamp: Date.now() };
             setCreditVotes(newCredits);
 
             // If it was valid before, remove from Firebase! (Demote to credit)
             if (!isCurrentCredit && currentRating > 0) {
-                // CRITICAL FIX: Use Ref
                 const truePreviousRating = userFirebaseRatingsRef.current[photoId] || 0;
-                // Update Ref synchronously to 0 (since we are removing from Firebase)
                 userFirebaseRatingsRef.current[photoId] = 0;
 
                 await writeVoteToFirebase(photoId, 0, truePreviousRating);
@@ -1548,9 +1526,9 @@ const App: React.FC = () => {
                                                 gridAspectRatio={settings.gridAspectRatio}
                                                 isTouchDevice={isTouchDevice}
                                                 onShowToast={(msg) => setToastMessage(msg)}
-                                                starsUsed={stats.valid.stars}
+                                                starsUsed={stats.total.stars}
                                                 totalStarsLimit={config.totalStarsLimit}
-                                                ratedPhotosCount={stats.valid.count}
+                                                ratedPhotosCount={stats.total.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
@@ -1569,9 +1547,9 @@ const App: React.FC = () => {
                                                     groupSelections={groupSelections}
                                                     onSelectionChange={handleGroupSelectionChange}
                                                     isTouchDevice={isTouchDevice}
-                                                    starsUsed={stats.valid.stars}
+                                                    starsUsed={stats.total.stars}
                                                     totalStarsLimit={config.totalStarsLimit}
-                                                    ratedPhotosCount={stats.valid.count}
+                                                    ratedPhotosCount={stats.total.count}
                                                     ratedPhotoLimit={config.ratedPhotoLimit}
                                                 />
                                             )}
@@ -1588,9 +1566,9 @@ const App: React.FC = () => {
                                                 onToggleVisibility={handleToggleVisibility}
                                                 isHiding={hidingPhotoId === item.id}
                                                 isFilterActive={showHiddenPhotos}
-                                                starsUsed={stats.valid.stars}
+                                                starsUsed={stats.total.stars}
                                                 totalStarsLimit={config.totalStarsLimit}
-                                                ratedPhotosCount={stats.valid.count}
+                                                ratedPhotosCount={stats.total.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
                                             />
                                         </div>
@@ -1612,9 +1590,9 @@ const App: React.FC = () => {
                                             groupSelections={groupSelections}
                                             onSelectionChange={handleGroupSelectionChange}
                                             isTouchDevice={isTouchDevice}
-                                            starsUsed={stats.valid.stars}
+                                            starsUsed={stats.total.stars}
                                             totalStarsLimit={config.totalStarsLimit}
-                                            ratedPhotosCount={stats.valid.count}
+                                            ratedPhotosCount={stats.total.count}
                                             ratedPhotoLimit={config.ratedPhotoLimit}
                                         />
                                     )}
@@ -1683,8 +1661,8 @@ const App: React.FC = () => {
                     hasNext={photosForViewer.length > 1}
                     hasPrev={photosForViewer.length > 1}
                     config={config}
-                    ratedPhotosCount={stats.valid.count}
-                    starsUsed={stats.valid.stars}
+                    ratedPhotosCount={stats.total.count}
+                    starsUsed={stats.total.stars}
                     groupInfo={selectedPhotoGroupInfo}
                     groupSelections={groupSelections}
                     onGroupSelectionChange={handleGroupSelectionChange}
@@ -1705,8 +1683,8 @@ const App: React.FC = () => {
                     onRate={handleRateInGroup}
                     onToggleVisibility={handleToggleVisibility}
                     displayVotes={votingPhase === 'results'}
-                    ratedPhotosCount={stats.valid.count}
-                    starsUsed={stats.valid.stars}
+                    ratedPhotosCount={stats.total.count}
+                    starsUsed={stats.total.stars}
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     totalStarsLimit={config.totalStarsLimit}
                     groupInfo={immersivePhotoGroupInfo}
