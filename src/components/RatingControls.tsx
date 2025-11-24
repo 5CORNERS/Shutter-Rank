@@ -62,18 +62,13 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         ? 'sm:opacity-0 sm:group-hover:opacity-100'
         : '';
 
-    // CORE LOGIC: Determine "Base" stats (before this photo's rating is applied)
+    // CORE LOGIC: Determine "Base" stats (Valid Stats Only)
     const isCredit = !!photo.isCredit;
     const currentPhotoRating = photo.userRating || 0;
 
-    // If the photo is VALID (not credit) and has a rating, its stars are currently counted in 'starsUsed'.
-    // We need to subtract them to find the "baseline" available budget.
-    // If the photo is CREDIT, its stars are NOT in 'starsUsed' (valid stats), so base = current.
-    const shouldRefund = !isCredit && currentPhotoRating > 0;
-
-    const baseStarsUsed = starsUsed - (shouldRefund ? currentPhotoRating : 0);
-    // Note: basePhotosCount is calculated in PhotoCard for the border,
-    // but for Star Coloring we strictly care about the *Star Budget*.
+    // If photo is VALID, its rating is already in 'starsUsed'. Remove it to find the "gap".
+    // If photo is CREDIT, 'starsUsed' doesn't contain it. Base is just 'starsUsed'.
+    const baseStarsUsed = starsUsed - (isCredit ? 0 : currentPhotoRating);
 
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
@@ -86,20 +81,36 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 let colorClass = 'text-gray-500'; // Default inactive color
 
                 if (variant === 'default') {
-                    // --- Star Coloring Logic ---
-                    // Rule: "If usage from resource -> Warm (Yellow). If usage from credit -> Cool (Blue/Cyan)."
-                    // This is independent of whether the photo slot is credit or valid.
+                    // --- Color Logic ---
 
-                    if (isFilled || isHighlighted) {
-                        // Check Star Limit specifically for THIS star
+                    if (isFilled) {
+                        // PERSISTENT STATE
+                        // Simple rule: If it's stored as Credit, it's Cyan.
+                        // If it's stored as Valid (Firebase), it's Yellow.
+                        // But wait! The user wants "Hybrid" look if possible (3 Yellow, 1 Blue).
+                        // Since our data model is binary (Whole photo is Credit OR Whole photo is Valid),
+                        // we can simulate the hybrid look by checking the limits against the *valid* budget.
+
+                        if (isCredit) {
+                            // It is a credit vote. Check if this specific star would fit in the valid budget gap.
+                            const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
+                            if (projectedTotalStarsAtThisLevel > totalStarsLimit) {
+                                colorClass = 'text-cyan-400'; // Truly overflow
+                            } else {
+                                colorClass = 'text-yellow-400'; // Fits in gap (Simulated valid)
+                            }
+                        } else {
+                            // It is a valid vote. Always Yellow.
+                            colorClass = 'text-yellow-400';
+                        }
+
+                    } else if (isHighlighted) {
+                        // HOVER STATE
+                        // Predict what would happen if we clicked here.
                         const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
-                        const isStarExceeded = projectedTotalStarsAtThisLevel > totalStarsLimit;
-
-                        if (isStarExceeded) {
-                            // Credit Resource -> Cyan
+                        if (projectedTotalStarsAtThisLevel > totalStarsLimit) {
                             colorClass = 'text-cyan-400';
                         } else {
-                            // Available Resource -> Yellow
                             colorClass = 'text-yellow-400';
                         }
                     }

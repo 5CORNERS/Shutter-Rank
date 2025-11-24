@@ -70,32 +70,34 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
 
     if (hasUserRating && !isReadOnly && !displayVotes) {
         const currentRating = photo.userRating || 0;
-        // Calculate "Base" stats (as if this photo wasn't rated yet)
-        // If photo is CREDIT, it's not in valid stats, so base = current valid stats.
-        // If photo is VALID, we remove it to find base.
-        const shouldRefund = !isCredit && currentRating > 0;
 
-        const basePhotosCount = ratedPhotosCount - (shouldRefund ? 1 : 0);
-        const baseStarsUsed = starsUsed - (shouldRefund ? currentRating : 0);
+        // Calculate "Base" stats (Valid only)
+        // If photo is VALID, remove it to find base.
+        // If photo is CREDIT, base is just the passed valid stats.
+        const basePhotosCount = ratedPhotosCount - (isCredit ? 0 : 1);
+        const baseStarsUsed = starsUsed - (isCredit ? 0 : currentRating);
 
-        // Check projected usage
+        // Check projected usage against limits
+        // Count Overflow: Does adding this photo exceed the slot limit?
         const isCountOverflow = basePhotosCount + 1 > ratedPhotoLimit;
+
+        // Star Overflow: Does adding these stars exceed the star limit?
         const isStarOverflow = baseStarsUsed + currentRating > totalStarsLimit;
 
         if (isCountOverflow && isStarOverflow) {
-            // Double Credit -> Bordeaux/Rose (Not counted + No Stars)
+            // Double Credit -> Rose
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-rose-700';
             shadowClass = 'hover:shadow-rose-600/60 hover:shadow-xl';
         } else if (isCountOverflow) {
-            // Slot Credit Only -> Indigo (Cool Spectrum = Not Counted)
+            // Slot Credit Only -> Indigo
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-indigo-500';
             shadowClass = 'hover:shadow-indigo-500/60 hover:shadow-xl';
         } else if (isStarOverflow) {
-            // Star Credit Only -> Orange (Warm Spectrum = Counted, but warning)
+            // Star Credit Only -> Orange
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-orange-500';
             shadowClass = 'hover:shadow-orange-500/60 hover:shadow-xl';
         } else {
-            // Normal -> Yellow
+            // Valid -> Yellow
             voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-yellow-400/80';
             shadowClass = 'hover:shadow-indigo-500/60 hover:shadow-xl';
         }

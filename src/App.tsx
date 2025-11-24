@@ -754,14 +754,6 @@ const App: React.FC = () => {
         // "Fits in budget" now means "Fits in Global Limit" AND "Does NOT jump queue"
         // If we have credit votes (stats.credit.count > 0), we should assume the queue is blocked,
         // UNLESS this specific photo is ALREADY in the queue (updating credit vote).
-        // However, simplifying: if we exceed limit, we go to credit.
-        // Also if we are within limit but credit exists?
-        // No, if we are within limit, it means there IS space.
-        // BUT if there is space, why are credit votes still in credit?
-        // `checkAndPromote` runs automatically. If it left votes in credit, it means they didn't fit.
-        // If they didn't fit, but a NEW vote fits, it means the NEW vote is smaller.
-        // To enforce FIFO, we must NOT allow this smaller vote to take the spot.
-        // So: If `stats.credit.count > 0` and `!isCurrentCredit`, we force credit.
 
         let fitsInBudget = projectedTotalCount <= config.ratedPhotoLimit && projectedTotalStars <= config.totalStarsLimit;
 
