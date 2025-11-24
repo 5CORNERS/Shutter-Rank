@@ -47,28 +47,28 @@ const calculateNormalizedScore = (rating: number): number => {
 };
 
 // Extracted component to prevent re-mounting on parent state changes
-const ExpandedGroupComponent = ({ 
-    item, 
-    groupData, 
-    isClosing,
-    expandedGroupId,
-    showHiddenPhotos,
-    hidingPhotoId,
-    settings,
-    onCollapse,
-    onRate,
-    onImageClick,
-    onToggleVisibility,
-    groupSelections,
-    onSelectionChange,
-    isTouchDevice,
-    starsUsed,
-    totalStarsLimit,
-    ratedPhotosCount,
-    ratedPhotoLimit
-}: { 
-    item: PhotoStack, 
-    groupData: any, 
+const ExpandedGroupComponent = ({
+                                    item,
+                                    groupData,
+                                    isClosing,
+                                    expandedGroupId,
+                                    showHiddenPhotos,
+                                    hidingPhotoId,
+                                    settings,
+                                    onCollapse,
+                                    onRate,
+                                    onImageClick,
+                                    onToggleVisibility,
+                                    groupSelections,
+                                    onSelectionChange,
+                                    isTouchDevice,
+                                    starsUsed,
+                                    totalStarsLimit,
+                                    ratedPhotosCount,
+                                    ratedPhotoLimit
+                                }: {
+    item: PhotoStack,
+    groupData: any,
     isClosing: boolean,
     expandedGroupId: string | null,
     showHiddenPhotos: boolean,
@@ -101,7 +101,7 @@ const ExpandedGroupComponent = ({
                 });
             });
         } else if (isClosing) {
-             setAnimateOpen(false);
+            setAnimateOpen(false);
         }
     }, [isExpanded, isClosing]);
 
@@ -161,7 +161,7 @@ const ExpandedGroupComponent = ({
                                     )
                                 })}
                             </div>
-                                <div className="flex justify-center pt-6">
+                            <div className="flex justify-center pt-6">
                                 <button onClick={() => onCollapse(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
                                     <ChevronUp size={18}/>
                                     Свернуть группу
@@ -179,7 +179,7 @@ const App: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [availableSessions, setAvailableSessions] = useState<SessionInfo[]>([]);
     const [userId] = useState<string>(getUserId());
-    
+
     // Core data state
     const [photos, setPhotos] = useState<Photo[]>([]); // Derived UI state (Firebase + Credit)
     const [firebasePhotos, setFirebasePhotos] = useState<Photo[]>([]); // Only Firebase data
@@ -206,7 +206,7 @@ const App: React.FC = () => {
     const [showHiddenPhotos, setShowHiddenPhotos] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [creditWarning, setCreditWarning] = useState<{ isOpen: boolean; limitType: 'count' | 'stars' }>({ isOpen: false, limitType: 'count' });
-    
+
     const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
     const [closingGroupId, setClosingGroupId] = useState<string | null>(null);
     const [expertViewGroupId, setExpertViewGroupId] = useState<string | null>(null);
@@ -235,7 +235,7 @@ const App: React.FC = () => {
             const hash = decodeURIComponent(window.location.hash.slice(1));
             setSessionId(hash || null);
         };
-        
+
         window.addEventListener('hashchange', handleHashChange);
         handleHashChange(); // Initial load
 
@@ -245,7 +245,7 @@ const App: React.FC = () => {
     // Load Session, Votes, Credit Votes
     useEffect(() => {
         let unsubscribeFromVotes: (() => void) | null = null;
-    
+
         const loadSessionData = async () => {
             if (!sessionId) {
                 try {
@@ -253,7 +253,7 @@ const App: React.FC = () => {
                     const snapshot = await get(sessionsRef);
                     if (snapshot.exists()) {
                         const data = snapshot.val();
-                         const sessionList: SessionInfo[] = Object.keys(data).map(id => ({
+                        const sessionList: SessionInfo[] = Object.keys(data).map(id => ({
                             id: id,
                             name: data[id]?.config?.name || id
                         }));
@@ -278,10 +278,10 @@ const App: React.FC = () => {
                     return;
                 }
                 const data = snapshot.val();
-    
+
                 const loadedConfig = data.config as Config;
                 setConfig(loadedConfig);
-                
+
                 const photosData = (data.photos || { photos: [], introArticleMarkdown: '' }) as FirebasePhotoData;
                 const groupsData = (data.groups || {}) as FirebaseDataGroups;
                 setGroups(groupsData);
@@ -295,7 +295,7 @@ const App: React.FC = () => {
                         localStorage.setItem(hasSeenKey, 'true');
                     }
                 }
-    
+
                 const savedSettingsRaw = localStorage.getItem('userSettings');
                 if (savedSettingsRaw) {
                     setSettings(JSON.parse(savedSettingsRaw) as Settings);
@@ -305,11 +305,11 @@ const App: React.FC = () => {
                         gridAspectRatio: loadedConfig.defaultGridAspectRatio || '4/3'
                     });
                 }
-    
+
                 const groupSelectionsKey = `groupSelections_${sessionId}`;
                 const savedSelections = localStorage.getItem(groupSelectionsKey);
                 setGroupSelections(savedSelections ? JSON.parse(savedSelections) : {});
-                
+
                 // Load Credit Votes from LocalStorage
                 const creditVotesKey = `creditVotes_${sessionId}_${userId}`;
                 const savedCreditVotes = localStorage.getItem(creditVotesKey);
@@ -318,7 +318,7 @@ const App: React.FC = () => {
 
                 const initialPhotos = photosData.photos || [];
                 const initialVotes = data.votes || {};
-                
+
                 const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
                 const userVotesSnapshot = await get(userVotesRef);
                 const userRatings: Record<string, number> = userVotesSnapshot.exists() ? userVotesSnapshot.val() : {};
@@ -326,7 +326,7 @@ const App: React.FC = () => {
                 const visibilityKey = `userVisibility_${sessionId}`;
                 const savedVisibilityRaw = localStorage.getItem(visibilityKey);
                 const userVisibility: Record<string, boolean> = savedVisibilityRaw ? JSON.parse(savedVisibilityRaw) : {};
-    
+
                 const initialPhotoState: Photo[] = initialPhotos.map(p => {
                     const voteData = initialVotes[String(p.id)];
                     let votes = 0;
@@ -353,13 +353,13 @@ const App: React.FC = () => {
 
                 setFirebasePhotos(initialPhotoState);
                 setStatus('success');
-    
+
             } catch (error) {
                 console.error("Ошибка загрузки данных сессии из Firebase:", error);
                 setStatus('error');
             }
         };
-    
+
         loadSessionData().then(() => {
             if (sessionId) {
                 const votesRef = ref(db, `sessions/${sessionId}/votes`);
@@ -394,7 +394,7 @@ const App: React.FC = () => {
                 });
             }
         });
-    
+
         return () => {
             if (unsubscribeFromVotes) {
                 unsubscribeFromVotes();
@@ -412,7 +412,7 @@ const App: React.FC = () => {
             // If credit vote exists, it overrides the userRating (which should be 0 from firebase anyway if not synced yet)
             // But we prefer Firebase source of truth if both exist (handled by FIFO logic elsewhere)
             if (creditVote) {
-                 return { ...p, userRating: creditVote.rating, isCredit: true, isVisible: true };
+                return { ...p, userRating: creditVote.rating, isCredit: true, isVisible: true };
             }
             return p;
         }));
@@ -473,7 +473,7 @@ const App: React.FC = () => {
         });
         localStorage.setItem(`userVisibility_${sessionId}`, JSON.stringify(userVisibility));
     }, [photos, status, sessionId]);
-    
+
     useEffect(() => {
         const isAnyModalOpen = isSettingsModalOpen || isArticleModalOpen || isRatingInfoModalOpen || !!expertViewGroupId || !!selectedPhotoId || immersivePhotoId !== null || confirmation.isOpen || creditWarning.isOpen;
         if (isAnyModalOpen) {
@@ -500,23 +500,23 @@ const App: React.FC = () => {
 
     const photosWithMaxRating = useMemo(() => {
         if (!photos.length || !config) return photos;
-    
+
         const fourStarThreshold = config.unlockFourStarsThresholdPercent ?? 20;
         const fiveStarThreshold = config.unlockFiveStarsThresholdPercent ?? 50;
-        
+
         const photosInCompetition = photos.filter(p => !p.isOutOfCompetition);
         if (photosInCompetition.length === 0) {
             return photos.map(p => ({ ...p, maxRating: 3 }));
         }
 
         const totalVotes = photosInCompetition.reduce((sum, p) => sum + p.votes, 0);
-        
+
         if (totalVotes === 0) {
             return photos.map(p => ({ ...p, maxRating: 3 }));
         }
-    
+
         const averageVotes = totalVotes / photosInCompetition.length;
-    
+
         return photos.map(p => {
             if (p.isOutOfCompetition) return { ...p, maxRating: 3 };
 
@@ -551,24 +551,24 @@ const App: React.FC = () => {
                 grouped.push({ ...photo, type: 'photo' });
             }
         });
-        
+
         const finalGalleryItems: GalleryItem[] = [];
 
         grouped.forEach(item => {
             if (item.type === 'stack') {
-                const visiblePhotosInGroup = showHiddenPhotos 
-                    ? item.photos 
+                const visiblePhotosInGroup = showHiddenPhotos
+                    ? item.photos
                     : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
-                
+
                 if (visiblePhotosInGroup.length <= 1) {
-                     visiblePhotosInGroup.forEach(p => {
-                         finalGalleryItems.push({ ...p, type: 'photo' });
-                     });
+                    visiblePhotosInGroup.forEach(p => {
+                        finalGalleryItems.push({ ...p, type: 'photo' });
+                    });
                 } else {
-                     if (item.selectedPhotoId && !item.photos.some(p => p.id === item.selectedPhotoId)) {
-                         item.selectedPhotoId = null;
-                     }
-                     finalGalleryItems.push(item);
+                    if (item.selectedPhotoId && !item.photos.some(p => p.id === item.selectedPhotoId)) {
+                        item.selectedPhotoId = null;
+                    }
+                    finalGalleryItems.push(item);
                 }
             } else {
                 finalGalleryItems.push(item);
@@ -600,7 +600,7 @@ const App: React.FC = () => {
             let countDelta = 0;
             if (previousRating === 0 && rating > 0) countDelta = 1;
             else if (previousRating > 0 && rating === 0) countDelta = -1;
-            
+
             const oldNorm = calculateNormalizedScore(previousRating);
             const newNorm = calculateNormalizedScore(rating);
             const normDelta = newNorm - oldNorm;
@@ -623,9 +623,9 @@ const App: React.FC = () => {
     // Runs as an Effect whenever data changes to allow automatic promotion
     useEffect(() => {
         if (!config || firebasePhotos.length === 0) return;
-        
+
         const checkAndPromote = async () => {
-             // 1. Calculate currently available space
+            // 1. Calculate currently available space
             const validPhotos = firebasePhotos.filter(p => p.userRating && p.userRating > 0);
             let currentRatedCount = validPhotos.length;
             let currentStarsUsed = validPhotos.reduce((sum, p) => sum + (p.userRating || 0), 0);
@@ -649,11 +649,11 @@ const App: React.FC = () => {
                 if (countSpace >= 1 && starsSpace >= credit.rating) {
                     // Promote!
                     await writeVoteToFirebase(credit.id, credit.rating, 0);
-                    
+
                     // Update local counters for next iteration in loop
                     currentRatedCount++;
                     currentStarsUsed += credit.rating;
-                    
+
                     // Remove from credit
                     delete newCreditVotes[credit.id];
                     hasChanges = true;
@@ -678,10 +678,10 @@ const App: React.FC = () => {
 
     const handleRate = useCallback(async (photoId: number, rating: number) => {
         if (!config || !sessionId || !userId) return;
-    
+
         const photoToUpdate = photosWithMaxRating.find(p => p.id === photoId);
         if (!photoToUpdate || photoToUpdate.isOutOfCompetition) return;
-    
+
         const currentRating = photoToUpdate.userRating || 0;
         const isCurrentCredit = !!photoToUpdate.isCredit;
         let newRating = rating;
@@ -712,19 +712,19 @@ const App: React.FC = () => {
         // Case 2: Rating (Updating or New)
         // Check if it fits in VALID limits
         const isNewValidVote = !isCurrentCredit && currentRating === 0;
-        
+
         // Current valid stats
         const { valid } = stats;
-        
+
         // Calculate projected valid usage
         let projectedValidCount = valid.count;
         let projectedValidStars = valid.stars;
 
         if (!isCurrentCredit) {
-             // If it was already valid, we are just changing stars, count stays same.
-             // If it was 0, count increases.
-             if (currentRating === 0) projectedValidCount++;
-             projectedValidStars = projectedValidStars - currentRating + newRating;
+            // If it was already valid, we are just changing stars, count stays same.
+            // If it was 0, count increases.
+            if (currentRating === 0) projectedValidCount++;
+            projectedValidStars = projectedValidStars - currentRating + newRating;
         } else {
             // If it was credit, and we want to see if it FITS now...
             // It behaves like a new valid vote
@@ -733,11 +733,11 @@ const App: React.FC = () => {
         }
 
         const fitsInValid = projectedValidCount <= config.ratedPhotoLimit && projectedValidStars <= config.totalStarsLimit;
-        
+
         // Warning triggers
         const warningKey = `hasSeenCreditWarning_${sessionId}`;
         const hasSeenWarning = localStorage.getItem(warningKey);
-        
+
         // Determine if we are *reaching* or *exceeding* the limit
         const isReachingLimit = projectedValidCount === config.ratedPhotoLimit || projectedValidStars === config.totalStarsLimit;
         const isExceeding = projectedValidCount > config.ratedPhotoLimit || projectedValidStars > config.totalStarsLimit;
@@ -751,19 +751,19 @@ const App: React.FC = () => {
             }
             // Write to Firebase
             await writeVoteToFirebase(photoId, newRating, isCurrentCredit ? 0 : currentRating);
-            
+
             // Check for "Reaching Limit" warning
             // We only show this if they just voted and hit the ceiling exactly, AND haven't seen the warning yet
             if (isReachingLimit && !hasSeenWarning) {
-                 const limitType = projectedValidCount === config.ratedPhotoLimit ? 'count' : 'stars';
-                 setCreditWarning({ isOpen: true, limitType });
-                 localStorage.setItem(warningKey, 'true');
+                const limitType = projectedValidCount === config.ratedPhotoLimit ? 'count' : 'stars';
+                setCreditWarning({ isOpen: true, limitType });
+                localStorage.setItem(warningKey, 'true');
             }
 
         } else {
             // GOES TO CREDIT (Exceeding)
             const limitType = projectedValidCount > config.ratedPhotoLimit ? 'count' : 'stars';
-            
+
             // Show warning if not seen (covers "Reaching" case if they jumped straight to exceeding, or if they ignored the reaching one?)
             // Actually, if they exceed, we DEFINITELY show it if not seen.
             if (!hasSeenWarning) {
@@ -773,12 +773,12 @@ const App: React.FC = () => {
 
             // Save to Credit
             const newCredits = { ...creditVotes };
-            newCredits[photoId] = { rating: newRating, timestamp: Date.now() }; 
+            newCredits[photoId] = { rating: newRating, timestamp: Date.now() };
             setCreditVotes(newCredits);
 
             // If it was valid before, remove from Firebase! (Demote to credit)
             if (!isCurrentCredit && currentRating > 0) {
-                 await writeVoteToFirebase(photoId, 0, currentRating); 
+                await writeVoteToFirebase(photoId, 0, currentRating);
             }
         }
 
@@ -790,7 +790,7 @@ const App: React.FC = () => {
         if (!photo || photo.isOutOfCompetition) return;
 
         const currentVisibility = photo.isVisible !== false;
-        
+
         if (currentVisibility) {
             if (photo.userRating && photo.userRating > 0) return;
 
@@ -802,7 +802,7 @@ const App: React.FC = () => {
                 if (immersivePhotoId === photoId) handleNextImmersive();
             }, 400);
         } else {
-             setFirebasePhotos(prev => prev.map(p => p.id === photoId ? { ...p, isVisible: true } : p));
+            setFirebasePhotos(prev => prev.map(p => p.id === photoId ? { ...p, isVisible: true } : p));
         }
     }, [photos, selectedPhotoId, immersivePhotoId]);
 
@@ -821,7 +821,7 @@ const App: React.FC = () => {
                         localStorage.removeItem(`creditVotes_${sessionId}_${userId}`);
                         // Clear warning flag too so they can see it again in a new run? Maybe better UX.
                         localStorage.removeItem(`hasSeenCreditWarning_${sessionId}`);
-                        
+
                         setFirebasePhotos(prevPhotos =>
                             prevPhotos.map(p => ({...p, userRating: undefined, isVisible: true }))
                         );
@@ -836,7 +836,7 @@ const App: React.FC = () => {
             closeConfirmation
         );
     }, [sessionId, userId]);
-    
+
     // Helper for nested sorting logic
     const comparePhotos = useCallback((a: Photo, b: Photo, mode: SortMode) => {
         if (mode === 'id') return 0;
@@ -1013,14 +1013,14 @@ const App: React.FC = () => {
     const handleCloseImmersive = useCallback((lastViewedPhotoId?: number) => {
         const finalPhotoId = lastViewedPhotoId ?? immersivePhotoId;
         setImmersivePhotoId(null);
-        
+
         if (!isTouchDevice && finalPhotoId !== null) {
             setSelectedPhotoId(finalPhotoId);
         } else {
             scrollToPhoto(finalPhotoId);
         }
     }, [isTouchDevice, immersivePhotoId, scrollToPhoto]);
-    
+
     const handleOpenGroupFromViewer = useCallback((groupId: string) => {
         setSelectedPhotoId(null);
         setImmersivePhotoId(null);
@@ -1052,7 +1052,7 @@ const App: React.FC = () => {
         localStorage.setItem('userSettings', JSON.stringify(settings));
         setIsSettingsModalOpen(false);
     };
-    
+
     const handleGroupSelectionChange = useCallback((groupId: string, newSelectedId: number | null, initiatedByRate = false) => {
         const performSelectionChange = () => {
             const newSelections = { ...groupSelections, [groupId]: newSelectedId };
@@ -1064,28 +1064,28 @@ const App: React.FC = () => {
 
         const oldSelectedId = groupSelections[groupId] || null;
         if (oldSelectedId === newSelectedId) return;
-        
+
         const oldSelectedPhoto = oldSelectedId ? photos.find(p => p.id === oldSelectedId) : null;
-        
+
         // Special Case: Unselecting a photo that has a rating
         if (newSelectedId === null && oldSelectedPhoto?.userRating) {
-             handleRate(oldSelectedPhoto.id, 0); // Remove rating
-             performSelectionChange();
-             return;
+            handleRate(oldSelectedPhoto.id, 0); // Remove rating
+            performSelectionChange();
+            return;
         }
 
         const transferRating = () => {
             if (!oldSelectedPhoto?.userRating || newSelectedId === null) return;
             const ratingToTransfer = oldSelectedPhoto.userRating;
-            
+
             // Transfer logic: Unrate old, Rate new
             // Note: handleRate handles credit/firebase logic internally
             handleRate(oldSelectedId, 0);
             handleRate(newSelectedId, ratingToTransfer);
-            
+
             performSelectionChange();
         };
-        
+
         if (newSelectedId !== null && oldSelectedPhoto && oldSelectedPhoto.userRating && !initiatedByRate) {
             openConfirmation(
                 "Перенести отметку?",
@@ -1098,7 +1098,7 @@ const App: React.FC = () => {
             );
             return;
         }
-        
+
         performSelectionChange();
 
     }, [groupSelections, sessionId, photos, handleRate]);
@@ -1110,15 +1110,15 @@ const App: React.FC = () => {
             handleRate(photoId, rating);
             return;
         }
-    
+
         const groupId = photo.groupId;
         const currentSelectedId = groupSelections[groupId];
         const currentSelectedPhoto = currentSelectedId ? photos.find(p => p.id === currentSelectedId) : null;
         const isClearingRating = rating === 0 || rating === photo.userRating;
         const isNewRating = rating > 0 && !isClearingRating;
-    
+
         if (isNewRating && currentSelectedId && currentSelectedId !== photoId && currentSelectedPhoto?.userRating) {
-             openConfirmation(
+            openConfirmation(
                 "Перенести отметку?",
                 "В этой группе отмечена другая фотография. Перенести оценку с нее на этот снимок?",
                 () => {
@@ -1131,18 +1131,18 @@ const App: React.FC = () => {
             );
         } else {
             handleRate(photoId, rating);
-    
+
             if (isNewRating) {
-                 handleGroupSelectionChange(groupId, photoId, true);
+                handleGroupSelectionChange(groupId, photoId, true);
             } else if (isClearingRating && currentSelectedId === photoId) {
                 handleGroupSelectionChange(groupId, null, true);
             }
         }
     };
-    
+
     const findGroupDetails = useCallback((photoId: number | null): { id: string; name: string; caption?: string; photos: Photo[] } | null => {
         if (photoId === null) return null;
-        
+
         const photo = photos.find(p => p.id === photoId);
         if (!photo || !photo.groupId) return null;
 
@@ -1166,7 +1166,7 @@ const App: React.FC = () => {
         navigator.clipboard.writeText(url).then(() => {
             setToastMessage('Ссылка скопирована в буфер обмена');
         }).catch(() => {
-             setToastMessage('Не удалось скопировать ссылку');
+            setToastMessage('Не удалось скопировать ссылку');
         });
     }, []);
 
@@ -1188,7 +1188,7 @@ const App: React.FC = () => {
     const handleCollapseGroup = (groupId: string) => {
         setClosingGroupId(groupId);
         setExpandedGroupId(null);
-        
+
         closingTimeoutRef.current = window.setTimeout(() => {
             setClosingGroupId(null);
         }, 1500);
@@ -1196,46 +1196,47 @@ const App: React.FC = () => {
 
     const StatsInfo = ({isCompact = false}) => {
         if (!config) return null;
-        
-        const ratedRemaining = config.ratedPhotoLimit - stats.valid.count;
-        const starsRemaining = config.totalStarsLimit - stats.valid.stars;
-        
-        const hasCredit = stats.credit.count > 0;
-        
-        // --- UPDATED CREDIT TEXT LOGIC ---
+
+        // Logic update: "Fill" the valid budget with credit votes visually,
+        // only show the "Credit" text for what TRULY overflows.
         const totalPhotos = stats.valid.count + stats.credit.count;
+        const totalStars = stats.valid.stars + stats.credit.stars;
+
+        const displayPhotos = Math.min(totalPhotos, config.ratedPhotoLimit);
+        const displayStars = Math.min(totalStars, config.totalStarsLimit);
+
         const excessPhotos = Math.max(0, totalPhotos - config.ratedPhotoLimit);
-        
+        const excessStars = Math.max(0, totalStars - config.totalStarsLimit);
+
+        const ratedRemaining = config.ratedPhotoLimit - displayPhotos;
+        const starsRemaining = config.totalStarsLimit - displayStars;
+
+        const hasCredit = excessPhotos > 0 || excessStars > 0;
+
         const creditDetails = [];
-        // Only show "X photos in credit" if we actually exceeded the photo limit
         if (excessPhotos > 0) {
             creditDetails.push(`${excessPhotos} фото`);
-        } else if (stats.credit.count > 0) {
-             // We are in credit, but not because of photo limit (so it must be stars)
-             // We might want to mention the photo count context though? 
-             // "3 stars (on 1 photo)"
         }
-
-        if (stats.credit.stars > 0) {
-            let starText = `${stats.credit.stars} звёзд`;
-            // If we didn't mention photos (because we fit in photo limit), append context
+        if (excessStars > 0) {
+            let starText = `${excessStars} звёзд`;
+            // Context: If we are over star limit, but NOT photo limit, explain where these stars are hiding
             if (excessPhotos === 0 && stats.credit.count > 0) {
                 starText += ` (на ${stats.credit.count} фото)`;
             }
             creditDetails.push(starText);
         }
-        
+
         const creditString = creditDetails.join(', ');
 
         if (isCompact) {
             return (
                 <div className="text-xs flex items-center gap-2">
                     <div>
-                         Оценено: <span className="font-bold text-indigo-400">{stats.valid.count}/{config.ratedPhotoLimit}</span>
+                        Оценено: <span className="font-bold text-indigo-400">{displayPhotos}/{config.ratedPhotoLimit}</span>
                     </div>
                     <span className="text-gray-500">|</span>
                     <div>
-                         Звёзд: <span className="font-bold text-yellow-400">{stats.valid.stars}/{config.totalStarsLimit}</span>
+                        Звёзд: <span className="font-bold text-yellow-400">{displayStars}/{config.totalStarsLimit}</span>
                     </div>
                     {hasCredit && (
                         <>
@@ -1250,14 +1251,14 @@ const App: React.FC = () => {
         return (
             <div className="text-sm space-y-1 text-center text-gray-300 w-full">
                 <div>
-                    Вы оценили фотографий: <span className="font-bold text-white">{stats.valid.count} / {config.ratedPhotoLimit}</span>
+                    Вы оценили фотографий: <span className="font-bold text-white">{displayPhotos} / {config.ratedPhotoLimit}</span>
                     , осталось: <span className="font-bold text-indigo-400">{ratedRemaining >= 0 ? ratedRemaining : 0}</span>
                 </div>
                 <div>
-                    Израсходовали звезд: <span className="font-bold text-white">{stats.valid.stars} / {config.totalStarsLimit}</span>
+                    Израсходовали звезд: <span className="font-bold text-white">{displayStars} / {config.totalStarsLimit}</span>
                     , осталось: <span className="font-bold text-yellow-400">{starsRemaining >= 0 ? starsRemaining : 0}</span>
                 </div>
-                 {hasCredit && (
+                {hasCredit && (
                     <div className="text-red-400 font-semibold mt-1">
                         Внимание: В кредите: {creditString}
                     </div>
@@ -1274,16 +1275,16 @@ const App: React.FC = () => {
             </div>
         );
     }
-    
+
     if (status === 'selecting_session') {
         return (
             <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center text-white p-4 text-center">
-                 <List className="w-12 h-12 text-indigo-400 mb-4" />
+                <List className="w-12 h-12 text-indigo-400 mb-4" />
                 <h1 className="text-3xl font-bold mb-6">Выберите сессию голосования</h1>
                 <div className="max-w-sm w-full space-y-3">
                     {availableSessions.length > 0 ? (
                         availableSessions.map(session => (
-                            <a 
+                            <a
                                 key={session.id}
                                 href={`#${session.id}`}
                                 className="block w-full text-center px-6 py-3 text-lg font-semibold rounded-lg bg-gray-700 hover:bg-indigo-600 focus:ring-indigo-500 text-white transition-colors"
@@ -1292,7 +1293,7 @@ const App: React.FC = () => {
                             </a>
                         ))
                     ) : (
-                         <p className="text-gray-400">Доступных сессий не найдено.</p>
+                        <p className="text-gray-400">Доступных сессий не найдено.</p>
                     )}
                 </div>
             </div>
@@ -1307,7 +1308,7 @@ const App: React.FC = () => {
                 <p className="mt-2 text-gray-400 max-w-md">
                     Не удалось загрузить данные для сессии "{sessionId || 'неизвестно'}". Проверьте, что сессия с таким ID существует в Firebase и данные в ней корректны.
                 </p>
-                 <a href="#" className="mt-6 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                <a href="#" className="mt-6 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
                     Вернуться к выбору сессии
                 </a>
             </div>
@@ -1322,17 +1323,17 @@ const App: React.FC = () => {
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
             <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
 
-            <ConfirmationModal 
+            <ConfirmationModal
                 isOpen={confirmation.isOpen}
                 title={confirmation.title}
                 message={confirmation.message}
                 onConfirm={confirmation.onConfirm}
                 onCancel={confirmation.onCancel || closeConfirmation}
             />
-            
+
             {creditWarning.isOpen && (
-                <CreditWarningModal 
-                    onClose={() => setCreditWarning(prev => ({ ...prev, isOpen: false }))} 
+                <CreditWarningModal
+                    onClose={() => setCreditWarning(prev => ({ ...prev, isOpen: false }))}
                     limitType={creditWarning.limitType}
                 />
             )}
@@ -1348,11 +1349,11 @@ const App: React.FC = () => {
                     onSave={handleSaveSettings}
                 />
             )}
-            
+
             {isRatingInfoModalOpen && (
                 <RatingInfoModal onClose={() => setIsRatingInfoModalOpen(false)} />
             )}
-            
+
             {expertViewStack && (
                 <GroupModal
                     isOpen={!!expertViewGroupId}
@@ -1422,11 +1423,11 @@ const App: React.FC = () => {
                                     </button>
                                 </div>
                             </div>
-    
+
                             {/* Вид */}
                             <div className="flex flex-col items-center gap-3 p-3 rounded-lg bg-gray-900/40">
                                 <h3 className="font-semibold text-gray-400">Вид</h3>
-                                 <ToggleSwitch id="main-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label="Показывать скрытые" />
+                                <ToggleSwitch id="main-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label="Показывать скрытые" />
                                 <div className="flex flex-wrap justify-center gap-2">
                                     <span className="text-gray-400 text-sm self-center w-full sm:w-auto text-center">Сортировать по:</span>
                                     {votingPhase === 'voting' ? (
@@ -1454,12 +1455,12 @@ const App: React.FC = () => {
                 }>
                     {votingPhase === 'voting' ? (
                         sortedGalleryItems.map((item, index) => {
-                            
+
                             // LOGIC FOR "ROW EXPANDER"
                             const currentRow = Math.floor(index / columnsCount);
                             const isLastInRow = (index + 1) % columnsCount === 0;
                             const isLastItem = index === sortedGalleryItems.length - 1;
-                            
+
                             let expandedItemToRender: PhotoStack | null = null;
                             let expandedGroupData: any = null;
                             let isRenderedGroupClosing = false;
@@ -1506,9 +1507,9 @@ const App: React.FC = () => {
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
-                                                <ExpandedGroupComponent 
-                                                    item={item} 
-                                                    groupData={groups[item.groupId]} 
+                                                <ExpandedGroupComponent
+                                                    item={item}
+                                                    groupData={groups[item.groupId]}
                                                     isClosing={closingGroupId === item.groupId}
                                                     expandedGroupId={expandedGroupId}
                                                     showHiddenPhotos={showHiddenPhotos}
@@ -1547,11 +1548,11 @@ const App: React.FC = () => {
                                             />
                                         </div>
                                     )}
-                                    
+
                                     {expandedItemToRender && (
-                                        <ExpandedGroupComponent 
-                                            item={expandedItemToRender} 
-                                            groupData={expandedGroupData} 
+                                        <ExpandedGroupComponent
+                                            item={expandedItemToRender}
+                                            groupData={expandedGroupData}
                                             isClosing={isRenderedGroupClosing}
                                             expandedGroupId={expandedGroupId}
                                             showHiddenPhotos={showHiddenPhotos}
@@ -1575,7 +1576,7 @@ const App: React.FC = () => {
                             return itemElement;
                         })
                     ) : (
-                         sortedGalleryItems.map(item => {
+                        sortedGalleryItems.map(item => {
                             if (item.type === 'stack') {
                                 // Find best photo in stack based on current sort mode
                                 const bestPhoto = item.photos.reduce((best, current) => {
@@ -1586,7 +1587,7 @@ const App: React.FC = () => {
                                 const groupData = groups[item.groupId];
                                 return (
                                     <div key={item.groupId} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                         <PhotoCard
+                                        <PhotoCard
                                             photo={bestPhoto}
                                             onRate={handleRate}
                                             onImageClick={handleImageClick}
@@ -1602,11 +1603,11 @@ const App: React.FC = () => {
                                     </div>
                                 );
                             }
-                             return (
+                            return (
                                 <div key={item.id} className={settings.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                    <PhotoCard 
-                                        photo={item} 
-                                        onRate={()=>{}} 
+                                    <PhotoCard
+                                        photo={item}
+                                        onRate={()=>{}}
                                         onImageClick={handleImageClick}
                                         displayVotes={true}
                                         layoutMode={settings.layout}
