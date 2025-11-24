@@ -16,7 +16,6 @@ type SessionData = {
     groups?: FirebaseDataGroups;
 };
 
-const GEMINI_API_KEY_STORAGE_KEY = 'geminiApiKey';
 const GEMINI_CUSTOM_PROMPT_STORAGE_KEY = 'geminiCustomPrompt';
 
 const DEFAULT_PROMPT = `Ты — куратор музея или автор путеводителя. Опиши это изображение для фотоконкурса. Предоставь фактический, исторический или географический контекст, если это возможно. Избегай поэтического языка, субъективных эмоций и маркетинговых штампов. Будь кратким и информативным. Ответ дай на русском языке. Не используй markdown.`;
@@ -187,7 +186,6 @@ const EditorApp: React.FC = () => {
     const [status, setStatus] = useState<Status>('loading');
     const [isSaving, setIsSaving] = useState(false);
     const [generatingCaptionFor, setGeneratingCaptionFor] = useState<number | null>(null);
-    const [geminiApiKey, setGeminiApiKey] = useState<string>(() => localStorage.getItem(GEMINI_API_KEY_STORAGE_KEY) || '');
     const [geminiCustomPrompt, setGeminiCustomPrompt] = useState<string>(() => localStorage.getItem(GEMINI_CUSTOM_PROMPT_STORAGE_KEY) || DEFAULT_PROMPT);
     const [uploadProgress, setUploadProgress] = useState<{current: number, total: number} | null>(null);
     const [authStatus, setAuthStatus] = useState<'pending' | 'signed_in' | 'failed'>('pending');
@@ -391,12 +389,15 @@ const EditorApp: React.FC = () => {
 
     const handleGenerateCaption = useCallback(async (index: number) => {
         if (!sessionData) return;
-        const key = geminiApiKey.trim();
-        if (!key) {
-            alert("Пожалуйста, введите ваш Google AI API Key в настройках сессии.");
-            document.getElementById('geminiApiKey')?.focus();
+
+        // Retrieve API key from environment variable injected by build process
+        const apiKey = process.env.API_KEY;
+
+        if (!apiKey) {
+            alert("API Key не найден. Убедитесь, что переменная окружения API_KEY добавлена в Secrets репозитория GitHub.");
             return;
         }
+
         const prompt = geminiCustomPrompt.trim();
         if (!prompt) {
             alert("Пожалуйста, введите стиль (промпт) для генерации описаний.");
@@ -412,14 +413,15 @@ const EditorApp: React.FC = () => {
         setGeneratingCaptionFor(photo.id);
         try {
             const { base64, mimeType } = await urlToBase64(photo.url);
-            const ai = new GoogleGenAI({ apiKey: key });
+            // DIRECT initialization using process.env.API_KEY as per instructions
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const imagePart = { inlineData: { mimeType: mimeType, data: base64 } };
             const textPart = { text: prompt };
             const response = await ai.models.generateContent({
                 model: 'gemini-2.5-flash',
                 contents: { parts: [imagePart, textPart] },
             });
-            const caption = response.text.trim();
+            const caption = response.text?.trim();
             if (caption) {
                 handlePhotoChange(index, 'caption', caption);
             } else {
@@ -428,20 +430,11 @@ const EditorApp: React.FC = () => {
         } catch (error: any) {
             console.error("Ошибка генерации описания:", error);
             let errorMessage = error.message;
-            if (errorMessage.includes('API key not valid')) {
-                errorMessage = "API-ключ недействителен."
-            }
             alert(`Не удалось сгенерировать описание: ${errorMessage}`);
         } finally {
             setGeneratingCaptionFor(null);
         }
-    }, [sessionData, handlePhotoChange, geminiApiKey, geminiCustomPrompt]);
-
-    const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newKey = e.target.value;
-        setGeminiApiKey(newKey);
-        localStorage.setItem(GEMINI_API_KEY_STORAGE_KEY, newKey);
-    };
+    }, [sessionData, handlePhotoChange, geminiCustomPrompt]);
 
     const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newPrompt = e.target.value;
@@ -870,11 +863,6 @@ const EditorApp: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-400 mb-1">Unlock Four Stars Threshold Percent</label>
                             <input type="number" name="unlockFourStarsThresholdPercent" value={sessionData.config.unlockFourStarsThresholdPercent ?? 20} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
                         </div>
-                        <div className="md:col-span-2 lg:col-span-1">
-                            <label className="block text-sm font-medium text-gray-400 mb-1">Google AI API Key</label>
-                            <input id="geminiApiKey" type="password" value={geminiApiKey} onChange={handleApiKeyChange} placeholder="Вставьте ваш ключ" className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                            <p className="text-xs text-gray-500 mt-1">Ключ сохраняется в вашем браузере и не передается на сервер.</p>
-                        </div>
                         <div className="md:col-span-2 lg:col-span-3">
                             <label className="block text-sm font-medium text-gray-400 mb-1">Стиль описаний от ИИ (промпт)</label>
                             <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={3} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-sm" />
@@ -909,11 +897,11 @@ const EditorApp: React.FC = () => {
                         </div>
                         {availableGroups.length > 0 ? (
                             <div className="space-y-3">
-                                {availableGroups.map(([groupId, group]) => (
+                                {availableGroups.map(([groupId, groupData]) => (
                                     <div key={groupId} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center p-3 bg-gray-700/30 rounded-lg border border-gray-700/50">
                                         <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
-                                            <input type="text" value={group.name} onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Название" />
-                                            <input type="text" value={group.caption || ''} onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Описание группы (необязательно)" />
+                                            <input type="text" value={groupData.name} onChange={(e) => handleGroupChange(groupId, 'name', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Название" />
+                                            <input type="text" value={groupData.caption || ''} onChange={(e) => handleGroupChange(groupId, 'caption', e.target.value)} className="p-2 bg-gray-900 border border-gray-600 rounded text-white text-sm" placeholder="Описание группы (необязательно)" />
                                         </div>
                                         <button onClick={() => handleDeleteGroup(groupId)} className="text-red-400 hover:text-red-300 p-2" title="Удалить группу">
                                             <Trash2 className="w-4 h-4" />
