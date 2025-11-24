@@ -82,7 +82,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 const maxRating = photo.maxRating ?? 3;
                 const isLocked = star > maxRating;
 
-                // --- Logic for Limit Visualization (Yellow / Cyan / Orange / Rose) ---
+                // --- Logic for Limit Visualization (Yellow / Cyan / Indigo / Rose) ---
                 let colorClass = variant === 'default' ? 'text-yellow-400' : 'text-gray-400'; // Default
 
                 // Only calculate credit color if we are actually displaying a "filled" or "highlighted" state
@@ -98,11 +98,11 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                     const isStarExceeded = projectedTotalStarsAtThisLevel > totalStarsLimit;
 
                     if (isCountExceeded && isStarExceeded) {
-                        // Double Credit (Bordeaux/Rose)
+                        // Double Credit (Rose)
                         colorClass = 'text-rose-500';
                     } else if (isCountExceeded) {
-                        // Photo Count Credit (Orange)
-                        colorClass = 'text-orange-500';
+                        // Photo Count Credit (Indigo)
+                        colorClass = 'text-indigo-400';
                     } else if (isStarExceeded) {
                         // Star Limit Credit (Cyan/Blue)
                         colorClass = 'text-cyan-400';
@@ -124,6 +124,11 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                     ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}`
                     : `Оценить в ${star} ${getStarNounAccusative(star)}`;
 
+                // Fill Logic:
+                // - If isFilled: fill with currentColor.
+                // - If isHighlighted (Hover) but NOT isFilled: fill="none" (Outline only).
+                const shouldFill = isFilled;
+
                 return (
                     <button
                         key={star}
@@ -136,7 +141,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                     >
                         <Star
                             className={`${starSizeClass} transition-colors ${colorClass} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''} ${disabled ? 'opacity-50' : ''}`}
-                            fill={(isFilled || (isHighlighted && !isLocked)) && (colorClass !== 'text-gray-500' && colorClass !== 'text-gray-400') ? 'currentColor' : 'none'}
+                            fill={shouldFill ? 'currentColor' : 'none'}
                             strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}
                         />
                     </button>
