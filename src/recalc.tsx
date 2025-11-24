@@ -10,6 +10,10 @@ import './index.css';
 const calculateNormalizedScore = (rating: number): number => {
     if (rating <= 0) return 0;
     // Formula: 1 + (Rating - 1) * 0.25
+    // 1 star = 1 point
+    // 2 stars = 1.25 points
+    // ...
+    // 5 stars = 2 points
     return 1 + (rating - 1) * 0.25;
 };
 
@@ -42,7 +46,8 @@ const RecalculatorApp: React.FC = () => {
             }
 
             const userVotesData = snapshot.val();
-            addLog(`✅ Получены данные голосов от ${Object.keys(userVotesData).length} пользователей.`);
+            const userCount = Object.keys(userVotesData).length;
+            addLog(`✅ Получены данные голосов от ${userCount} пользователей.`);
 
             // 2. Aggregate Data
             const aggregates: Record<string, { s: number, c: number, n: number }> = {};
@@ -69,8 +74,8 @@ const RecalculatorApp: React.FC = () => {
             const photoCount = Object.keys(aggregates).length;
             addLog(`📊 Обработано фотографий: ${photoCount}`);
 
-            // 3. Write back to 'votes' node (Replacing old aggregates)
-            addLog('💾 Сохранение новых агрегированных данных в Firebase...');
+            // 3. Write back to 'votes' node (Replacing old aggregates completely to clean up stale data)
+            addLog('💾 Сохранение новых агрегированных данных в Firebase (перезапись узла votes)...');
             
             const votesRef = ref(db, `sessions/${sessionId}/votes`);
             await set(votesRef, aggregates);
@@ -89,14 +94,18 @@ const RecalculatorApp: React.FC = () => {
         <AdminLayout title="Пересчет голосов">
             <div className="space-y-6">
                 <div className="bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg">
-                    <p className="text-gray-300 text-sm">
-                        Этот инструмент возьмет все индивидуальные голоса пользователей (<code>userVotes</code>) 
-                        и заново рассчитает общую статистику (<code>votes</code>), используя новую формулу: 
-                        <span className="font-mono text-indigo-400 font-bold ml-1">1 + (Rating - 1) * 0.25</span>.
-                    </p>
-                    <p className="text-gray-300 text-sm mt-2">
-                        Используйте это для миграции старых сессий на новую систему подсчета.
-                    </p>
+                    <div className="flex items-start gap-3">
+                        <RefreshCw className="w-6 h-6 text-indigo-400 mt-1" />
+                        <div>
+                            <h3 className="font-bold text-indigo-400 mb-1">Инструмент восстановления целостности данных</h3>
+                            <p className="text-gray-300 text-sm">
+                                Этот инструмент пересчитывает глобальную статистику (узел <code>votes</code>) на основе индивидуальных голосов пользователей (<code>userVotes</code>).
+                            </p>
+                            <p className="text-gray-400 text-xs mt-2">
+                                Используйте его, если заметили рассинхронизацию баллов или некорректные суммы (например, отрицательные значения или дублирование) из-за сетевых задержек.
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <div>
@@ -125,7 +134,7 @@ const RecalculatorApp: React.FC = () => {
                 <div className="bg-gray-950 rounded-lg p-4 font-mono text-sm h-64 overflow-y-auto border border-gray-800">
                     {logs.length === 0 && <span className="text-gray-600">Здесь появится лог операций...</span>}
                     {logs.map((log, i) => (
-                        <div key={i} className="mb-1">{log}</div>
+                        <div key={i} className="mb-1 border-b border-gray-800/50 pb-1 last:border-0">{log}</div>
                     ))}
                 </div>
             </div>

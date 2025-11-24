@@ -185,6 +185,9 @@ const App: React.FC = () => {
     const [firebasePhotos, setFirebasePhotos] = useState<Photo[]>([]); // Only Firebase data
     const [creditVotes, setCreditVotes] = useState<Record<number, LocalVote>>({}); // Local storage votes
 
+    // Ref to track the "authoritative" state of what we have sent to Firebase to prevent race conditions
+    const userFirebaseRatingsRef = useRef<Record<number, number>>({});
+
     const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
     const [groups, setGroups] = useState<FirebaseDataGroups>({});
     const [config, setConfig] = useState<Config | null>(null);
@@ -322,6 +325,14 @@ const App: React.FC = () => {
                 const userVotesRef = ref(db, `sessions/${sessionId}/userVotes/${userId}`);
                 const userVotesSnapshot = await get(userVotesRef);
                 const userRatings: Record<string, number> = userVotesSnapshot.exists() ? userVotesSnapshot.val() : {};
+
+                // Sync the Ref with loaded data to ensure consistency
+                // Convert string keys to numbers for the Ref
+                const numericUserRatings: Record<number, number> = {};
+                Object.keys(userRatings).forEach(key => {
+                    numericUserRatings[Number(key)] = userRatings[key];
+                });
+                userFirebaseRatingsRef.current = numericUserRatings;
 
                 const visibilityKey = `userVisibility_${sessionId}`;
                 const savedVisibilityRaw = localStorage.getItem(visibilityKey);
@@ -660,6 +671,11 @@ const App: React.FC = () => {
                 // Note: Since credit vote is "new" to Firebase, count increases by 1
                 if (countSpace >= 1 && starsSpace >= credit.rating) {
                     // Promote!
+                    // Use the ref to ensure we don't double count if there's some lag, though typically credit->valid is safe.
+                    // Since it's coming from credit, the previous rating in Firebase MUST be 0.
+                    // We update the ref here just in case.
+                    userFirebaseRatingsRef.current[credit.id] = credit.rating;
+
                     await writeVoteToFirebase(credit.id, credit.rating, 0);
 
                     // Update local counters for next iteration in loop
@@ -716,7 +732,12 @@ const App: React.FC = () => {
                 setCreditVotes(newCredits);
             } else {
                 // Remove from Firebase
-                await writeVoteToFirebase(photoId, 0, currentRating);
+                // CRITICAL FIX: Use the Ref for the previous rating to prevent race conditions
+                const truePreviousRating = userFirebaseRatingsRef.current[photoId] || 0;
+                // Update Ref synchronously
+                userFirebaseRatingsRef.current[photoId] = 0;
+
+                await writeVoteToFirebase(photoId, 0, truePreviousRating);
             }
             return;
         }
@@ -762,7 +783,15 @@ const App: React.FC = () => {
                 setCreditVotes(newCredits);
             }
             // Write to Firebase
-            await writeVoteToFirebase(photoId, newRating, isCurrentCredit ? 0 : currentRating);
+            // CRITICAL FIX: Use Ref to get true previous state
+            const truePreviousRating = userFirebaseRatingsRef.current[photoId] || 0;
+            // Update Ref synchronously
+            userFirebaseRatingsRef.current[photoId] = newRating;
+
+            // If it was current credit, it wasn't in Firebase, so previous is 0.
+            // But userFirebaseRatingsRef tracks what is IN FIREBASE.
+            // So if isCurrentCredit is true, truePreviousRating should be 0 from the Ref anyway.
+            await writeVoteToFirebase(photoId, newRating, truePreviousRating);
 
             // Check for "Reaching Limit" warning
             // We only show this if they just voted and hit the ceiling exactly, AND haven't seen the warning yet
@@ -776,8 +805,7 @@ const App: React.FC = () => {
             // GOES TO CREDIT (Exceeding)
             const limitType = projectedValidCount > config.ratedPhotoLimit ? 'count' : 'stars';
 
-            // Show warning if not seen (covers "Reaching" case if they jumped straight to exceeding, or if they ignored the reaching one?)
-            // Actually, if they exceed, we DEFINITELY show it if not seen.
+            // Show warning if not seen
             if (!hasSeenWarning) {
                 setCreditWarning({ isOpen: true, limitType });
                 localStorage.setItem(warningKey, 'true');
@@ -790,7 +818,12 @@ const App: React.FC = () => {
 
             // If it was valid before, remove from Firebase! (Demote to credit)
             if (!isCurrentCredit && currentRating > 0) {
-                await writeVoteToFirebase(photoId, 0, currentRating);
+                // CRITICAL FIX: Use Ref
+                const truePreviousRating = userFirebaseRatingsRef.current[photoId] || 0;
+                // Update Ref synchronously to 0 (since we are removing from Firebase)
+                userFirebaseRatingsRef.current[photoId] = 0;
+
+                await writeVoteToFirebase(photoId, 0, truePreviousRating);
             }
         }
 
@@ -830,6 +863,7 @@ const App: React.FC = () => {
                 remove(userVotesRef)
                     .then(() => {
                         setCreditVotes({}); // Clear local votes
+                        userFirebaseRatingsRef.current = {}; // Clear the ref
                         localStorage.removeItem(`creditVotes_${sessionId}_${userId}`);
                         // Clear warning flag too so they can see it again in a new run? Maybe better UX.
                         localStorage.removeItem(`hasSeenCreditWarning_${sessionId}`);
