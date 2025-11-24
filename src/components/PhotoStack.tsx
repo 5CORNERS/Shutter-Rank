@@ -9,6 +9,7 @@ interface PhotoStackProps {
     onRate: (photoId: number, rating: number) => void;
     onImageClick: (photo: Photo) => void;
     onExpand: () => void;
+    onToggleVisibility: (photoId: number) => void;
     displayVotes: boolean;
     layoutMode: LayoutMode;
     gridAspectRatio: GridAspectRatio;
@@ -22,21 +23,21 @@ interface PhotoStackProps {
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
-    stack, groupName, onRate, onImageClick, onExpand, displayVotes, layoutMode, gridAspectRatio, onShowToast,
-    starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit
-}) => {
-    
+                                                                   stack, groupName, onRate, onImageClick, onExpand, onToggleVisibility, displayVotes, layoutMode, gridAspectRatio, onShowToast,
+                                                                   starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit
+                                                               }) => {
+
     // Determine which photos to show in the stack layers
     const { topPhoto, middlePhoto, bottomPhoto } = useMemo(() => {
         const selected = stack.photos.find(p => p.id === stack.selectedPhotoId);
         // If a photo is selected, it MUST be on top.
         // If not, show the first photo on top (will be grayed out).
         const top = selected || stack.photos[0];
-        
+
         // Find distinct photos for the layers beneath
         // Prefer photos that are NOT the top photo
         const others = stack.photos.filter(p => p.id !== top.id);
-        
+
         let middle = others[0];
         let bottom = others[1];
 
@@ -64,14 +65,14 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
             onRate(photoId, rating);
         }
     };
-    
+
     if (!topPhoto) return null;
 
     return (
-        <div id={`photo-stack-wrapper-${stack.groupId}`} className={`relative group pb-8 ${isExpanded ? 'dimmed-stack' : ''}`}>
+        <div id={`photo-stack-wrapper-${stack.groupId}`} className={`relative group pb-8`}>
             <div id={`photo-stack-${topPhoto.id}`} className="relative cursor-pointer h-full" onClick={onExpand}>
-                
-                {/* 
+
+                {/*
                    Stack Construction (Z-Index Order):
                    Z-0:  Bottom Card (Background)
                    Z-10: Middle Card (Background)
@@ -82,7 +83,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 {/* Bottom Layer (Rotated Right + Shifted) - Z: 0 */}
                 <div className="absolute inset-0 transform translate-x-2 translate-y-1 rotate-6 z-0 opacity-90 transition-all duration-300 group-hover:rotate-6 group-hover:translate-x-3 group-hover:translate-y-2 shadow-indigo-500/30 group-hover:shadow-indigo-500/50">
                     <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-600 ring-1 ring-black/50 brightness-90 contrast-125">
-                            <PhotoCard
+                        <PhotoCard
                             photo={bottomPhoto}
                             onRate={()=>{}}
                             onImageClick={()=>{}}
@@ -99,8 +100,8 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
 
                 {/* Middle Layer (Rotated Left + Shifted) - Z: 10 */}
                 <div className="absolute inset-0 transform -translate-x-1 translate-y-0 -rotate-3 z-10 opacity-95 transition-all duration-300 group-hover:-rotate-3 group-hover:-translate-x-2 group-hover:translate-y-1 shadow-indigo-500/30 group-hover:shadow-indigo-500/50">
-                        <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-600 ring-1 ring-black/50 brightness-90 contrast-110">
-                            <PhotoCard
+                    <div className="w-full h-full rounded-lg overflow-hidden shadow-md bg-gray-800 border border-gray-600 ring-1 ring-black/50 brightness-90 contrast-110">
+                        <PhotoCard
                             photo={middlePhoto}
                             onRate={()=>{}}
                             onImageClick={()=>{}}
@@ -116,7 +117,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                 </div>
 
                 {/* Tab / Label - Z: 20 (Between Middle and Top) */}
-                <div 
+                <div
                     className={`absolute left-1/2 -translate-x-1/2 bg-gray-800 border border-t-0 border-gray-600 rounded-b-lg flex items-center justify-center gap-2 text-xs text-gray-300 cursor-pointer group-hover:bg-gray-700 group-hover:text-white group-hover:-translate-y-1 transition-all duration-300 px-3 shadow-lg z-20 ${isSelected ? 'h-9 pt-1' : 'h-8'}`}
                     onClick={(e) => { e.stopPropagation(); onExpand(); }}
                     style={{ bottom: isSelected ? '-1.85rem' : '-1.5rem', maxWidth: '80%', minWidth: '100px' }}
@@ -131,21 +132,28 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         photo={topPhoto}
                         onRate={handleRateCover}
                         onImageClick={onExpand}
-                        onToggleVisibility={() => {}} 
+                        onToggleVisibility={onToggleVisibility}
                         displayVotes={displayVotes}
                         layoutMode={layoutMode}
                         gridAspectRatio={gridAspectRatio}
-                        showVisibilityToggle={false} // Hide toggle on stack cover
+                        showVisibilityToggle={true} // Enabled to allow hiding/unhiding the stack representative
                         isGrayscale={!isSelected} // Gray if nothing selected (but color on hover via CSS)
-                        showRatingControls={true} // Hide rating controls on cover for simpler UI, or keep them but handled carefully
+                        showRatingControls={true} // Allow rating on cover
                         starsUsed={starsUsed}
                         totalStarsLimit={totalStarsLimit}
                         ratedPhotosCount={ratedPhotosCount}
                         ratedPhotoLimit={ratedPhotoLimit}
                     />
-                    
+
+                    {/* Expanded Overlay with Floating Chevron */}
+                    {isExpanded && (
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex flex-col items-center justify-center z-40 rounded-lg pointer-events-none transition-opacity duration-500">
+                            <ChevronDown className="w-16 h-16 text-white/80 animate-float filter drop-shadow-lg" strokeWidth={1.5} />
+                        </div>
+                    )}
+
                     {/* Count Badge */}
-                    <div className="absolute top-2 right-2 z-40 bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 pointer-events-none shadow-lg border border-white/10">
+                    <div className="absolute top-2 right-2 z-50 bg-black/70 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-sm font-bold flex items-center gap-1.5 pointer-events-none shadow-lg border border-white/10">
                         <Layers size={16} className="text-indigo-400" />
                         <span>{stack.photos.length}</span>
                     </div>

@@ -498,6 +498,18 @@ const App: React.FC = () => {
         setScrollToId(null);
     }, [scrollToId]);
 
+    // Auto-scroll to expanded group
+    useEffect(() => {
+        if (expandedGroupId) {
+            const element = document.getElementById(`photo-stack-wrapper-${expandedGroupId}`);
+            if (element) {
+                setTimeout(() => {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 150); // Slight delay to allow animation start/layout shift
+            }
+        }
+    }, [expandedGroupId]);
+
     const photosWithMaxRating = useMemo(() => {
         if (!photos.length || !config) return photos;
 
@@ -660,7 +672,7 @@ const App: React.FC = () => {
                     setToastMessage("Ваш голос из «кредита» был зачтен!");
                 } else {
                     // Since it's FIFO, if the oldest doesn't fit, subsequent ones *might* fit if they are smaller (stars),
-                    // but usually blocked by count. 
+                    // but usually blocked by count.
                     // Let's break if blocked by count, but continue if blocked by stars (maybe a smaller rating fits)
                     if (countSpace < 1) break;
                 }
@@ -1496,6 +1508,7 @@ const App: React.FC = () => {
                                                         handleExpandGroup(item.groupId);
                                                     }
                                                 }}
+                                                onToggleVisibility={handleToggleVisibility}
                                                 displayVotes={false}
                                                 layoutMode={settings.layout}
                                                 gridAspectRatio={settings.gridAspectRatio}
