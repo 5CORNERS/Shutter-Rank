@@ -432,7 +432,11 @@ const App: React.FC = () => {
 
     // Helper to calculate stats
     const stats = useMemo(() => {
-        const validPhotos = firebasePhotos.filter(p => p.userRating && p.userRating > 0);
+        // FIXED: Source from 'photos' (merged state) to ensure consistency.
+        // We strictly separate Valid (Yellow) vs Credit (Blue) based on the isCredit flag.
+        // This prevents "Double Counting" if a photo exists in both sources temporarily during sync.
+        const validPhotos = photos.filter(p => p.userRating && p.userRating > 0 && !p.isCredit);
+
         const ratedCount = validPhotos.length;
         const starsUsed = validPhotos.reduce((sum, p) => sum + (p.userRating || 0), 0);
 
@@ -445,7 +449,7 @@ const App: React.FC = () => {
             credit: { count: creditCount, stars: creditStars },
             total: { count: ratedCount + creditCount, stars: starsUsed + creditStars }
         };
-    }, [firebasePhotos, creditVotes]);
+    }, [photos, creditVotes]);
 
     // Persist credit votes
     useEffect(() => {
