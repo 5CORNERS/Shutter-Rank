@@ -8,12 +8,13 @@ export interface FirebasePhoto {
 }
 
 export interface Photo extends FirebasePhoto {
-  votes: number; // Sum of stars (Legacy + New)
-  voteCount?: number; // Number of people who voted
-  normalizedScore?: number; // Sum of normalized scores (1 + (N-1)*0.25)
+  votes: number; // Sum of stars (Legacy or 's')
+  voteCount?: number; // Count of votes ('c')
+  normalizedScore?: number; // Sum of normalized scores ('n')
   userRating?: number;
   isVisible?: boolean;
   maxRating?: number;
+  isCredit?: boolean; // New flag for credit votes
 }
 
 export interface GroupData {

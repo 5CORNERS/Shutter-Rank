@@ -8,7 +8,12 @@ interface RatingControlsProps {
   size?: 'small' | 'large';
   disabled?: boolean;
   resetButtonMode?: 'always' | 'on-hover-desktop';
-  variant?: 'default' | 'gray'; // New prop for styling
+  variant?: 'default' | 'gray';
+  // New props for limit checking
+  starsUsed?: number;
+  totalStarsLimit?: number;
+  ratedPhotosCount?: number;
+  ratedPhotoLimit?: number;
 }
 
 const getStarNounAccusative = (count: number): string => {
@@ -35,7 +40,11 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
     size = 'large', 
     disabled = false, 
     resetButtonMode = 'on-hover-desktop',
-    variant = 'default'
+    variant = 'default',
+    starsUsed = 0,
+    totalStarsLimit = 1000,
+    ratedPhotosCount = 0,
+    ratedPhotoLimit = 1000
 }) => {
   const [hoverRating, setHoverRating] = useState(0);
   const isTouchDevice = 'ontouchstart' in window;
@@ -53,10 +62,10 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
     ? 'sm:opacity-0 sm:group-hover:opacity-100'
     : '';
 
-  // Colors based on variant
-  const filledColor = variant === 'default' ? 'text-yellow-400' : 'text-gray-400';
-  const hoverColor = variant === 'default' ? 'text-yellow-400' : 'text-gray-500';
-  const lockedColor = 'text-red-500';
+  // Calculate base usage excluding this photo's current rating
+  const currentPhotoRating = photo.userRating || 0;
+  const baseStarsUsed = starsUsed - currentPhotoRating;
+  const basePhotosCount = ratedPhotosCount - (currentPhotoRating > 0 ? 1 : 0);
 
   return (
     <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
@@ -66,12 +75,49 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         const maxRating = photo.maxRating ?? 3;
         const isLocked = star > maxRating;
 
+        // --- Logic for Credit Color (Blue) ---
+        let isCreditStar = false;
+
+        // If currently filled, check if the photo itself is marked as credit
+        if (isFilled && photo.isCredit) {
+            isCreditStar = true;
+        } 
+        // If hovering, calculate hypothetical impact
+        else if (isHighlighted) {
+            // Count Check: If this is a new rating (was 0) AND we are at/over limit
+            const wouldBeNewPhoto = currentPhotoRating === 0;
+            const countExceeded = wouldBeNewPhoto && (basePhotosCount >= ratedPhotoLimit);
+            
+            // Stars Check: Does THIS specific star push us over the limit?
+            // The vote is atomic, but we want to show the breaking point.
+            const projectedTotal = baseStarsUsed + hoverRating;
+            const starsExceeded = projectedTotal > totalStarsLimit;
+            
+            // If count limit is broken, ALL highlighted stars are blue
+            if (countExceeded) {
+                isCreditStar = true;
+            } 
+            // If star limit is broken, only stars that are "overflowing" turn blue
+            else if (starsExceeded) {
+                 // Example: Used 24, Limit 25. Hovering 3 (Total 27).
+                 // Star 1 (25th): Yellow. Star 2 (26th): Blue. Star 3 (27th): Blue.
+                 const valueOfThisStarGlobal = baseStarsUsed + star; 
+                 if (valueOfThisStarGlobal > totalStarsLimit) {
+                     isCreditStar = true;
+                 }
+            }
+        }
+
         let starColor = 'text-gray-500';
         
         if (isFilled) {
-            starColor = filledColor;
+             starColor = isCreditStar ? 'text-cyan-400' : (variant === 'default' ? 'text-yellow-400' : 'text-gray-400');
         } else if (isHighlighted) {
-            starColor = isLocked ? lockedColor : hoverColor;
+             if (isLocked) {
+                 starColor = 'text-red-500';
+             } else {
+                 starColor = isCreditStar ? 'text-cyan-400' : (variant === 'default' ? 'text-yellow-400' : 'text-gray-500');
+             }
         }
         
         const titleText = isLocked 
@@ -90,7 +136,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
           >
             <Star
               className={`${starSizeClass} transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''} ${disabled ? 'opacity-50' : ''}`}
-              fill={isFilled && variant === 'default' ? 'currentColor' : 'none'} 
+              fill={isFilled && (variant === 'default' || isCreditStar) ? 'currentColor' : 'none'} 
               strokeWidth={isHighlighted && !isFilled ? 2 : 1.5}
             />
           </button>

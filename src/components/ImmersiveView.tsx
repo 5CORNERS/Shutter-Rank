@@ -328,12 +328,6 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         onRate(photo.id, rating);
     };
 
-    const getScoreColor = (score: number) => {
-        if (score > 0) return 'text-green-400';
-        if (score < 0) return 'text-red-400';
-        return 'text-gray-400';
-    };
-
     const handleTouchStart = (e: React.TouchEvent) => {
         if (e.touches.length > 1 || animationState !== 'idle') return;
         const { clientX, clientY } = e.touches[0];
@@ -468,6 +462,11 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const showTopAndSideControls = uiMode === 'full' || transientControlsVisible;
     const showBottomControls = uiMode === 'full';
     const captionToShow = groupInfo?.caption ? groupInfo.caption : photo.caption;
+    
+    // Calculate base metrics excluding current photo if it has a rating
+    const currentPhotoRating = photo.userRating || 0;
+    const baseStarsUsed = starsUsed - currentPhotoRating;
+    const basePhotosCount = ratedPhotosCount - (currentPhotoRating > 0 ? 1 : 0);
 
     return (
         <div
@@ -570,13 +569,37 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                     {[1, 2, 3, 4, 5].map((star) => {
                                         const isFilled = (photo.userRating || 0) >= star;
                                         const isHighlighted = !isTouchDevice && (hoverRating || 0) >= star;
+                                        const maxRating = photo.maxRating ?? 3;
                                         const isLocked = star > maxRating;
+
+                                        // --- Credit Voting Logic for Stars ---
+                                        let isCreditStar = false;
+                                        if (isFilled && photo.isCredit) {
+                                            isCreditStar = true;
+                                        } else if (isHighlighted) {
+                                            const wouldBeNewPhoto = currentPhotoRating === 0;
+                                            const countExceeded = wouldBeNewPhoto && (basePhotosCount >= ratedPhotoLimit);
+                                            const projectedTotal = baseStarsUsed + hoverRating;
+                                            const starsExceeded = projectedTotal > totalStarsLimit;
+                                            
+                                            if (countExceeded) {
+                                                isCreditStar = true;
+                                            } else if (starsExceeded) {
+                                                 const valueOfThisStarGlobal = baseStarsUsed + star; 
+                                                 if (valueOfThisStarGlobal > totalStarsLimit) {
+                                                     isCreditStar = true;
+                                                 }
+                                            }
+                                        }
+                                        // -------------------------------------
 
                                         let starColor = 'text-gray-500';
                                         if (isFilled) {
-                                            starColor = 'text-yellow-400';
+                                            starColor = isCreditStar ? 'text-cyan-400' : 'text-yellow-400';
                                         } else if (isHighlighted) {
-                                            starColor = isLocked ? 'text-red-500' : 'text-yellow-400';
+                                            starColor = isLocked 
+                                                ? 'text-red-500' 
+                                                : (isCreditStar ? 'text-cyan-400' : 'text-yellow-400');
                                         }
                                         
                                         const titleText = isLocked 
@@ -592,7 +615,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                 aria-label={titleText}
                                                 title={titleText}
                                             >
-                                                <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
+                                                <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled && (isCreditStar || !isTouchDevice) ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
                                             </button>
                                         )
                                     })}

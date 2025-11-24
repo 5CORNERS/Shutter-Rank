@@ -32,12 +32,15 @@ interface ModalProps {
   groupSelections: Record<string, number | null>;
   onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
   onOpenGroup: (groupId: string) => void;
+  totalStarsLimit?: number;
+  ratedPhotoLimit?: number;
 }
 
 export const Modal: React.FC<ModalProps> = ({
     photo, allPhotosInGroup, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
     onRate, onToggleVisibility, hasNext, hasPrev, config, ratedPhotosCount,
-    starsUsed, groupInfo, groupSelections, onGroupSelectionChange, onOpenGroup
+    starsUsed, groupInfo, groupSelections, onGroupSelectionChange, onOpenGroup,
+    totalStarsLimit = 1000, ratedPhotoLimit = 1000
 }) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
@@ -183,7 +186,17 @@ export const Modal: React.FC<ModalProps> = ({
             
             <div className="p-3 flex flex-wrap justify-between items-center gap-4">
                 <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                    <RatingControls photo={photo} onRate={onRate} size="large" disabled={!!photo.isOutOfCompetition} resetButtonMode="always" />
+                    <RatingControls 
+                        photo={photo} 
+                        onRate={onRate} 
+                        size="large" 
+                        disabled={!!photo.isOutOfCompetition} 
+                        resetButtonMode="always"
+                        starsUsed={starsUsed}
+                        totalStarsLimit={totalStarsLimit}
+                        ratedPhotosCount={ratedPhotosCount}
+                        ratedPhotoLimit={ratedPhotoLimit}
+                    />
                 </div>
                 <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">
                     <div className="flex items-center gap-x-1" title="Оценено фотографий">
