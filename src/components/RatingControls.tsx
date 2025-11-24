@@ -72,7 +72,8 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
     const shouldRefund = !isCredit && currentPhotoRating > 0;
 
     const baseStarsUsed = starsUsed - (shouldRefund ? currentPhotoRating : 0);
-    const basePhotosCount = ratedPhotosCount - (shouldRefund ? 1 : 0);
+    // Note: basePhotosCount is calculated in PhotoCard for the border,
+    // but for Star Coloring we strictly care about the *Star Budget*.
 
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
@@ -85,29 +86,20 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 let colorClass = 'text-gray-500'; // Default inactive color
 
                 if (variant === 'default') {
-                    // --- Standard Rating Logic with Credit Colors ---
-                    if (isFilled || isHighlighted) {
-                        // 1. Check Photo Count Limit (Slot Limit)
-                        // Does adding this photo (if it wasn't already a VALID rated photo) exceed the count limit?
-                        const projectedCount = basePhotosCount + 1;
-                        const isCountExceeded = projectedCount > ratedPhotoLimit;
+                    // --- Star Coloring Logic ---
+                    // Rule: "If usage from resource -> Warm (Yellow). If usage from credit -> Cool (Blue/Cyan)."
+                    // This is independent of whether the photo slot is credit or valid.
 
-                        // 2. Check Star Limit
-                        // We check if the CUMULATIVE stars up to THIS star fit in the budget.
+                    if (isFilled || isHighlighted) {
+                        // Check Star Limit specifically for THIS star
                         const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
                         const isStarExceeded = projectedTotalStarsAtThisLevel > totalStarsLimit;
 
-                        if (isCountExceeded && isStarExceeded) {
-                            // Double Credit -> Rose/Bordeaux (Total Fail)
-                            colorClass = 'text-rose-500';
-                        } else if (isCountExceeded) {
-                            // Slot Credit Only -> Indigo (Cool spectrum = Not Counted)
-                            colorClass = 'text-indigo-400';
-                        } else if (isStarExceeded) {
-                            // Star Credit Only -> Orange (Warm spectrum = Counted, but warning)
-                            colorClass = 'text-orange-400';
+                        if (isStarExceeded) {
+                            // Credit Resource -> Cyan
+                            colorClass = 'text-cyan-400';
                         } else {
-                            // Valid -> Yellow
+                            // Available Resource -> Yellow
                             colorClass = 'text-yellow-400';
                         }
                     }
@@ -118,9 +110,8 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                     }
                 } else {
                     // --- Gray Variant Logic (e.g. Stack Cover) ---
-                    // Ignore limits, just show visual feedback
                     if (isFilled || isHighlighted) {
-                        colorClass = 'text-gray-300'; // Active/Hover state for gray variant
+                        colorClass = 'text-gray-300';
                     }
                 }
 
