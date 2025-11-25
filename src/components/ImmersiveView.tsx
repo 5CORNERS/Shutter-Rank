@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from 'react';
 import { Photo } from '../types';
-import { ChevronLeft, ChevronRight, X, Star, XCircle, Eye, EyeOff, Layers, Check, BarChart2, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Star, Eye, EyeOff, Layers, Check, BarChart2, Users, XCircle } from 'lucide-react';
 
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.MouseEvent) => void;}> = ({isSelected, onSelect}) => {
     return (
@@ -464,11 +464,16 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const showBottomControls = uiMode === 'full';
     const captionToShow = groupInfo?.caption ? groupInfo.caption : photo.caption;
 
-    // Calculate Independent Star Budget
+    // 1. Determine Valid Star Budget for THIS photo
     const starsUsedByOthers = starsUsed - (photo.validRating || 0);
-    const starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
+    let starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
-    // Calculate Slot Availability for INDIGO mode
+    // 2. QUEUE BLOCKING LOGIC
+    if (hasCreditVotes) {
+        starsBudgetForThisPhoto = photo.validRating || 0;
+    }
+
+    // 3. Determine Slot Status for THIS photo
     const hasValidSlot = (photo.validRating || 0) > 0;
     const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
     const isIndigoMode = !hasValidSlot && !isSlotAvailable;

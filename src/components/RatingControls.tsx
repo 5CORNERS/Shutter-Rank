@@ -67,12 +67,21 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
     // --- LOGIC FOR STAR COLORS ---
 
     // 1. Determine Valid Star Budget for THIS photo
+    // starsUsed is ONLY the valid count (e.g. 24).
     const starsUsedByOthers = starsUsed - (photo.validRating || 0);
-    const starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
-    // 2. Determine Slot Status for THIS photo
-    // If it has a valid rating > 0, it HAS a slot.
-    // If validRating == 0, we check if a NEW slot is available.
+    // Mathematical budget (e.g. 25 - 23 = 2)
+    let starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
+
+    // 2. QUEUE BLOCKING LOGIC
+    // If there is a global credit queue (debt exists), no one can claim "free" valid slots
+    // effectively bypassing the queue. The valid budget is capped at what the photo ALREADY has.
+    // Any expansion must be Credit (Blue).
+    if (hasCreditVotes) {
+        starsBudgetForThisPhoto = photo.validRating || 0;
+    }
+
+    // 3. Determine Slot Status for THIS photo
     const hasValidSlot = (photo.validRating || 0) > 0;
     const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
 
@@ -96,7 +105,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                     let isBlue = false;
                     let isIndigo = false;
 
-                    // Priority 1: Credit (Blue) - Exceeds Star Limit
+                    // Priority 1: Credit (Blue) - Exceeds Star Limit (or Blocked by Queue)
                     if (star > starsBudgetForThisPhoto) {
                         isBlue = true;
                     }
