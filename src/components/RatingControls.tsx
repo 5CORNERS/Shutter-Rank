@@ -66,27 +66,17 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
 
     // --- LOGIC FOR STAR COLORS ---
 
-    // 1. Determine Valid Star Budget for THIS photo
-    // starsUsed is ONLY the valid count (e.g. 24).
+    // 1. Calculate Mathematical Budget
+    // starsUsed is the valid count from Firebase.
+    // validRating is the portion of THIS photo that is already counted in starsUsed.
     const starsUsedByOthers = starsUsed - (photo.validRating || 0);
+    const mathematicalBudget = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
-    // Mathematical budget (e.g. 25 - 23 = 2)
-    let starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
-
-    // 2. QUEUE BLOCKING LOGIC
-    // If there is a global credit queue (debt exists), no one can claim "free" valid slots
-    // effectively bypassing the queue. The valid budget is capped at what the photo ALREADY has.
-    // Any expansion must be Credit (Blue).
-    if (hasCreditVotes) {
-        starsBudgetForThisPhoto = photo.validRating || 0;
-    }
-
-    // 3. Determine Slot Status for THIS photo
+    // 2. Determine "Indigo Mode" (Slot Debt)
+    // If validRating > 0, it HAS a slot.
+    // If validRating == 0, it NEEDS a slot. Check if any are available.
     const hasValidSlot = (photo.validRating || 0) > 0;
     const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
-
-    // "Indigo Mode": When the photo doesn't have a slot, and no new slots are available.
-    // In this case, even "valid" stars (within budget) are colored Indigo to match the border.
     const isIndigoMode = !hasValidSlot && !isSlotAvailable;
 
     const currentRating = photo.userRating || 0;
@@ -102,27 +92,28 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 let colorClass = 'text-gray-500'; // Default inactive color
 
                 if (variant === 'default') {
-                    let isBlue = false;
-                    let isIndigo = false;
+                    // Check priority of states
 
-                    // Priority 1: Credit (Blue) - Exceeds Star Limit (or Blocked by Queue)
-                    if (star > starsBudgetForThisPhoto) {
-                        isBlue = true;
-                    }
-                    // Priority 2: No Slot (Indigo) - Within Star Limit, but No Slot
-                    else if (isIndigoMode) {
-                        isIndigo = true;
-                    }
-                    // Else: Normal (Yellow)
+                    // 1. Financial Check: Does this specific star exceed the global star limit?
+                    // If YES, it is always Blue (Star Debt).
+                    const isFinanciallyValid = star <= mathematicalBudget;
 
-                    if (isFilled) {
-                        if (isBlue) colorClass = 'text-cyan-400';
-                        else if (isIndigo) colorClass = 'text-indigo-500'; // Indigo for "No Slot"
-                        else colorClass = 'text-yellow-400';
-                    } else if (isHighlighted) {
-                        if (isBlue) colorClass = 'text-cyan-400';
-                        else if (isIndigo) colorClass = 'text-indigo-500';
-                        else colorClass = 'text-yellow-400';
+                    if (isFilled || isHighlighted) {
+                        if (!isFinanciallyValid) {
+                            // Exceeds Star Limit -> Blue
+                            colorClass = 'text-cyan-400';
+                        } else if (isIndigoMode) {
+                            // Within Star Limit, but No Slot -> Indigo
+                            colorClass = 'text-indigo-500';
+                        } else if (hasCreditVotes && star > (photo.validRating || 0)) {
+                            // Within Star Limit, Has Slot (or Slot Available), BUT Queue exists.
+                            // If we try to expand beyond our current valid rating, we are blocked by queue.
+                            // We treat this expansion as Credit (Blue) to avoid "Blue Virus" confusion.
+                            colorClass = 'text-cyan-400';
+                        } else {
+                            // Fully Valid -> Yellow
+                            colorClass = 'text-yellow-400';
+                        }
                     }
 
                     // Locked override
@@ -130,7 +121,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                         colorClass = 'text-red-500';
                     }
                 } else {
-                    // Gray variant
+                    // Gray variant (for unselected group covers)
                     if (isFilled || isHighlighted) {
                         colorClass = 'text-gray-300';
                     }

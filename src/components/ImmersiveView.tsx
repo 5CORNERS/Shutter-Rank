@@ -464,16 +464,12 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const showBottomControls = uiMode === 'full';
     const captionToShow = groupInfo?.caption ? groupInfo.caption : photo.caption;
 
-    // 1. Determine Valid Star Budget for THIS photo
+    // --- STAR COLOR LOGIC (Synced with RatingControls.tsx) ---
+    // 1. Mathematical Budget
     const starsUsedByOthers = starsUsed - (photo.validRating || 0);
-    let starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
+    const mathematicalBudget = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
-    // 2. QUEUE BLOCKING LOGIC
-    if (hasCreditVotes) {
-        starsBudgetForThisPhoto = photo.validRating || 0;
-    }
-
-    // 3. Determine Slot Status for THIS photo
+    // 2. Indigo Mode
     const hasValidSlot = (photo.validRating || 0) > 0;
     const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
     const isIndigoMode = !hasValidSlot && !isSlotAvailable;
@@ -582,32 +578,21 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                         const maxRating = photo.maxRating ?? 3;
                                         const isLocked = star > maxRating;
 
-                                        // --- Credit Voting Logic for Stars ---
-                                        let isCreditStar = false;
-                                        let isIndigoStar = false;
-
-                                        // Priority 1: Credit (Blue)
-                                        if (star > starsBudgetForThisPhoto) {
-                                            isCreditStar = true;
-                                        }
-                                        // Priority 2: Indigo (No Slot)
-                                        else if (isIndigoMode) {
-                                            isIndigoStar = true;
-                                        }
-
+                                        const isFinanciallyValid = star <= mathematicalBudget;
                                         let starColor = 'text-gray-500';
-                                        if (isFilled) {
-                                            if (isCreditStar) starColor = 'text-cyan-400';
-                                            else if (isIndigoStar) starColor = 'text-indigo-500';
-                                            else starColor = 'text-yellow-400';
-                                        } else if (isHighlighted) {
-                                            if (isLocked) {
-                                                starColor = 'text-red-500';
+
+                                        if (isFilled || isHighlighted) {
+                                            if (!isFinanciallyValid) {
+                                                starColor = 'text-cyan-400';
+                                            } else if (isIndigoMode) {
+                                                starColor = 'text-indigo-500';
+                                            } else if (hasCreditVotes && star > (photo.validRating || 0)) {
+                                                starColor = 'text-cyan-400';
                                             } else {
-                                                if (isCreditStar) starColor = 'text-cyan-400';
-                                                else if (isIndigoStar) starColor = 'text-indigo-500';
-                                                else starColor = 'text-yellow-400';
+                                                starColor = 'text-yellow-400';
                                             }
+                                        } else if (isLocked && isHighlighted) {
+                                            starColor = 'text-red-500';
                                         }
 
                                         const titleText = isLocked
@@ -623,7 +608,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                 aria-label={titleText}
                                                 title={titleText}
                                             >
-                                                <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled && (isCreditStar || isIndigoStar || !isTouchDevice) ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
+                                                <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled && (starColor !== 'text-gray-500' || !isTouchDevice) ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
                                             </button>
                                         )
                                     })}
