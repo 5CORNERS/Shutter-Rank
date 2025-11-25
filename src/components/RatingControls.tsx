@@ -64,16 +64,28 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         ? 'sm:opacity-0 sm:group-hover:opacity-100'
         : '';
 
-    // Logic for Star Colors
-    // Yellow: Covered by valid budget
-    // Blue: Covered by credit (or queue blocked)
+    // --- LOGIC FOR STAR COLORS ---
+    // Philosophy: Stars represent "Currency" (Star Budget).
+    // Frames represent "Status" (Slot Limit + Star Limit).
+    // Therefore, a star should only be Blue (Credit) if it exceeds the STAR LIMIT.
+    // We completely ignore the Slot Limit here.
 
     const currentRating = photo.userRating || 0;
-    const validRating = photo.validRating || 0; // Valid portion from Firebase
 
-    // For Hover logic: We need to know "Global Valid Usage" excluding THIS photo
-    const baseStarsUsed = starsUsed - validRating;
-    const basePhotosCount = ratedPhotosCount - (validRating > 0 ? 1 : 0);
+    // validRating in 'photo' comes from App.tsx and reflects what is stored in Firebase.
+    // However, App.tsx calculates validRating based on BOTH limits.
+    // If a photo has 0 validRating because of SLOTS, but we have free STARS,
+    // we still want to show Yellow stars here.
+
+    // So we must recalculate "Star Validity" independently of "Slot Validity".
+
+    // 1. How many stars are used by OTHER photos?
+    // starsUsed (prop) = Total Valid Stars in Firebase.
+    // photo.validRating = Valid Stars of THIS photo in Firebase.
+    const starsUsedByOthers = starsUsed - (photo.validRating || 0);
+
+    // 2. How many stars are available for THIS photo?
+    const starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
@@ -88,32 +100,9 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 if (variant === 'default') {
                     let isBlue = false;
 
-                    if (isFilled) {
-                        // Filled state: Simple comparison with valid portion
-                        if (star > validRating) {
-                            isBlue = true;
-                        }
-                    } else if (isHighlighted) {
-                        // Hover state: Check if potential new star fits
-
-                        // Check Limits
-                        const projectedStars = baseStarsUsed + star;
-                        const isStarFit = projectedStars <= totalStarsLimit;
-
-                        if (validRating > 0) {
-                            // I already have a slot. I only care about Star Limit.
-                            if (!isStarFit) {
-                                isBlue = true;
-                            }
-                        } else {
-                            // I need a slot AND stars.
-                            const projectedCount = basePhotosCount + 1;
-                            const isCountFit = projectedCount <= ratedPhotoLimit;
-
-                            if (!isCountFit || !isStarFit) {
-                                isBlue = true;
-                            }
-                        }
+                    // Check strictly against Star Budget
+                    if (star > starsBudgetForThisPhoto) {
+                        isBlue = true;
                     }
 
                     if (isFilled) {

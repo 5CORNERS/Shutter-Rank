@@ -464,12 +464,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const showBottomControls = uiMode === 'full';
     const captionToShow = groupInfo?.caption ? groupInfo.caption : photo.caption;
 
-    // Calculate base metrics excluding current photo if it has a rating
-    const currentPhotoRating = photo.userRating || 0;
-    const validRating = photo.validRating || 0;
-
-    const baseStarsUsed = starsUsed - validRating;
-    const basePhotosCount = ratedPhotosCount - (validRating > 0 ? 1 : 0);
+    // Calculate Independent Star Budget
+    const starsUsedByOthers = starsUsed - (photo.validRating || 0);
+    const starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
     return (
         <div
@@ -578,22 +575,10 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                         // --- Credit Voting Logic for Stars ---
                                         let isCreditStar = false;
 
-                                        if (isFilled) {
-                                            if (star > validRating) isCreditStar = true;
-                                        } else if (isHighlighted) {
-                                            // Check Limits
-                                            const projectedStars = baseStarsUsed + star;
-                                            const isStarFit = projectedStars <= totalStarsLimit;
-
-                                            if (validRating > 0) {
-                                                if (!isStarFit) isCreditStar = true;
-                                            } else {
-                                                const projectedCount = basePhotosCount + 1;
-                                                const isCountFit = projectedCount <= ratedPhotoLimit;
-                                                if (!isCountFit || !isStarFit) isCreditStar = true;
-                                            }
+                                        // Check strictly against Star Budget
+                                        if (star > starsBudgetForThisPhoto) {
+                                            isCreditStar = true;
                                         }
-                                        // -------------------------------------
 
                                         let starColor = 'text-gray-500';
                                         if (isFilled) {
