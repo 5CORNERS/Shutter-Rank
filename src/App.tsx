@@ -17,7 +17,9 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { CreditWarningModal } from './components/CreditWarningModal';
 import { useDeviceType } from './hooks/useDeviceType';
 import { useColumnCount } from './hooks/useColumnCount';
-import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, ChevronUp, Send } from 'lucide-react';
+import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, Send } from 'lucide-react';
+import { StatsInfo } from './components/StatsInfo';
+import { ExpandedGroup } from './components/ExpandedGroup';
 
 type VotingPhase = 'voting' | 'results';
 type AppStatus = 'loading' | 'success' | 'error' | 'selecting_session';
@@ -45,135 +47,6 @@ const calculateNormalizedScore = (rating: number): number => {
     // Formula: 1 + (Rating - 1) * 0.25
     return 1 + (rating - 1) * 0.25;
 };
-
-// Extracted component to prevent re-mounting on parent state changes
-const ExpandedGroupComponent = ({
-                                    item,
-                                    groupData,
-                                    isClosing,
-                                    expandedGroupId,
-                                    showHiddenPhotos,
-                                    hidingPhotoId,
-                                    settings,
-                                    onCollapse,
-                                    onRate,
-                                    onImageClick,
-                                    onToggleVisibility,
-                                    groupSelections,
-                                    onSelectionChange,
-                                    isTouchDevice,
-                                    starsUsed,
-                                    totalStarsLimit,
-                                    ratedPhotosCount,
-                                    ratedPhotoLimit
-                                }: {
-    item: PhotoStack,
-    groupData: any,
-    isClosing: boolean,
-    expandedGroupId: string | null,
-    showHiddenPhotos: boolean,
-    hidingPhotoId: number | null,
-    settings: Settings | null,
-    onCollapse: (groupId: string) => void,
-    onRate: (photoId: number, rating: number) => void,
-    onImageClick: (photo: Photo) => void,
-    onToggleVisibility: (photoId: number) => void,
-    groupSelections: Record<string, number | null>,
-    onSelectionChange: (groupId: string, photoId: number | null) => void,
-    isTouchDevice: boolean,
-    starsUsed: number,
-    totalStarsLimit: number,
-    ratedPhotosCount: number,
-    ratedPhotoLimit: number
-}) => {
-    const isExpanded = expandedGroupId === item.groupId;
-    const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
-
-    // Internal state to trigger the class application AFTER mount
-    const [animateOpen, setAnimateOpen] = useState(false);
-
-    useEffect(() => {
-        if (isExpanded) {
-            // Force a reflow/paint in the collapsed state first
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    setAnimateOpen(true);
-                });
-            });
-        } else if (isClosing) {
-            setAnimateOpen(false);
-        }
-    }, [isExpanded, isClosing]);
-
-    return (
-        <div className="col-span-full" key={`expanded-${item.groupId}`}>
-            <div id={`expanded-group-wrapper-${item.groupId}`} className={`expanded-group-wrapper ${animateOpen ? 'expanded' : ''}`}>
-                <div className="expanded-group-container">
-                    <div className="expanded-group-content">
-                        <div className="expanded-group-grid-wrapper opacity-0">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-1 gap-3">
-                                <div className="flex items-center gap-4">
-                                    <div>
-                                        <h3 className="text-lg font-bold text-gray-200 flex items-center gap-3">
-                                            Группа «{groupData?.name || ''}»
-                                            <button onClick={() => onCollapse(item.groupId)} className="flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 hover:text-indigo-200 font-semibold transition-colors flex-shrink-0 ml-2">
-                                                <ChevronUp size={16}/>
-                                                Свернуть
-                                            </button>
-                                        </h3>
-                                        {groupData?.caption && <p className="text-sm text-gray-400 mt-1">{groupData.caption}</p>}
-                                    </div>
-                                </div>
-                            </div>
-                            <div className={`pt-4 ${settings?.layout === 'grid'
-                                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-                                : "sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6"
-                            }`}>
-                                {photosToShow.map(photo => {
-                                    const isSelected = item.selectedPhotoId === photo.id;
-                                    const isDimmed = item.selectedPhotoId !== null && !isSelected;
-                                    return (
-                                        <div key={photo.id} className={settings?.layout === 'original' ? 'break-inside-avoid' : ''}>
-                                            <PhotoCard
-                                                photo={photo}
-                                                onRate={onRate}
-                                                onImageClick={onImageClick}
-                                                displayVotes={false}
-                                                layoutMode={settings?.layout || 'grid'}
-                                                gridAspectRatio={settings?.gridAspectRatio || '4/3'}
-                                                onToggleVisibility={onToggleVisibility}
-                                                isDimmed={isDimmed}
-                                                isHiding={hidingPhotoId === photo.id}
-                                                showSelectionControl={true}
-                                                isSelected={isSelected}
-                                                onSelect={() => {
-                                                    const currentSelection = groupSelections[item.groupId] || null;
-                                                    const newSelectedId = currentSelection === photo.id ? null : photo.id;
-                                                    onSelectionChange(item.groupId, newSelectedId);
-                                                }}
-                                                isFilterActive={showHiddenPhotos}
-                                                starsUsed={starsUsed}
-                                                totalStarsLimit={totalStarsLimit}
-                                                ratedPhotosCount={ratedPhotosCount}
-                                                ratedPhotoLimit={ratedPhotoLimit}
-                                            />
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                            <div className="flex justify-center pt-6">
-                                <button onClick={() => onCollapse(item.groupId)} className="flex items-center gap-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
-                                    <ChevronUp size={18}/>
-                                    Свернуть группу
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 const App: React.FC = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
@@ -908,7 +781,10 @@ const App: React.FC = () => {
 
         if (!showHiddenPhotos) {
             itemsCopy = itemsCopy.map(item => {
-                if (item.type === 'stack' && expandedGroupId !== item.groupId) {
+                // If this is the active group (expanded OR closing), keep it visible even if partially hidden logic applies
+                const isActiveGroup = expandedGroupId === item.groupId || closingGroupId === item.groupId;
+                
+                if (item.type === 'stack' && !isActiveGroup) {
                     const visiblePhotosInStack = item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
                     if (visiblePhotosInStack.length === 0) return null;
                 } else if (item.type === 'photo' && item.isVisible === false && item.id !== hidingPhotoId) {
@@ -969,7 +845,9 @@ const App: React.FC = () => {
             });
         };
 
-        if (expandedGroupId) {
+        const activeGroupId = expandedGroupId || closingGroupId;
+
+        if (activeGroupId) {
             if (!frozenOrderRef.current) {
                 const sorted = performSort(itemsCopy);
                 frozenOrderRef.current = sorted.map(i => i.type === 'stack' ? i.groupId : String(i.id));
@@ -992,7 +870,7 @@ const App: React.FC = () => {
             return performSort(itemsCopy);
         }
 
-    }, [galleryItems, showHiddenPhotos, votingPhase, hidingPhotoId, expandedGroupId, comparePhotos, votingSort, resultsSort]);
+    }, [galleryItems, showHiddenPhotos, votingPhase, hidingPhotoId, expandedGroupId, closingGroupId, comparePhotos, votingSort, resultsSort]);
 
     const photosForViewer = useMemo(() => {
         const flatList: Photo[] = [];
@@ -1228,80 +1106,7 @@ const App: React.FC = () => {
 
         closingTimeoutRef.current = window.setTimeout(() => {
             setClosingGroupId(null);
-        }, 1500);
-    };
-
-    const StatsInfo = ({isCompact = false}) => {
-        if (!config) return null;
-
-        // Logic update: "Fill" the valid budget with credit votes visually,
-        // only show the "Credit" text for what TRULY overflows.
-        const totalPhotos = stats.valid.count + stats.credit.count;
-        const totalStars = stats.valid.stars + stats.credit.stars;
-
-        const displayPhotos = Math.min(totalPhotos, config.ratedPhotoLimit);
-        const displayStars = Math.min(totalStars, config.totalStarsLimit);
-
-        const excessPhotos = Math.max(0, totalPhotos - config.ratedPhotoLimit);
-        const excessStars = Math.max(0, totalStars - config.totalStarsLimit);
-
-        const ratedRemaining = config.ratedPhotoLimit - displayPhotos;
-        const starsRemaining = config.totalStarsLimit - displayStars;
-
-        const hasCredit = excessPhotos > 0 || excessStars > 0;
-
-        const creditDetails = [];
-        if (excessPhotos > 0) {
-            creditDetails.push(`${excessPhotos} фото`);
-        }
-        if (excessStars > 0) {
-            let starText = `${excessStars} звёзд`;
-            // Context: If we are over star limit, but NOT photo limit, explain where these stars are hiding
-            if (excessPhotos === 0 && stats.credit.count > 0) {
-                starText += ` (на ${stats.credit.count} фото)`;
-            }
-            creditDetails.push(starText);
-        }
-
-        const creditString = creditDetails.join(', ');
-
-        if (isCompact) {
-            return (
-                <div className="text-xs flex items-center gap-2">
-                    <div>
-                        Оценено: <span className="font-bold text-indigo-400">{displayPhotos}/{config.ratedPhotoLimit}</span>
-                    </div>
-                    <span className="text-gray-500">|</span>
-                    <div>
-                        Звёзд: <span className="font-bold text-yellow-400">{displayStars}/{config.totalStarsLimit}</span>
-                    </div>
-                    {hasCredit && (
-                        <>
-                            <span className="text-gray-500">|</span>
-                            <span className="font-bold text-red-500 animate-pulse">(+{creditString} в кредите)</span>
-                        </>
-                    )}
-                </div>
-            );
-        }
-
-        return (
-            <div className="text-sm space-y-1 text-center text-gray-300 w-full">
-                <div>
-                    Вы оценили фотографий: <span className="font-bold text-white">{displayPhotos} / {config.ratedPhotoLimit}</span>
-                    , осталось: <span className="font-bold text-indigo-400">{ratedRemaining >= 0 ? ratedRemaining : 0}</span>
-                </div>
-                <div>
-                    Израсходовали звезд: <span className="font-bold text-white">{displayStars} / {config.totalStarsLimit}</span>
-                    , осталось: <span className="font-bold text-yellow-400">{starsRemaining >= 0 ? starsRemaining : 0}</span>
-                </div>
-                {hasCredit && (
-                    <div className="text-red-400 font-semibold mt-1">
-                        Внимание: В кредите: {creditString}
-                    </div>
-                )}
-            </div>
-        );
+        }, 1500); // 1.5s delay to match CSS transition
     };
 
     if (status === 'loading') {
@@ -1415,7 +1220,7 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-4">
                     <ToggleSwitch id="sticky-show-hidden" checked={showHiddenPhotos} onChange={() => setShowHiddenPhotos(s => !s)} label="Показывать скрытые"/>
                 </div>
-                <StatsInfo isCompact={true} />
+                <StatsInfo stats={stats} config={config} isCompact={true} />
                 <div className="w-48"></div> {/* Placeholder to balance the flex container */}
             </div>
 
@@ -1441,7 +1246,7 @@ const App: React.FC = () => {
                             {/* Оценки */}
                             <div className="flex flex-col items-center gap-3 p-3 rounded-lg bg-gray-900/40">
                                 <h3 className="font-semibold text-gray-400">Оценки</h3>
-                                <StatsInfo />
+                                <StatsInfo stats={stats} config={config} />
                                 <div className='flex flex-wrap items-center justify-center gap-4'>
                                     <button
                                         onClick={handleTogglePhase}
@@ -1545,7 +1350,7 @@ const App: React.FC = () => {
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
-                                                <ExpandedGroupComponent
+                                                <ExpandedGroup
                                                     item={item}
                                                     groupData={groups[item.groupId]}
                                                     isClosing={closingGroupId === item.groupId}
@@ -1588,7 +1393,7 @@ const App: React.FC = () => {
                                     )}
 
                                     {expandedItemToRender && (
-                                        <ExpandedGroupComponent
+                                        <ExpandedGroup
                                             item={expandedItemToRender}
                                             groupData={expandedGroupData}
                                             isClosing={isRenderedGroupClosing}
