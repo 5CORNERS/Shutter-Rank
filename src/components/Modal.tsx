@@ -34,13 +34,14 @@ interface ModalProps {
   onOpenGroup: (groupId: string) => void;
   totalStarsLimit?: number;
   ratedPhotoLimit?: number;
+  hasCreditVotes?: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
     photo, allPhotosInGroup, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
     onRate, onToggleVisibility, hasNext, hasPrev, config, ratedPhotosCount,
     starsUsed, groupInfo, groupSelections, onGroupSelectionChange, onOpenGroup,
-    totalStarsLimit = 1000, ratedPhotoLimit = 1000
+    totalStarsLimit = 1000, ratedPhotoLimit = 1000, hasCreditVotes = false
 }) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
@@ -196,6 +197,7 @@ export const Modal: React.FC<ModalProps> = ({
                         totalStarsLimit={totalStarsLimit}
                         ratedPhotosCount={ratedPhotosCount}
                         ratedPhotoLimit={ratedPhotoLimit}
+                        hasCreditVotes={hasCreditVotes}
                     />
                 </div>
                 <div className="text-xs sm:text-sm text-gray-300 font-mono flex items-center gap-x-2 sm:gap-x-3 flex-shrink-0">

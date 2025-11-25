@@ -14,6 +14,7 @@ interface RatingControlsProps {
     totalStarsLimit?: number;
     ratedPhotosCount?: number;
     ratedPhotoLimit?: number;
+    hasCreditVotes?: boolean; // Flag to indicate if global credit queue exists
 }
 
 const getStarNounAccusative = (count: number): string => {
@@ -44,7 +45,8 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                                                                   starsUsed = 0,
                                                                   totalStarsLimit = 1000,
                                                                   ratedPhotosCount = 0,
-                                                                  ratedPhotoLimit = 1000
+                                                                  ratedPhotoLimit = 1000,
+                                                                  hasCreditVotes = false
                                                               }) => {
     const [hoverRating, setHoverRating] = useState(0);
     const isTouchDevice = 'ontouchstart' in window;
@@ -62,18 +64,20 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         ? 'sm:opacity-0 sm:group-hover:opacity-100'
         : '';
 
-    // CORE LOGIC: Determine "Base" stats (Valid Stats Only)
+    // Calculate base stats for this photo to determine individual star colors
     const isCredit = !!photo.isCredit;
-    const currentPhotoRating = photo.userRating || 0;
+    const currentRating = photo.userRating || 0;
 
-    // If photo is VALID, its rating is already in 'starsUsed'. Remove it to find the "gap".
-    // If photo is CREDIT, 'starsUsed' doesn't contain it. Base is just 'starsUsed'.
-    const baseStarsUsed = starsUsed - (isCredit ? 0 : currentPhotoRating);
+    // Base stats = Total Valid Stats - This Photo's Valid Contribution
+    // If isCredit is true, it contributes 0 to starsUsed.
+    // If isCredit is false, it contributes currentRating to starsUsed.
+    const baseStarsUsed = starsUsed - (isCredit ? 0 : currentRating);
+    const basePhotosCount = ratedPhotosCount - (isCredit ? 0 : 1);
 
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
             {[1, 2, 3, 4, 5].map((star) => {
-                const isFilled = (photo.userRating || 0) >= star;
+                const isFilled = currentRating >= star;
                 const isHighlighted = !isTouchDevice && hoverRating >= star;
                 const maxRating = photo.maxRating ?? 3;
                 const isLocked = star > maxRating;
@@ -81,46 +85,42 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 let colorClass = 'text-gray-500'; // Default inactive color
 
                 if (variant === 'default') {
-                    // --- Color Logic ---
+                    // Calculate if THIS specific star fits in the limits
+                    const projectedStars = baseStarsUsed + star;
 
-                    if (isFilled) {
-                        // PERSISTENT STATE
-                        // Simple rule: If it's stored as Credit, it's Cyan.
-                        // If it's stored as Valid (Firebase), it's Yellow.
-                        // But wait! The user wants "Hybrid" look if possible (3 Yellow, 1 Blue).
-                        // Since our data model is binary (Whole photo is Credit OR Whole photo is Valid),
-                        // we can simulate the hybrid look by checking the limits against the *valid* budget.
+                    // For photo count, we just check if the photo itself fits.
+                    // If it's the 1st star, it adds +1 to count. If 2nd+, count doesn't change.
+                    const projectedCount = basePhotosCount + 1;
 
-                        if (isCredit) {
-                            // It is a credit vote. Check if this specific star would fit in the valid budget gap.
-                            const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
-                            if (projectedTotalStarsAtThisLevel > totalStarsLimit) {
-                                colorClass = 'text-cyan-400'; // Truly overflow
-                            } else {
-                                colorClass = 'text-yellow-400'; // Fits in gap (Simulated valid)
-                            }
-                        } else {
-                            // It is a valid vote. Always Yellow.
-                            colorClass = 'text-yellow-400';
-                        }
+                    const isCountFit = projectedCount <= ratedPhotoLimit;
+                    const isStarFit = projectedStars <= totalStarsLimit;
 
-                    } else if (isHighlighted) {
-                        // HOVER STATE
-                        // Predict what would happen if we clicked here.
-                        const projectedTotalStarsAtThisLevel = baseStarsUsed + star;
-                        if (projectedTotalStarsAtThisLevel > totalStarsLimit) {
-                            colorClass = 'text-cyan-400';
-                        } else {
-                            colorClass = 'text-yellow-400';
-                        }
+                    // Determine color
+                    let isBlue = false;
+
+                    if (!isCountFit || !isStarFit) {
+                        isBlue = true;
                     }
 
-                    // Override for Locked state on hover
+                    // Special Case: Frozen Budget (Queue Exists)
+                    // If there is a queue (hasCreditVotes), new expansions MUST be blue to indicate they go to queue.
+                    // Except if this photo is ALREADY part of the queue (isCredit), then we follow standard fit logic (which will likely be blue anyway).
+                    if (hasCreditVotes && !isCredit && !isFilled && isHighlighted) {
+                        isBlue = true;
+                    }
+
+                    if (isFilled) {
+                        colorClass = isBlue ? 'text-cyan-400' : 'text-yellow-400';
+                    } else if (isHighlighted) {
+                        colorClass = isBlue ? 'text-cyan-400' : 'text-yellow-400';
+                    }
+
+                    // Locked override
                     if (isHighlighted && isLocked) {
                         colorClass = 'text-red-500';
                     }
                 } else {
-                    // --- Gray Variant Logic (e.g. Stack Cover) ---
+                    // Gray variant
                     if (isFilled || isHighlighted) {
                         colorClass = 'text-gray-300';
                     }
@@ -130,9 +130,6 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                     ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}`
                     : `Оценить в ${star} ${getStarNounAccusative(star)}`;
 
-                // Fill Logic:
-                // - If isFilled: fill with currentColor.
-                // - If isHighlighted (Hover) but NOT isFilled: fill="none" (Outline only).
                 const shouldFill = isFilled;
 
                 return (

@@ -1160,6 +1160,9 @@ const App: React.FC = () => {
     const showStickyHeader = isScrolled || !!selectedPhoto;
     const hasVotes = stats.total.count > 0;
     const sessionDisplayName = config.name || sessionId;
+    
+    // Calculate global credit flag
+    const hasCreditVotes = stats.credit.count > 0;
 
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
@@ -1348,6 +1351,7 @@ const App: React.FC = () => {
                                                 totalStarsLimit={config.totalStarsLimit}
                                                 ratedPhotosCount={stats.valid.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
+                                                hasCreditVotes={hasCreditVotes}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
                                                 <ExpandedGroup
@@ -1369,6 +1373,7 @@ const App: React.FC = () => {
                                                     totalStarsLimit={config.totalStarsLimit}
                                                     ratedPhotosCount={stats.valid.count}
                                                     ratedPhotoLimit={config.ratedPhotoLimit}
+                                                    hasCreditVotes={hasCreditVotes}
                                                 />
                                             )}
                                         </div>
@@ -1388,6 +1393,7 @@ const App: React.FC = () => {
                                                 totalStarsLimit={config.totalStarsLimit}
                                                 ratedPhotosCount={stats.valid.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
+                                                hasCreditVotes={hasCreditVotes}
                                             />
                                         </div>
                                     )}
@@ -1412,6 +1418,7 @@ const App: React.FC = () => {
                                             totalStarsLimit={config.totalStarsLimit}
                                             ratedPhotosCount={stats.valid.count}
                                             ratedPhotoLimit={config.ratedPhotoLimit}
+                                            hasCreditVotes={hasCreditVotes}
                                         />
                                     )}
                                 </React.Fragment>
@@ -1487,6 +1494,7 @@ const App: React.FC = () => {
                     onOpenGroup={handleOpenGroupFromViewer}
                     totalStarsLimit={config.totalStarsLimit}
                     ratedPhotoLimit={config.ratedPhotoLimit}
+                    hasCreditVotes={hasCreditVotes}
                 />
             )}
 
@@ -1509,6 +1517,7 @@ const App: React.FC = () => {
                     groupSelections={groupSelections}
                     onGroupSelectionChange={handleGroupSelectionChange}
                     onOpenGroup={handleOpenGroupFromViewer}
+                    hasCreditVotes={hasCreditVotes}
                 />
             )}
         </div>

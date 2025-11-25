@@ -20,11 +20,12 @@ interface PhotoStackProps {
     totalStarsLimit?: number;
     ratedPhotosCount?: number;
     ratedPhotoLimit?: number;
+    hasCreditVotes?: boolean;
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                                                                    stack, groupName, onRate, onImageClick, onExpand, onToggleVisibility, displayVotes, layoutMode, gridAspectRatio, onShowToast,
-                                                                   starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit
+                                                                   starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit, hasCreditVotes = false
                                                                }) => {
 
     // Determine which photos to show in the stack layers
@@ -143,6 +144,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         totalStarsLimit={totalStarsLimit}
                         ratedPhotosCount={ratedPhotosCount}
                         ratedPhotoLimit={ratedPhotoLimit}
+                        hasCreditVotes={hasCreditVotes}
                     />
 
                     {/* Expanded Overlay with Floating Chevron */}

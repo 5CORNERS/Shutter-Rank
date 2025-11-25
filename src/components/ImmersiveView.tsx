@@ -33,6 +33,7 @@ interface ImmersiveViewProps {
     groupSelections: Record<string, number | null>;
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     onOpenGroup: (groupId: string) => void;
+    hasCreditVotes?: boolean;
 }
 
 type UIMode = 'full' | 'minimal';
@@ -183,7 +184,7 @@ const ImageWrapper: React.FC<{
 export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     allPhotos, photoId, allPhotosInGroup, onClose, onNext, onPrev, onRate, onToggleVisibility, displayVotes, ratedPhotosCount,
     starsUsed, ratedPhotoLimit, totalStarsLimit, groupInfo, groupSelections, onGroupSelectionChange,
-    onOpenGroup
+    onOpenGroup, hasCreditVotes = false
 }) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
@@ -573,22 +574,30 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                         const isLocked = star > maxRating;
 
                                         // --- Credit Voting Logic for Stars ---
+                                        // FORCE BLUE if credit queue exists (and not a valid vote)
+                                        const isCredit = !!photo.isCredit;
+                                        const forceBlue = hasCreditVotes && !isCredit && !isFilled;
+                                        
                                         let isCreditStar = false;
-                                        if (isFilled && photo.isCredit) {
+                                        if (isFilled && isCredit) {
                                             isCreditStar = true;
                                         } else if (isHighlighted) {
-                                            const wouldBeNewPhoto = currentPhotoRating === 0;
-                                            const countExceeded = wouldBeNewPhoto && (basePhotosCount >= ratedPhotoLimit);
-                                            const projectedTotal = baseStarsUsed + hoverRating;
-                                            const starsExceeded = projectedTotal > totalStarsLimit;
-                                            
-                                            if (countExceeded) {
+                                            if (forceBlue) {
                                                 isCreditStar = true;
-                                            } else if (starsExceeded) {
-                                                 const valueOfThisStarGlobal = baseStarsUsed + star; 
-                                                 if (valueOfThisStarGlobal > totalStarsLimit) {
-                                                     isCreditStar = true;
-                                                 }
+                                            } else {
+                                                const wouldBeNewPhoto = currentPhotoRating === 0;
+                                                const countExceeded = wouldBeNewPhoto && (basePhotosCount >= ratedPhotoLimit);
+                                                const projectedTotal = baseStarsUsed + hoverRating;
+                                                const starsExceeded = projectedTotal > totalStarsLimit;
+                                                
+                                                if (countExceeded) {
+                                                    isCreditStar = true;
+                                                } else if (starsExceeded) {
+                                                     const valueOfThisStarGlobal = baseStarsUsed + star; 
+                                                     if (valueOfThisStarGlobal > totalStarsLimit) {
+                                                         isCreditStar = true;
+                                                     }
+                                                }
                                             }
                                         }
                                         // -------------------------------------

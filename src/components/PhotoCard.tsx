@@ -36,6 +36,7 @@ interface PhotoCardProps {
     totalStarsLimit?: number;
     ratedPhotosCount?: number;
     ratedPhotoLimit?: number;
+    hasCreditVotes?: boolean;
 }
 
 export const PhotoCard: React.FC<PhotoCardProps> = ({
@@ -43,7 +44,8 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
                                                         gridAspectRatio, showRatingControls = true, isDimmed = false, isReadOnly = false, isHiding = false,
                                                         showVisibilityToggle = true, showSelectionControl = false, isSelected = false, onSelect = () => {},
                                                         isFilterActive = false, isGrayscale = false,
-                                                        starsUsed = 0, totalStarsLimit = 1000, ratedPhotosCount = 0, ratedPhotoLimit = 1000
+                                                        starsUsed = 0, totalStarsLimit = 1000, ratedPhotosCount = 0, ratedPhotoLimit = 1000,
+                                                        hasCreditVotes = false
                                                     }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
@@ -177,6 +179,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
                                 totalStarsLimit={totalStarsLimit}
                                 ratedPhotosCount={ratedPhotosCount}
                                 ratedPhotoLimit={ratedPhotoLimit}
+                                hasCreditVotes={hasCreditVotes}
                             />
                         </div>
                     )}
