@@ -586,8 +586,6 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                 starColor = 'text-cyan-400';
                                             } else if (isIndigoMode) {
                                                 starColor = 'text-indigo-500';
-                                            } else if (hasCreditVotes && star > (photo.validRating || 0)) {
-                                                starColor = 'text-cyan-400';
                                             } else {
                                                 starColor = 'text-yellow-400';
                                             }

@@ -105,11 +105,6 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                         } else if (isIndigoMode) {
                             // Within Star Limit, but No Slot -> Indigo
                             colorClass = 'text-indigo-500';
-                        } else if (hasCreditVotes && star > (photo.validRating || 0)) {
-                            // Within Star Limit, Has Slot (or Slot Available), BUT Queue exists.
-                            // If we try to expand beyond our current valid rating, we are blocked by queue.
-                            // We treat this expansion as Credit (Blue) to avoid "Blue Virus" confusion.
-                            colorClass = 'text-cyan-400';
                         } else {
                             // Fully Valid -> Yellow
                             colorClass = 'text-yellow-400';
