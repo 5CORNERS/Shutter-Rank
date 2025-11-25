@@ -65,27 +65,22 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         : '';
 
     // --- LOGIC FOR STAR COLORS ---
-    // Philosophy: Stars represent "Currency" (Star Budget).
-    // Frames represent "Status" (Slot Limit + Star Limit).
-    // Therefore, a star should only be Blue (Credit) if it exceeds the STAR LIMIT.
-    // We completely ignore the Slot Limit here.
+
+    // 1. Determine Valid Star Budget for THIS photo
+    const starsUsedByOthers = starsUsed - (photo.validRating || 0);
+    const starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
+
+    // 2. Determine Slot Status for THIS photo
+    // If it has a valid rating > 0, it HAS a slot.
+    // If validRating == 0, we check if a NEW slot is available.
+    const hasValidSlot = (photo.validRating || 0) > 0;
+    const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
+
+    // "Indigo Mode": When the photo doesn't have a slot, and no new slots are available.
+    // In this case, even "valid" stars (within budget) are colored Indigo to match the border.
+    const isIndigoMode = !hasValidSlot && !isSlotAvailable;
 
     const currentRating = photo.userRating || 0;
-
-    // validRating in 'photo' comes from App.tsx and reflects what is stored in Firebase.
-    // However, App.tsx calculates validRating based on BOTH limits.
-    // If a photo has 0 validRating because of SLOTS, but we have free STARS,
-    // we still want to show Yellow stars here.
-
-    // So we must recalculate "Star Validity" independently of "Slot Validity".
-
-    // 1. How many stars are used by OTHER photos?
-    // starsUsed (prop) = Total Valid Stars in Firebase.
-    // photo.validRating = Valid Stars of THIS photo in Firebase.
-    const starsUsedByOthers = starsUsed - (photo.validRating || 0);
-
-    // 2. How many stars are available for THIS photo?
-    const starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
@@ -99,16 +94,26 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
 
                 if (variant === 'default') {
                     let isBlue = false;
+                    let isIndigo = false;
 
-                    // Check strictly against Star Budget
+                    // Priority 1: Credit (Blue) - Exceeds Star Limit
                     if (star > starsBudgetForThisPhoto) {
                         isBlue = true;
                     }
+                    // Priority 2: No Slot (Indigo) - Within Star Limit, but No Slot
+                    else if (isIndigoMode) {
+                        isIndigo = true;
+                    }
+                    // Else: Normal (Yellow)
 
                     if (isFilled) {
-                        colorClass = isBlue ? 'text-cyan-400' : 'text-yellow-400';
+                        if (isBlue) colorClass = 'text-cyan-400';
+                        else if (isIndigo) colorClass = 'text-indigo-500'; // Indigo for "No Slot"
+                        else colorClass = 'text-yellow-400';
                     } else if (isHighlighted) {
-                        colorClass = isBlue ? 'text-cyan-400' : 'text-yellow-400';
+                        if (isBlue) colorClass = 'text-cyan-400';
+                        else if (isIndigo) colorClass = 'text-indigo-500';
+                        else colorClass = 'text-yellow-400';
                     }
 
                     // Locked override

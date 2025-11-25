@@ -468,6 +468,11 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const starsUsedByOthers = starsUsed - (photo.validRating || 0);
     const starsBudgetForThisPhoto = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
+    // Calculate Slot Availability for INDIGO mode
+    const hasValidSlot = (photo.validRating || 0) > 0;
+    const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
+    const isIndigoMode = !hasValidSlot && !isSlotAvailable;
+
     return (
         <div
             ref={containerRef}
@@ -574,19 +579,30 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
 
                                         // --- Credit Voting Logic for Stars ---
                                         let isCreditStar = false;
+                                        let isIndigoStar = false;
 
-                                        // Check strictly against Star Budget
+                                        // Priority 1: Credit (Blue)
                                         if (star > starsBudgetForThisPhoto) {
                                             isCreditStar = true;
+                                        }
+                                        // Priority 2: Indigo (No Slot)
+                                        else if (isIndigoMode) {
+                                            isIndigoStar = true;
                                         }
 
                                         let starColor = 'text-gray-500';
                                         if (isFilled) {
-                                            starColor = isCreditStar ? 'text-cyan-400' : 'text-yellow-400';
+                                            if (isCreditStar) starColor = 'text-cyan-400';
+                                            else if (isIndigoStar) starColor = 'text-indigo-500';
+                                            else starColor = 'text-yellow-400';
                                         } else if (isHighlighted) {
-                                            starColor = isLocked
-                                                ? 'text-red-500'
-                                                : (isCreditStar ? 'text-cyan-400' : 'text-yellow-400');
+                                            if (isLocked) {
+                                                starColor = 'text-red-500';
+                                            } else {
+                                                if (isCreditStar) starColor = 'text-cyan-400';
+                                                else if (isIndigoStar) starColor = 'text-indigo-500';
+                                                else starColor = 'text-yellow-400';
+                                            }
                                         }
 
                                         const titleText = isLocked
@@ -602,7 +618,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                 aria-label={titleText}
                                                 title={titleText}
                                             >
-                                                <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled && (isCreditStar || !isTouchDevice) ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
+                                                <Star className={`w-7 h-7 transition-colors ${starColor} ${isLocked && !isFilled && !isHighlighted ? 'opacity-30' : ''}`} fill={isFilled && (isCreditStar || isIndigoStar || !isTouchDevice) ? 'currentColor' : 'none'} strokeWidth={isHighlighted && !isFilled ? 2 : 1.5} />
                                             </button>
                                         )
                                     })}
