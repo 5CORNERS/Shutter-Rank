@@ -72,18 +72,21 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
 
     if (hasUserRating && !isReadOnly && !displayVotes) {
         const currentRating = photo.userRating || 0;
+        const validRating = photo.validRating || 0;
 
         // Calculate "Base" stats (Valid only)
-        // If photo is VALID, remove it to find base.
-        // If photo is CREDIT, base is just the passed valid stats.
-        const basePhotosCount = ratedPhotosCount - (isCredit ? 0 : 1);
-        const baseStarsUsed = starsUsed - (isCredit ? 0 : currentRating);
+        // We subtract THIS photo's valid contribution from the total valid stats
+        const basePhotosCount = ratedPhotosCount - (validRating > 0 ? 1 : 0);
+        const baseStarsUsed = starsUsed - validRating;
 
         // Check projected usage against limits
         // Count Overflow: Does adding this photo exceed the slot limit?
-        const isCountOverflow = basePhotosCount + 1 > ratedPhotoLimit;
+        // (If it has validRating > 0, it already has a slot, so it doesn't need a new one unless we are checking hypothetical addition)
+        // Logic: If I need a slot (validRating === 0) AND limits are full -> overflow.
+        const isCountOverflow = (validRating === 0) && (basePhotosCount + 1 > ratedPhotoLimit);
 
         // Star Overflow: Does adding these stars exceed the star limit?
+        // Logic: If base + current > limit -> overflow.
         const isStarOverflow = baseStarsUsed + currentRating > totalStarsLimit;
 
         if (isCountOverflow && isStarOverflow) {

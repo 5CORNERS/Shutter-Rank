@@ -293,20 +293,22 @@ const App: React.FC = () => {
 
         setPhotos(firebasePhotos.map(p => {
             const creditVote = creditVotes[p.id];
-            // Iceberg Logic:
-            // If there is a credit vote (local override), it acts as the target "total" rating.
-            // The 'userRating' derived here is what the UI displays (the full stack of stars).
-            // We flag 'isCredit' if there is ANY local component, but standard logic elsewhere
-            // will handle the valid/credit split visualization based on limits.
+            // validRating is what is currently in Firebase (p.userRating)
+            const validRating = p.userRating || 0;
+
             if (creditVote) {
-                return {
-                    ...p,
+                return { 
+                    ...p, 
                     userRating: creditVote.rating,
-                    isCredit: true,
-                    isVisible: true
+                    validRating: validRating, // Explicitly store the valid portion
+                    isCredit: true, 
+                    isVisible: true 
                 };
             }
-            return p;
+            return {
+                ...p,
+                validRating: validRating // Even if no credit, valid equals userRating
+            };
         }));
     }, [firebasePhotos, creditVotes]);
 
@@ -335,7 +337,7 @@ const App: React.FC = () => {
             if (targetRating > currentValidRating) {
                 creditStars += (targetRating - currentValidRating);
             }
-
+            
             // Surplus Slot (if it wasn't already valid)
             if (currentValidRating === 0 && targetRating > 0) {
                 creditCount++;
@@ -562,7 +564,7 @@ const App: React.FC = () => {
 
             const newCreditVotes = { ...creditVotes };
             let hasChanges = false;
-
+            
             // Dynamic trackers for the loop
             let loopRatedCount = currentRatedCount;
             let loopStarsUsed = currentStarsUsed;
@@ -571,7 +573,7 @@ const App: React.FC = () => {
                 const photoInFirebase = firebasePhotos.find(p => p.id === credit.id);
                 const currentValidRating = photoInFirebase?.userRating || 0;
                 const targetRating = credit.rating;
-
+                
                 const starsNeeded = targetRating - currentValidRating;
                 if (starsNeeded <= 0) {
                     // Already valid? Cleanup local storage.
@@ -604,7 +606,7 @@ const App: React.FC = () => {
 
                 if (canUpgrade && upgradeAmount > 0) {
                     const newValidRating = currentValidRating + upgradeAmount;
-
+                    
                     // Update Refs and Firebase
                     userFirebaseRatingsRef.current[credit.id] = newValidRating;
                     await writeVoteToFirebase(credit.id, newValidRating, currentValidRating);
@@ -618,7 +620,7 @@ const App: React.FC = () => {
                         delete newCreditVotes[credit.id];
                         hasChanges = true;
                         setToastMessage("Ваш голос из «кредита» был зачтен!");
-                    }
+                    } 
                     // Else: partial promotion happens, stays in credit with remainder
                 } else {
                     // If head of queue cannot be upgraded, we STOP.
@@ -654,13 +656,13 @@ const App: React.FC = () => {
         }
 
         // "Iceberg" Logic: Calculate what fits in Valid, rest goes to Credit.
-
+        
         // 1. Determine Global Free Space (Source of Truth: Firebase Refs)
         // We calculate based on CURRENT VALID usage in Firebase.
         let usedValidSlots = 0;
         let usedValidStars = 0;
         const refRatings = userFirebaseRatingsRef.current;
-
+        
         // Re-calculate totals from ref to be safe
         Object.values(refRatings).forEach(r => {
             if (r > 0) {
@@ -709,7 +711,7 @@ const App: React.FC = () => {
         }
 
         // 6. Execute Changes
-
+        
         // A. Update Firebase (Valid Portion)
         if (newValidRating !== myCurrentValidRating) {
             userFirebaseRatingsRef.current[photoId] = newValidRating;
@@ -836,7 +838,7 @@ const App: React.FC = () => {
             itemsCopy = itemsCopy.map(item => {
                 // If this is the active group (expanded OR closing), keep it visible even if partially hidden logic applies
                 const isActiveGroup = expandedGroupId === item.groupId || closingGroupId === item.groupId;
-
+                
                 if (item.type === 'stack' && !isActiveGroup) {
                     const visiblePhotosInStack = item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
                     if (visiblePhotosInStack.length === 0) return null;
@@ -1213,7 +1215,7 @@ const App: React.FC = () => {
     const showStickyHeader = isScrolled || !!selectedPhoto;
     const hasVotes = stats.total.count > 0;
     const sessionDisplayName = config.name || sessionId;
-
+    
     // Calculate global credit flag
     const hasCreditVotes = stats.credit.count > 0;
 

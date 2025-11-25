@@ -64,15 +64,16 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         ? 'sm:opacity-0 sm:group-hover:opacity-100'
         : '';
 
-    // Calculate base stats for this photo to determine individual star colors
-    const isCredit = !!photo.isCredit;
+    // Logic for Star Colors
+    // Yellow: Covered by valid budget
+    // Blue: Covered by credit (or queue blocked)
+    
     const currentRating = photo.userRating || 0;
+    const validRating = photo.validRating || 0; // Valid portion from Firebase
 
-    // Base stats = Total Valid Stats - This Photo's Valid Contribution
-    // If isCredit is true, it contributes 0 to starsUsed.
-    // If isCredit is false, it contributes currentRating to starsUsed.
-    const baseStarsUsed = starsUsed - (isCredit ? 0 : currentRating);
-    const basePhotosCount = ratedPhotosCount - (isCredit ? 0 : 1);
+    // For Hover logic: We need to know "Global Valid Usage" excluding THIS photo
+    const baseStarsUsed = starsUsed - validRating;
+    const basePhotosCount = ratedPhotosCount - (validRating > 0 ? 1 : 0);
 
     return (
         <div className="flex items-center flex-shrink-0" onMouseLeave={() => !isTouchDevice && setHoverRating(0)}>
@@ -85,28 +86,33 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                 let colorClass = 'text-gray-500'; // Default inactive color
 
                 if (variant === 'default') {
-                    // Calculate if THIS specific star fits in the limits
-                    const projectedStars = baseStarsUsed + star;
-
-                    // For photo count, we just check if the photo itself fits.
-                    // If it's the 1st star, it adds +1 to count. If 2nd+, count doesn't change.
-                    const projectedCount = basePhotosCount + 1;
-
-                    const isCountFit = projectedCount <= ratedPhotoLimit;
-                    const isStarFit = projectedStars <= totalStarsLimit;
-
-                    // Determine color
                     let isBlue = false;
 
-                    if (!isCountFit || !isStarFit) {
-                        isBlue = true;
-                    }
+                    if (isFilled) {
+                        // Filled state: Simple comparison with valid portion
+                        if (star > validRating) {
+                            isBlue = true;
+                        }
+                    } else if (isHighlighted) {
+                        // Hover state: Check if potential new star fits
+                        
+                        // 1. Check Queue Blocking
+                        // If there is a queue, and I am adding stars BEYOND what is already valid -> Force Blue
+                        if (hasCreditVotes && star > validRating) {
+                            isBlue = true;
+                        } else {
+                            // 2. Check Limits
+                            const projectedStars = baseStarsUsed + star;
+                            // Count check only matters if it wasn't already valid
+                            const projectedCount = basePhotosCount + 1;
+                            
+                            const isCountFit = (validRating > 0) || (projectedCount <= ratedPhotoLimit);
+                            const isStarFit = projectedStars <= totalStarsLimit;
 
-                    // Special Case: Frozen Budget (Queue Exists)
-                    // If there is a queue (hasCreditVotes), new expansions MUST be blue to indicate they go to queue.
-                    // Except if this photo is ALREADY part of the queue (isCredit), then we follow standard fit logic (which will likely be blue anyway).
-                    if (hasCreditVotes && !isCredit && !isFilled && isHighlighted) {
-                        isBlue = true;
+                            if (!isCountFit || !isStarFit) {
+                                isBlue = true;
+                            }
+                        }
                     }
 
                     if (isFilled) {

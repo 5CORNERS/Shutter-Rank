@@ -12,6 +12,7 @@ export interface Photo extends FirebasePhoto {
   voteCount?: number; // Count of votes ('c')
   normalizedScore?: number; // Sum of normalized scores ('n')
   userRating?: number;
+  validRating?: number; // The portion of rating that is stored in Firebase (valid)
   isVisible?: boolean;
   maxRating?: number;
   isCredit?: boolean; // New flag for credit votes
