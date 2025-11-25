@@ -9,12 +9,12 @@ interface RatingControlsProps {
     disabled?: boolean;
     resetButtonMode?: 'always' | 'on-hover-desktop';
     variant?: 'default' | 'gray';
-    // New props for limit checking
-    starsUsed?: number;
-    totalStarsLimit?: number;
-    ratedPhotosCount?: number;
-    ratedPhotoLimit?: number;
-    hasCreditVotes?: boolean; // Flag to indicate if global credit queue exists
+    // Limit checking props - REQUIRED
+    starsUsed: number;
+    totalStarsLimit: number;
+    ratedPhotosCount: number;
+    ratedPhotoLimit: number;
+    hasCreditVotes: boolean;
 }
 
 const getStarNounAccusative = (count: number): string => {
@@ -42,11 +42,11 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                                                                   disabled = false,
                                                                   resetButtonMode = 'on-hover-desktop',
                                                                   variant = 'default',
-                                                                  starsUsed = 0,
-                                                                  totalStarsLimit = 1000,
-                                                                  ratedPhotosCount = 0,
-                                                                  ratedPhotoLimit = 1000,
-                                                                  hasCreditVotes = false
+                                                                  starsUsed,
+                                                                  totalStarsLimit,
+                                                                  ratedPhotosCount,
+                                                                  ratedPhotoLimit,
+                                                                  hasCreditVotes
                                                               }) => {
     const [hoverRating, setHoverRating] = useState(0);
     const isTouchDevice = 'ontouchstart' in window;

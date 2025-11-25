@@ -18,35 +18,36 @@ interface ExpandedGroupProps {
     groupSelections: Record<string, number | null>;
     onSelectionChange: (groupId: string, photoId: number | null) => void;
     isTouchDevice: boolean;
+    // Limit props - REQUIRED
     starsUsed: number;
     totalStarsLimit: number;
     ratedPhotosCount: number;
     ratedPhotoLimit: number;
-    hasCreditVotes?: boolean;
+    hasCreditVotes: boolean;
 }
 
 export const ExpandedGroup: React.FC<ExpandedGroupProps> = ({
-                                    item,
-                                    groupData,
-                                    isClosing,
-                                    expandedGroupId,
-                                    showHiddenPhotos,
-                                    hidingPhotoId,
-                                    settings,
-                                    onCollapse,
-                                    onRate,
-                                    onImageClick,
-                                    onToggleVisibility,
-                                    groupSelections,
-                                    onSelectionChange,
-                                    isTouchDevice,
-                                    starsUsed,
-                                    totalStarsLimit,
-                                    ratedPhotosCount,
-                                    ratedPhotoLimit,
-                                    hasCreditVotes = false
-                                }) => {
-    // Determine if this instance should be expanded. 
+                                                                item,
+                                                                groupData,
+                                                                isClosing,
+                                                                expandedGroupId,
+                                                                showHiddenPhotos,
+                                                                hidingPhotoId,
+                                                                settings,
+                                                                onCollapse,
+                                                                onRate,
+                                                                onImageClick,
+                                                                onToggleVisibility,
+                                                                groupSelections,
+                                                                onSelectionChange,
+                                                                isTouchDevice,
+                                                                starsUsed,
+                                                                totalStarsLimit,
+                                                                ratedPhotosCount,
+                                                                ratedPhotoLimit,
+                                                                hasCreditVotes
+                                                            }) => {
+    // Determine if this instance should be expanded.
     // It is expanded if the ID matches OR if it's currently in the closing animation phase.
     const isExpanded = expandedGroupId === item.groupId;
     const photosToShow = showHiddenPhotos ? item.photos : item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
@@ -136,4 +137,4 @@ export const ExpandedGroup: React.FC<ExpandedGroupProps> = ({
             </div>
         </div>
     );
-}
+};

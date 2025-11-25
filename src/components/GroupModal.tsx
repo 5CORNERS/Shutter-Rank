@@ -21,12 +21,18 @@ interface GroupModalProps {
     showHiddenPhotos: boolean;
     isTouchDevice: boolean;
     hidingPhotoId: number | null;
+    // Limits
+    starsUsed: number;
+    totalStarsLimit: number;
+    ratedPhotosCount: number;
+    ratedPhotoLimit: number;
+    hasCreditVotes: boolean;
 }
 
 const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
     return (
         <div className="absolute top-2 right-2 z-10 pointer-events-auto" >
-             <div className={`selection-control-bg w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-900/40 backdrop-blur-sm border-white/80'}`}>
+            <div className={`selection-control-bg w-7 h-7 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-900/40 backdrop-blur-sm border-white/80'}`}>
                 <Check className="w-5 h-5 text-white selection-control-check" />
             </div>
         </div>
@@ -34,9 +40,10 @@ const SelectionControl: React.FC<{isSelected: boolean}> = ({isSelected}) => {
 }
 
 export const GroupModal: React.FC<GroupModalProps> = ({
-    isOpen, stack, groupName, groupCaption, onClose, onRate, onImageClick, onToggleVisibility, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showHiddenPhotos, isTouchDevice, hidingPhotoId
-}) => {
-    
+                                                          isOpen, stack, groupName, groupCaption, onClose, onRate, onImageClick, onToggleVisibility, onSelectionChange, displayVotes, layoutMode, gridAspectRatio, showHiddenPhotos, isTouchDevice, hidingPhotoId,
+                                                          starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit, hasCreditVotes
+                                                      }) => {
+
     const selectedPhoto = stack.photos.find(p => p.id === stack.selectedPhotoId);
 
     const handleSelectPhoto = (e: React.MouseEvent, photoId: number) => {
@@ -44,28 +51,28 @@ export const GroupModal: React.FC<GroupModalProps> = ({
         const newSelectedId = stack.selectedPhotoId === photoId ? null : photoId;
         onSelectionChange(stack.groupId, newSelectedId);
     };
-    
+
     const handleRateFromHeader = (rating: number) => {
         if (stack.selectedPhotoId) {
             onRate(stack.selectedPhotoId, rating);
         }
     };
-    
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-          if (event.key === 'Escape') {
-            onClose();
-          }
+            if (event.key === 'Escape') {
+                onClose();
+            }
         };
-    
+
         if (isOpen) {
-          window.addEventListener('keydown', handleKeyDown);
+            window.addEventListener('keydown', handleKeyDown);
         }
-    
+
         return () => {
-          window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keydown', handleKeyDown);
         };
-      }, [isOpen, onClose]);
+    }, [isOpen, onClose]);
 
 
     if (!isOpen) {
@@ -73,7 +80,7 @@ export const GroupModal: React.FC<GroupModalProps> = ({
     }
 
     const photosToShow = showHiddenPhotos ? stack.photos : stack.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
-    
+
     const gridColsMap: { [key: number]: string } = {
         1: 'grid-cols-1',
         2: 'grid-cols-2',
@@ -81,16 +88,16 @@ export const GroupModal: React.FC<GroupModalProps> = ({
         4: 'grid-cols-2 md:grid-cols-4',
     };
     const gridColsClass = gridColsMap[photosToShow.length] || 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
-    
+
     const adaptiveMaxWidth = photosToShow.length <= 4 ? `max-w-screen-${['sm','md','lg','xl'][photosToShow.length - 1]}` : 'max-w-[105rem]';
     const captionToShow = groupCaption || selectedPhoto?.caption;
 
     return ReactDOM.createPortal(
-        <div 
+        <div
             className={`fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/80 backdrop-blur-md transition-opacity duration-300 ease-out ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
             onClick={onClose}
         >
-            <div 
+            <div
                 className={`relative w-full ${adaptiveMaxWidth} max-h-[90vh] bg-gray-900 ring-1 ring-white/10 shadow-2xl shadow-indigo-500/20 rounded-xl flex flex-col transform-gpu transition-all duration-300 ease-out ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -98,7 +105,7 @@ export const GroupModal: React.FC<GroupModalProps> = ({
                     <div className="flex-grow">
                         <h3 className="text-lg sm:text-xl font-bold text-gray-200">Группа «{groupName}»</h3>
                         {selectedPhoto && displayVotes && (
-                             <div className="flex gap-4 mt-1 text-xs">
+                            <div className="flex gap-4 mt-1 text-xs">
                                 <div className="flex items-center gap-1" title="Сумма звезд">
                                     <Star className="text-yellow-400 w-3 h-3" fill="currentColor" />
                                     <span className="font-bold text-yellow-400">{selectedPhoto.votes}</span>
@@ -108,7 +115,7 @@ export const GroupModal: React.FC<GroupModalProps> = ({
                                     <BarChart2 className="text-green-400 w-3 h-3" />
                                     <span className="font-bold text-green-400">{(selectedPhoto.normalizedScore || 0).toFixed(2)}</span>
                                 </div>
-                                 <div className="w-px h-4 bg-gray-600/50"></div>
+                                <div className="w-px h-4 bg-gray-600/50"></div>
                                 <div className="flex items-center gap-1" title="Количество проголосовавших">
                                     <Users className="text-blue-400 w-3 h-3" />
                                     <span className="font-bold text-blue-400">{selectedPhoto.voteCount || 0}</span>
@@ -117,7 +124,18 @@ export const GroupModal: React.FC<GroupModalProps> = ({
                         )}
                     </div>
                     <div className={`flex items-center flex-shrink-0 transition-opacity duration-300 ${selectedPhoto ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                        <RatingControls photo={selectedPhoto || stack.photos[0]} onRate={(id, rating) => handleRateFromHeader(rating)} size="small" disabled={!selectedPhoto} resetButtonMode="always" />
+                        <RatingControls
+                            photo={selectedPhoto || stack.photos[0]}
+                            onRate={(id, rating) => handleRateFromHeader(rating)}
+                            size="small"
+                            disabled={!selectedPhoto}
+                            resetButtonMode="always"
+                            starsUsed={starsUsed}
+                            totalStarsLimit={totalStarsLimit}
+                            ratedPhotosCount={ratedPhotosCount}
+                            ratedPhotoLimit={ratedPhotoLimit}
+                            hasCreditVotes={hasCreditVotes}
+                        />
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors" aria-label="Закрыть группу">
                         <X size={24} />
@@ -141,6 +159,11 @@ export const GroupModal: React.FC<GroupModalProps> = ({
                                         showRatingControls={false}
                                         isDimmed={isDimmed}
                                         isHiding={hidingPhotoId === photo.id}
+                                        starsUsed={starsUsed}
+                                        totalStarsLimit={totalStarsLimit}
+                                        ratedPhotosCount={ratedPhotosCount}
+                                        ratedPhotoLimit={ratedPhotoLimit}
+                                        hasCreditVotes={hasCreditVotes}
                                     />
                                     <div onClick={(e) => handleSelectPhoto(e, photo.id)}>
                                         <SelectionControl isSelected={isSelected} />
@@ -150,11 +173,11 @@ export const GroupModal: React.FC<GroupModalProps> = ({
                         })}
                     </div>
                 </div>
-                 {captionToShow && (
+                {captionToShow && (
                     <footer className="flex-shrink-0 border-t border-gray-700/50 px-6 py-3 text-center text-sm text-gray-400">
                         <p>{captionToShow}</p>
                     </footer>
-                 )}
+                )}
             </div>
         </div>,
         document.body

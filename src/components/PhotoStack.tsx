@@ -15,17 +15,17 @@ interface PhotoStackProps {
     gridAspectRatio: GridAspectRatio;
     isTouchDevice: boolean;
     onShowToast?: (msg: string) => void;
-    // Limit props
-    starsUsed?: number;
-    totalStarsLimit?: number;
-    ratedPhotosCount?: number;
-    ratedPhotoLimit?: number;
-    hasCreditVotes?: boolean;
+    // Limit props - REQUIRED
+    starsUsed: number;
+    totalStarsLimit: number;
+    ratedPhotosCount: number;
+    ratedPhotoLimit: number;
+    hasCreditVotes: boolean;
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                                                                    stack, groupName, onRate, onImageClick, onExpand, onToggleVisibility, displayVotes, layoutMode, gridAspectRatio, onShowToast,
-                                                                   starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit, hasCreditVotes = false
+                                                                   starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit, hasCreditVotes
                                                                }) => {
 
     // Determine which photos to show in the stack layers
