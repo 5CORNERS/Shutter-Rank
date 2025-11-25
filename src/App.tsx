@@ -55,8 +55,8 @@ const App: React.FC = () => {
 
     // Core data state
     const [photos, setPhotos] = useState<Photo[]>([]); // Derived UI state (Firebase + Credit)
-    const [firebasePhotos, setFirebasePhotos] = useState<Photo[]>([]); // Only Firebase data
-    const [creditVotes, setCreditVotes] = useState<Record<number, LocalVote>>({}); // Local storage votes
+    const [firebasePhotos, setFirebasePhotos] = useState<Photo[]>([]); // Only Firebase data (Source of Truth for VALID votes)
+    const [creditVotes, setCreditVotes] = useState<Record<number, LocalVote>>({}); // Local storage votes (Source of Truth for CREDIT/TOTAL desires)
 
     // Ref to track the "authoritative" state of what we have sent to Firebase to prevent race conditions
     const userFirebaseRatingsRef = useRef<Record<number, number>>({});
@@ -293,10 +293,18 @@ const App: React.FC = () => {
 
         setPhotos(firebasePhotos.map(p => {
             const creditVote = creditVotes[p.id];
-            // If credit vote exists, it overrides the userRating (which should be 0 from firebase anyway if not synced yet)
-            // But we prefer Firebase source of truth if both exist (handled by FIFO logic elsewhere)
+            // Iceberg Logic:
+            // If there is a credit vote (local override), it acts as the target "total" rating.
+            // The 'userRating' derived here is what the UI displays (the full stack of stars).
+            // We flag 'isCredit' if there is ANY local component, but standard logic elsewhere
+            // will handle the valid/credit split visualization based on limits.
             if (creditVote) {
-                return { ...p, userRating: creditVote.rating, isCredit: true, isVisible: true };
+                return {
+                    ...p,
+                    userRating: creditVote.rating,
+                    isCredit: true,
+                    isVisible: true
+                };
             }
             return p;
         }));
@@ -304,25 +312,42 @@ const App: React.FC = () => {
 
 
     // Helper to calculate stats
+    // CRITICAL: Valid stats must be calculated strictly from Firebase data to avoid "double counting" or "leakage"
+    // Credit stats are the surplus.
     const stats = useMemo(() => {
-        // FIXED: Source from 'photos' (merged state) to ensure consistency.
-        // We strictly separate Valid (Yellow) vs Credit (Blue) based on the isCredit flag.
-        // This prevents "Double Counting" if a photo exists in both sources temporarily during sync.
-        const validPhotos = photos.filter(p => p.userRating && p.userRating > 0 && !p.isCredit);
+        // 1. Calculate Valid Stats (Yellow)
+        // Use firebasePhotos directly as Source of Truth for what is currently "In Budget"
+        const validCount = firebasePhotos.filter(p => p.userRating && p.userRating > 0).length;
+        const validStars = firebasePhotos.reduce((sum, p) => sum + (p.userRating || 0), 0);
 
-        const ratedCount = validPhotos.length;
-        const starsUsed = validPhotos.reduce((sum, p) => sum + (p.userRating || 0), 0);
+        // 2. Calculate Credit Stats (Blue)
+        // Iterate credit votes to find the surplus
+        let creditCount = 0;
+        let creditStars = 0;
 
-        const creditKeys = Object.keys(creditVotes);
-        const creditCount = creditKeys.length;
-        const creditStars = creditKeys.reduce((sum, key) => sum + (creditVotes[Number(key)]?.rating || 0), 0);
+        Object.entries(creditVotes).forEach(([idStr, vote]) => {
+            const id = Number(idStr);
+            const firebasePhoto = firebasePhotos.find(p => p.id === id);
+            const currentValidRating = firebasePhoto?.userRating || 0;
+            const targetRating = vote.rating;
+
+            // Surplus Stars
+            if (targetRating > currentValidRating) {
+                creditStars += (targetRating - currentValidRating);
+            }
+
+            // Surplus Slot (if it wasn't already valid)
+            if (currentValidRating === 0 && targetRating > 0) {
+                creditCount++;
+            }
+        });
 
         return {
-            valid: { count: ratedCount, stars: starsUsed },
+            valid: { count: validCount, stars: validStars },
             credit: { count: creditCount, stars: creditStars },
-            total: { count: ratedCount + creditCount, stars: starsUsed + creditStars }
+            total: { count: validCount + creditCount, stars: validStars + creditStars }
         };
-    }, [photos, creditVotes]);
+    }, [firebasePhotos, creditVotes]);
 
     // Persist credit votes
     useEffect(() => {
@@ -393,7 +418,7 @@ const App: React.FC = () => {
             if (element) {
                 setTimeout(() => {
                     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 150); // Slight delay to allow animation start/layout shift
+                }, 150);
             }
         }
     }, [expandedGroupId]);
@@ -511,7 +536,7 @@ const App: React.FC = () => {
         const promises = [userVotePromise, aggregateVotePromise];
         try {
             await Promise.all(promises);
-            // Update local state (Optimistic update is handled by listener mostly, but for immediate consistency in logic)
+            // Update local state
             setFirebasePhotos(prev => prev.map(p => p.id === photoId ? {...p, userRating: rating === 0 ? undefined : rating, isVisible: true } : p));
         } catch (error) {
             console.error("Firebase write failed: ", error);
@@ -519,16 +544,14 @@ const App: React.FC = () => {
         }
     }, [sessionId, userId]);
 
-    // Process Credit Queue (Promotion)
-    // Runs as an Effect whenever data changes to allow automatic promotion
+    // Process Credit Queue (Incremental Promotion)
     useEffect(() => {
         if (!config || firebasePhotos.length === 0) return;
 
         const checkAndPromote = async () => {
-            // 1. Calculate currently available space
-            const validPhotos = firebasePhotos.filter(p => p.userRating && p.userRating > 0);
-            let currentRatedCount = validPhotos.length;
-            let currentStarsUsed = validPhotos.reduce((sum, p) => sum + (p.userRating || 0), 0);
+            // 1. Calculate CURRENT Valid Usage based on Firebase Data
+            const currentRatedCount = firebasePhotos.filter(p => p.userRating && p.userRating > 0).length;
+            const currentStarsUsed = firebasePhotos.reduce((sum, p) => sum + (p.userRating || 0), 0);
 
             // 2. Get sorted credit votes (Oldest first)
             const sortedCredits = Object.entries(creditVotes)
@@ -540,32 +563,66 @@ const App: React.FC = () => {
             const newCreditVotes = { ...creditVotes };
             let hasChanges = false;
 
+            // Dynamic trackers for the loop
+            let loopRatedCount = currentRatedCount;
+            let loopStarsUsed = currentStarsUsed;
+
             for (const credit of sortedCredits) {
-                const countSpace = config.ratedPhotoLimit - currentRatedCount;
-                const starsSpace = config.totalStarsLimit - currentStarsUsed;
+                const photoInFirebase = firebasePhotos.find(p => p.id === credit.id);
+                const currentValidRating = photoInFirebase?.userRating || 0;
+                const targetRating = credit.rating;
 
-                // Check if this specific credit vote fits
-                // Note: Since credit vote is "new" to Firebase, count increases by 1
-                if (countSpace >= 1 && starsSpace >= credit.rating) {
-                    // Promote!
-                    // Use the ref to ensure we don't double count if there's some lag, though typically credit->valid is safe.
-                    // Since it's coming from credit, the previous rating in Firebase MUST be 0.
-                    // We update the ref here just in case.
-                    userFirebaseRatingsRef.current[credit.id] = credit.rating;
-
-                    await writeVoteToFirebase(credit.id, credit.rating, 0);
-
-                    // Update local counters for next iteration in loop
-                    currentRatedCount++;
-                    currentStarsUsed += credit.rating;
-
-                    // Remove from credit
+                const starsNeeded = targetRating - currentValidRating;
+                if (starsNeeded <= 0) {
+                    // Already valid? Cleanup local storage.
                     delete newCreditVotes[credit.id];
                     hasChanges = true;
-                    setToastMessage("Ваш голос из «кредита» был зачтен!");
+                    continue;
+                }
+
+                const freeSlots = config.ratedPhotoLimit - loopRatedCount;
+                const freeStars = config.totalStarsLimit - loopStarsUsed;
+
+                // Can we upgrade this photo?
+                // If it has 0 valid stars, it needs a slot.
+                let canUpgrade = false;
+                let upgradeAmount = 0;
+
+                if (currentValidRating === 0) {
+                    // Needs a slot
+                    if (freeSlots > 0 && freeStars > 0) {
+                        canUpgrade = true;
+                        upgradeAmount = Math.min(starsNeeded, freeStars);
+                    }
                 } else {
-                    // STRICT FIFO: If the oldest doesn't fit, STOP.
-                    // Do NOT let newer/smaller votes skip the queue.
+                    // Already has slot, just needs stars
+                    if (freeStars > 0) {
+                        canUpgrade = true;
+                        upgradeAmount = Math.min(starsNeeded, freeStars);
+                    }
+                }
+
+                if (canUpgrade && upgradeAmount > 0) {
+                    const newValidRating = currentValidRating + upgradeAmount;
+
+                    // Update Refs and Firebase
+                    userFirebaseRatingsRef.current[credit.id] = newValidRating;
+                    await writeVoteToFirebase(credit.id, newValidRating, currentValidRating);
+
+                    // Update loop counters
+                    if (currentValidRating === 0) loopRatedCount++;
+                    loopStarsUsed += upgradeAmount;
+
+                    // If fully satisfied, remove from credit
+                    if (newValidRating === targetRating) {
+                        delete newCreditVotes[credit.id];
+                        hasChanges = true;
+                        setToastMessage("Ваш голос из «кредита» был зачтен!");
+                    }
+                    // Else: partial promotion happens, stays in credit with remainder
+                } else {
+                    // If head of queue cannot be upgraded, we STOP.
+                    // FIFO means FIFO.
                     break;
                 }
             }
@@ -576,7 +633,6 @@ const App: React.FC = () => {
         };
 
         checkAndPromote();
-        // Effect dependency on key stats ensuring it runs when space frees up
     }, [firebasePhotos, creditVotes, config, writeVoteToFirebase]);
 
 
@@ -587,7 +643,6 @@ const App: React.FC = () => {
         if (!photoToUpdate || photoToUpdate.isOutOfCompetition) return;
 
         const currentRating = photoToUpdate.userRating || 0;
-        const isCurrentCredit = !!photoToUpdate.isCredit;
         let newRating = rating;
 
         if (newRating > (photoToUpdate.maxRating ?? 3)) {
@@ -598,100 +653,98 @@ const App: React.FC = () => {
             newRating = 0;
         }
 
-        // Logic branching
-        // Case 1: Unrating (0)
-        if (newRating === 0) {
-            if (isCurrentCredit) {
-                // Remove from local storage
-                const newCredits = { ...creditVotes };
-                delete newCredits[photoId];
-                setCreditVotes(newCredits);
+        // "Iceberg" Logic: Calculate what fits in Valid, rest goes to Credit.
+
+        // 1. Determine Global Free Space (Source of Truth: Firebase Refs)
+        // We calculate based on CURRENT VALID usage in Firebase.
+        let usedValidSlots = 0;
+        let usedValidStars = 0;
+        const refRatings = userFirebaseRatingsRef.current;
+
+        // Re-calculate totals from ref to be safe
+        Object.values(refRatings).forEach(r => {
+            if (r > 0) {
+                usedValidSlots++;
+                usedValidStars += r;
+            }
+        });
+
+        // 2. Calculate My Current Valid Contribution
+        const myCurrentValidRating = refRatings[photoId] || 0;
+        const myCurrentValidSlot = myCurrentValidRating > 0 ? 1 : 0;
+
+        // 3. Calculate What's Available for ME
+        // (Total Limit - Others Usage)
+        const otherUsedSlots = usedValidSlots - myCurrentValidSlot;
+        const otherUsedStars = usedValidStars - myCurrentValidRating;
+
+        const freeSlots = config.ratedPhotoLimit - otherUsedSlots;
+        const freeStars = config.totalStarsLimit - otherUsedStars;
+
+        // 4. Check Queue Blocking
+        // If there is a queue, I cannot expand into free space unless I am already in the queue (older).
+        // Simplification: If queue > 0, I am capped at my current valid usage.
+        // Note: We check `creditVotes` timestamps to see if I am blocked.
+        const myLocalVote = creditVotes[photoId];
+        const myTimestamp = myLocalVote?.timestamp || Infinity;
+        const hasOlderInQueue = Object.values(creditVotes).some(v => v.timestamp < myTimestamp);
+
+        let allowedSlots = freeSlots;
+        let allowedStars = freeStars;
+
+        if (hasOlderInQueue) {
+            // Blocked by queue: can only use what I already have
+            allowedSlots = myCurrentValidSlot;
+            allowedStars = myCurrentValidRating;
+        }
+
+        // 5. Calculate New Valid Portion
+        let newValidRating = 0;
+        if (newRating > 0) {
+            if (allowedSlots >= 1) {
+                newValidRating = Math.min(newRating, allowedStars);
             } else {
-                // Remove from Firebase
-                // CRITICAL FIX: Use the Ref for the previous rating to prevent race conditions
-                const truePreviousRating = userFirebaseRatingsRef.current[photoId] || 0;
-                // Update Ref synchronously
-                userFirebaseRatingsRef.current[photoId] = 0;
-
-                await writeVoteToFirebase(photoId, 0, truePreviousRating);
+                newValidRating = 0; // No slot available
             }
-            return;
         }
 
-        // Case 2: Rating (Updating or New)
+        // 6. Execute Changes
 
-        // CHECK AGAINST *TOTAL* LIMITS (including credit debt)
-        // This ensures that if we are already in debt (e.g. queue is not empty), new votes go to credit/queue
-        // instead of skipping the line.
-
-        const isNewVote = currentRating === 0;
-        const projectedTotalCount = stats.total.count + (isNewVote ? 1 : 0);
-        const projectedTotalStars = stats.total.stars - currentRating + newRating;
-
-        // "Fits in budget" now means "Fits in Global Limit" AND "Does NOT jump queue"
-        // If we have credit votes (stats.credit.count > 0), we should assume the queue is blocked,
-        // UNLESS this specific photo is ALREADY in the queue (updating credit vote).
-
-        let fitsInBudget = projectedTotalCount <= config.ratedPhotoLimit && projectedTotalStars <= config.totalStarsLimit;
-
-        if (fitsInBudget && stats.credit.count > 0 && !isCurrentCredit) {
-            // Attempting to jump queue?
-            // This logic ensures new votes respect the waiting line.
-            fitsInBudget = false;
+        // A. Update Firebase (Valid Portion)
+        if (newValidRating !== myCurrentValidRating) {
+            userFirebaseRatingsRef.current[photoId] = newValidRating;
+            await writeVoteToFirebase(photoId, newValidRating, myCurrentValidRating);
         }
 
-        // Warning triggers
-        const warningKey = `hasSeenCreditWarning_${sessionId}`;
-        const hasSeenWarning = localStorage.getItem(warningKey);
+        // B. Update LocalStorage (Credit/Target Portion)
+        if (newRating > newValidRating) {
+            // Need Credit
+            const newCreditVotes = { ...creditVotes };
+            // Preserve timestamp if already exists, else new
+            const timestamp = creditVotes[photoId]?.timestamp || Date.now();
+            newCreditVotes[photoId] = { rating: newRating, timestamp };
+            setCreditVotes(newCreditVotes);
 
-        // Determine if we are *reaching* or *exceeding* the limit
-        const isReachingLimit = projectedTotalCount === config.ratedPhotoLimit || projectedTotalStars === config.totalStarsLimit;
-        // const isExceeding = projectedTotalCount > config.ratedPhotoLimit || projectedTotalStars > config.totalStarsLimit;
-
-        if (fitsInBudget) {
-            // If it was credit, remove from credit first
-            if (isCurrentCredit) {
-                const newCredits = { ...creditVotes };
-                delete newCredits[photoId];
-                setCreditVotes(newCredits);
-            }
-            // Write to Firebase (Yellow/Valid)
-            const truePreviousRating = userFirebaseRatingsRef.current[photoId] || 0;
-            userFirebaseRatingsRef.current[photoId] = newRating;
-
-            await writeVoteToFirebase(photoId, newRating, truePreviousRating);
-
-            if (isReachingLimit && !hasSeenWarning) {
-                const limitType = projectedTotalCount === config.ratedPhotoLimit ? 'count' : 'stars';
+            // Warning check
+            const warningKey = `hasSeenCreditWarning_${sessionId}`;
+            if (!localStorage.getItem(warningKey)) {
+                // Determine limit type
+                const totalCount = stats.total.count + (currentRating === 0 ? 1 : 0);
+                const limitType = totalCount > config.ratedPhotoLimit ? 'count' : 'stars';
                 setCreditWarning({ isOpen: true, limitType });
                 localStorage.setItem(warningKey, 'true');
             }
 
         } else {
-            // GOES TO CREDIT (Blue/Exceeding)
-            const limitType = projectedTotalCount > config.ratedPhotoLimit ? 'count' : 'stars';
-
-            // Show warning if not seen
-            if (!hasSeenWarning) {
-                setCreditWarning({ isOpen: true, limitType });
-                localStorage.setItem(warningKey, 'true');
-            }
-
-            // Save to Credit (Local Storage)
-            const newCredits = { ...creditVotes };
-            newCredits[photoId] = { rating: newRating, timestamp: Date.now() };
-            setCreditVotes(newCredits);
-
-            // If it was valid before, remove from Firebase! (Demote to credit)
-            if (!isCurrentCredit && currentRating > 0) {
-                const truePreviousRating = userFirebaseRatingsRef.current[photoId] || 0;
-                userFirebaseRatingsRef.current[photoId] = 0;
-
-                await writeVoteToFirebase(photoId, 0, truePreviousRating);
+            // Fully Valid or Unrated
+            if (creditVotes[photoId]) {
+                const newCreditVotes = { ...creditVotes };
+                delete newCreditVotes[photoId];
+                setCreditVotes(newCreditVotes);
             }
         }
 
-    }, [photosWithMaxRating, config, stats, creditVotes, sessionId, userId, writeVoteToFirebase]);
+    }, [photosWithMaxRating, config, creditVotes, sessionId, userId, writeVoteToFirebase, stats]);
 
 
     const handleToggleVisibility = useCallback((photoId: number) => {
@@ -783,7 +836,7 @@ const App: React.FC = () => {
             itemsCopy = itemsCopy.map(item => {
                 // If this is the active group (expanded OR closing), keep it visible even if partially hidden logic applies
                 const isActiveGroup = expandedGroupId === item.groupId || closingGroupId === item.groupId;
-                
+
                 if (item.type === 'stack' && !isActiveGroup) {
                     const visiblePhotosInStack = item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
                     if (visiblePhotosInStack.length === 0) return null;
@@ -1160,7 +1213,7 @@ const App: React.FC = () => {
     const showStickyHeader = isScrolled || !!selectedPhoto;
     const hasVotes = stats.total.count > 0;
     const sessionDisplayName = config.name || sessionId;
-    
+
     // Calculate global credit flag
     const hasCreditVotes = stats.credit.count > 0;
 
