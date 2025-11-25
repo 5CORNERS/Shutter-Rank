@@ -1,13 +1,14 @@
 import React from 'react';
-import { AlertTriangle, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { useModalLifecycle } from '../hooks/useModalLifecycle';
 
 interface CreditWarningModalProps {
   onClose: () => void;
   limitType: 'count' | 'stars';
+  isExceeded: boolean;
 }
 
-export const CreditWarningModal: React.FC<CreditWarningModalProps> = ({ onClose, limitType }) => {
+export const CreditWarningModal: React.FC<CreditWarningModalProps> = ({ onClose, limitType, isExceeded }) => {
   useModalLifecycle(onClose);
 
   return (
@@ -16,17 +17,18 @@ export const CreditWarningModal: React.FC<CreditWarningModalProps> = ({ onClose,
         <div className="p-6 space-y-4">
             <div className="flex items-center gap-3 text-cyan-400 mb-2">
                 <Info className="w-8 h-8" />
-                <h2 className="text-xl font-bold text-white">Голосование в кредит</h2>
+                <h2 className="text-xl font-bold text-white">Голосуйте в кредит</h2>
             </div>
             
-            <p className="text-gray-300">
-                {limitType === 'count' 
-                    ? 'Вы достигли или превысили лимит по количеству фотографий.' 
-                    : 'Вы достигли или превысили лимит звезд.'}
+            <p className="text-gray-300 text-lg">
+                {isExceeded 
+                    ? (limitType === 'count' ? 'Вы превысили лимит по количеству фотографий.' : 'Вы превысили лимит звёзд.')
+                    : (limitType === 'count' ? 'Вы достигли лимита по количеству фотографий.' : 'Вы достигли лимита звёзд.')
+                }
             </p>
             
             <p className="text-gray-300">
-                Но вы можете продолжать! Ваши новые оценки будут сохранены <strong>«в кредит»</strong> (они будут подсвечены голубым).
+                <strong className="text-cyan-400">Но вы можете продолжать!</strong> Ваши новые оценки будут сохранены «в кредит» (они будут подсвечены другим цветом).
             </p>
 
             <div className="bg-gray-800/50 p-3 rounded-lg border border-gray-700/50 text-sm text-gray-400">
@@ -36,8 +38,8 @@ export const CreditWarningModal: React.FC<CreditWarningModalProps> = ({ onClose,
             </div>
         </div>
         <footer className="p-4 bg-gray-800/50 rounded-b-lg text-right">
-             <button onClick={onClose} className="px-4 py-2 text-sm font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white transition-colors">
-                Понятно, продолжить
+             <button onClick={onClose} className="px-6 py-2 text-sm font-bold rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white transition-colors shadow-lg shadow-cyan-900/20">
+                Понятно
             </button>
         </footer>
       </div>

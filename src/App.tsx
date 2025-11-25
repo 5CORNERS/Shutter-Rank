@@ -69,6 +69,7 @@ const App: React.FC = () => {
 
     const [selectedPhotoId, setSelectedPhotoId] = useState<number | null>(null);
     const [immersivePhotoId, setImmersivePhotoId] = useState<number | null>(null);
+    const [customViewerList, setCustomViewerList] = useState<Photo[] | null>(null); // For scoped navigation (e.g. inside expanded group)
 
     const [votingSort, setVotingSort] = useState<'id' | 'score'>('id');
     const [resultsSort, setResultsSort] = useState<SortMode>('stars');
@@ -81,7 +82,7 @@ const App: React.FC = () => {
     const [isRatingInfoModalOpen, setIsRatingInfoModalOpen] = useState(false);
     const [showHiddenPhotos, setShowHiddenPhotos] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
-    const [creditWarning, setCreditWarning] = useState<{ isOpen: boolean; limitType: 'count' | 'stars' }>({ isOpen: false, limitType: 'count' });
+    const [creditWarning, setCreditWarning] = useState<{ isOpen: boolean; limitType: 'count' | 'stars'; isExceeded: boolean }>({ isOpen: false, limitType: 'count', isExceeded: false });
 
     const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
     const [closingGroupId, setClosingGroupId] = useState<string | null>(null);
@@ -97,6 +98,7 @@ const App: React.FC = () => {
     const headerRef = useRef<HTMLDivElement>(null);
     const closingTimeoutRef = useRef<number | null>(null);
     const frozenOrderRef = useRef<string[] | null>(null);
+    const creditWarningTimeoutRef = useRef<number | null>(null);
 
     const openConfirmation = (title: string, message: string, onConfirm: () => void, onCancel?: () => void) => {
         setConfirmation({ isOpen: true, title, message, onConfirm, onCancel });
@@ -297,12 +299,12 @@ const App: React.FC = () => {
             const validRating = p.userRating || 0;
 
             if (creditVote) {
-                return {
-                    ...p,
+                return { 
+                    ...p, 
                     userRating: creditVote.rating,
                     validRating: validRating, // Explicitly store the valid portion
-                    isCredit: true,
-                    isVisible: true
+                    isCredit: true, 
+                    isVisible: true 
                 };
             }
             return {
@@ -337,7 +339,7 @@ const App: React.FC = () => {
             if (targetRating > currentValidRating) {
                 creditStars += (targetRating - currentValidRating);
             }
-
+            
             // Surplus Slot (if it wasn't already valid)
             if (currentValidRating === 0 && targetRating > 0) {
                 creditCount++;
@@ -564,7 +566,7 @@ const App: React.FC = () => {
 
             const newCreditVotes = { ...creditVotes };
             let hasChanges = false;
-
+            
             // Dynamic trackers for the loop
             let loopRatedCount = currentRatedCount;
             let loopStarsUsed = currentStarsUsed;
@@ -573,7 +575,7 @@ const App: React.FC = () => {
                 const photoInFirebase = firebasePhotos.find(p => p.id === credit.id);
                 const currentValidRating = photoInFirebase?.userRating || 0;
                 const targetRating = credit.rating;
-
+                
                 const starsNeeded = targetRating - currentValidRating;
                 if (starsNeeded <= 0) {
                     // Already valid? Cleanup local storage.
@@ -606,7 +608,7 @@ const App: React.FC = () => {
 
                 if (canUpgrade && upgradeAmount > 0) {
                     const newValidRating = currentValidRating + upgradeAmount;
-
+                    
                     // Update Refs and Firebase
                     userFirebaseRatingsRef.current[credit.id] = newValidRating;
                     await writeVoteToFirebase(credit.id, newValidRating, currentValidRating);
@@ -620,7 +622,7 @@ const App: React.FC = () => {
                         delete newCreditVotes[credit.id];
                         hasChanges = true;
                         setToastMessage("Ваш голос из «кредита» был зачтен!");
-                    }
+                    } 
                     // Else: partial promotion happens, stays in credit with remainder
                 } else {
                     // If head of queue cannot be upgraded, we STOP.
@@ -656,13 +658,13 @@ const App: React.FC = () => {
         }
 
         // "Iceberg" Logic: Calculate what fits in Valid, rest goes to Credit.
-
+        
         // 1. Determine Global Free Space (Source of Truth: Firebase Refs)
         // We calculate based on CURRENT VALID usage in Firebase.
         let usedValidSlots = 0;
         let usedValidStars = 0;
         const refRatings = userFirebaseRatingsRef.current;
-
+        
         // Re-calculate totals from ref to be safe
         Object.values(refRatings).forEach(r => {
             if (r > 0) {
@@ -711,7 +713,7 @@ const App: React.FC = () => {
         }
 
         // 6. Execute Changes
-
+        
         // A. Update Firebase (Valid Portion)
         if (newValidRating !== myCurrentValidRating) {
             userFirebaseRatingsRef.current[photoId] = newValidRating;
@@ -730,11 +732,26 @@ const App: React.FC = () => {
             // Warning check
             const warningKey = `hasSeenCreditWarning_${sessionId}`;
             if (!localStorage.getItem(warningKey)) {
-                // Determine limit type
+                if (creditWarningTimeoutRef.current) {
+                    clearTimeout(creditWarningTimeoutRef.current);
+                }
+                
+                // Determine limit type and if it's "exceeded" (> limit) or "reached" (== limit)
+                // Important: We look at the TOTAL stats (Valid + Credit).
+                // But since React state update is async, we use calculated values or refs if possible.
+                // Here we rely on the current stats from previous render + this action.
                 const totalCount = stats.total.count + (currentRating === 0 ? 1 : 0);
+                const totalStars = stats.total.stars + (newRating - currentRating);
+
                 const limitType = totalCount > config.ratedPhotoLimit ? 'count' : 'stars';
-                setCreditWarning({ isOpen: true, limitType });
-                localStorage.setItem(warningKey, 'true');
+                const isExceeded = limitType === 'count' 
+                    ? totalCount > config.ratedPhotoLimit 
+                    : totalStars > config.totalStarsLimit;
+
+                creditWarningTimeoutRef.current = window.setTimeout(() => {
+                    setCreditWarning({ isOpen: true, limitType, isExceeded });
+                    localStorage.setItem(warningKey, 'true');
+                }, 800);
             }
 
         } else {
@@ -838,7 +855,7 @@ const App: React.FC = () => {
             itemsCopy = itemsCopy.map(item => {
                 // If this is the active group (expanded OR closing), keep it visible even if partially hidden logic applies
                 const isActiveGroup = expandedGroupId === item.groupId || closingGroupId === item.groupId;
-
+                
                 if (item.type === 'stack' && !isActiveGroup) {
                     const visiblePhotosInStack = item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
                     if (visiblePhotosInStack.length === 0) return null;
@@ -939,31 +956,39 @@ const App: React.FC = () => {
         return flatList;
     }, [sortedGalleryItems]);
 
+    const activePhotosForViewer = customViewerList || photosForViewer;
 
-    const selectedPhoto = useMemo(() => selectedPhotoId !== null ? photosForViewer.find(p => p.id === selectedPhotoId) : null, [selectedPhotoId, photosForViewer]);
-    const selectedPhotoIndex = useMemo(() => selectedPhotoId !== null ? photosForViewer.findIndex(p => p.id === selectedPhotoId) : -1, [selectedPhotoId, photosForViewer]);
+    const selectedPhoto = useMemo(() => selectedPhotoId !== null ? activePhotosForViewer.find(p => p.id === selectedPhotoId) : null, [selectedPhotoId, activePhotosForViewer]);
+    const selectedPhotoIndex = useMemo(() => selectedPhotoId !== null ? activePhotosForViewer.findIndex(p => p.id === selectedPhotoId) : -1, [selectedPhotoId, activePhotosForViewer]);
 
     const handleCloseModal = useCallback(() => {
         scrollToPhoto(selectedPhotoId);
         setSelectedPhotoId(null);
+        setCustomViewerList(null); // Reset scoped list on close
     }, [selectedPhotoId, scrollToPhoto]);
 
     const handleNextPhoto = useCallback(() => {
-        if (photosForViewer.length === 0) {
+        if (activePhotosForViewer.length === 0) {
             setSelectedPhotoId(null);
             return;
         };
-        const nextIndex = (selectedPhotoIndex + 1) % photosForViewer.length;
-        setSelectedPhotoId(photosForViewer[nextIndex].id);
-    }, [selectedPhotoIndex, photosForViewer]);
+        const nextIndex = (selectedPhotoIndex + 1) % activePhotosForViewer.length;
+        setSelectedPhotoId(activePhotosForViewer[nextIndex].id);
+    }, [selectedPhotoIndex, activePhotosForViewer]);
 
     const handlePrevPhoto = useCallback(() => {
-        if (photosForViewer.length === 0) return;
-        const prevIndex = (selectedPhotoIndex - 1 + photosForViewer.length) % photosForViewer.length;
-        setSelectedPhotoId(photosForViewer[prevIndex].id);
-    }, [selectedPhotoIndex, photosForViewer]);
+        if (activePhotosForViewer.length === 0) return;
+        const prevIndex = (selectedPhotoIndex - 1 + activePhotosForViewer.length) % activePhotosForViewer.length;
+        setSelectedPhotoId(activePhotosForViewer[prevIndex].id);
+    }, [selectedPhotoIndex, activePhotosForViewer]);
 
-    const handleImageClick = useCallback((photo: Photo) => {
+    const handleImageClick = useCallback((photo: Photo, contextPhotos?: Photo[]) => {
+        if (contextPhotos) {
+            setCustomViewerList(contextPhotos);
+        } else {
+            setCustomViewerList(null);
+        }
+
         if (isTouchDevice) {
             setImmersivePhotoId(photo.id);
         } else {
@@ -971,7 +996,7 @@ const App: React.FC = () => {
         }
     }, [isTouchDevice]);
 
-    const immersivePhotoIndex = useMemo(() => immersivePhotoId !== null ? photosForViewer.findIndex(p => p.id === immersivePhotoId) : -1, [immersivePhotoId, photosForViewer]);
+    const immersivePhotoIndex = useMemo(() => immersivePhotoId !== null ? activePhotosForViewer.findIndex(p => p.id === immersivePhotoId) : -1, [immersivePhotoId, activePhotosForViewer]);
 
     const handleEnterImmersive = useCallback(() => {
         if (selectedPhoto) {
@@ -988,6 +1013,7 @@ const App: React.FC = () => {
             setSelectedPhotoId(finalPhotoId);
         } else {
             scrollToPhoto(finalPhotoId);
+            setCustomViewerList(null); // Reset scoped list on full close
         }
     }, [isTouchDevice, immersivePhotoId, scrollToPhoto]);
 
@@ -995,23 +1021,24 @@ const App: React.FC = () => {
         setSelectedPhotoId(null);
         setImmersivePhotoId(null);
         setExpertViewGroupId(groupId);
+        setCustomViewerList(null);
     }, []);
 
 
     const handleNextImmersive = useCallback(() => {
-        if (photosForViewer.length === 0 || immersivePhotoIndex === -1) {
+        if (activePhotosForViewer.length === 0 || immersivePhotoIndex === -1) {
             setImmersivePhotoId(null);
             return;
         }
-        const nextIndex = (immersivePhotoIndex + 1) % photosForViewer.length;
-        setImmersivePhotoId(photosForViewer[nextIndex].id);
-    }, [immersivePhotoIndex, photosForViewer]);
+        const nextIndex = (immersivePhotoIndex + 1) % activePhotosForViewer.length;
+        setImmersivePhotoId(activePhotosForViewer[nextIndex].id);
+    }, [immersivePhotoIndex, activePhotosForViewer]);
 
     const handlePrevImmersive = useCallback(() => {
-        if (photosForViewer.length === 0 || immersivePhotoIndex === -1) return;
-        const prevIndex = (immersivePhotoIndex - 1 + photosForViewer.length) % photosForViewer.length;
-        setImmersivePhotoId(photosForViewer[prevIndex].id);
-    }, [immersivePhotoIndex, photosForViewer]);
+        if (activePhotosForViewer.length === 0 || immersivePhotoIndex === -1) return;
+        const prevIndex = (immersivePhotoIndex - 1 + activePhotosForViewer.length) % activePhotosForViewer.length;
+        setImmersivePhotoId(activePhotosForViewer[prevIndex].id);
+    }, [immersivePhotoIndex, activePhotosForViewer]);
 
     const handleTogglePhase = () => {
         setVotingPhase(p => p === 'voting' ? 'results' : 'voting');
@@ -1215,7 +1242,7 @@ const App: React.FC = () => {
     const showStickyHeader = isScrolled || !!selectedPhoto;
     const hasVotes = stats.total.count > 0;
     const sessionDisplayName = config.name || sessionId;
-
+    
     // Calculate global credit flag
     const hasCreditVotes = stats.credit.count > 0;
 
@@ -1235,6 +1262,7 @@ const App: React.FC = () => {
                 <CreditWarningModal
                     onClose={() => setCreditWarning(prev => ({ ...prev, isOpen: false }))}
                     limitType={creditWarning.limitType}
+                    isExceeded={creditWarning.isExceeded}
                 />
             )}
 
@@ -1543,8 +1571,8 @@ const App: React.FC = () => {
                     onEnterImmersive={handleEnterImmersive}
                     onRate={handleRateInGroup}
                     onToggleVisibility={handleToggleVisibility}
-                    hasNext={photosForViewer.length > 1}
-                    hasPrev={photosForViewer.length > 1}
+                    hasNext={activePhotosForViewer.length > 1}
+                    hasPrev={activePhotosForViewer.length > 1}
                     config={config}
                     ratedPhotosCount={stats.valid.count}
                     starsUsed={stats.total.stars}
@@ -1560,7 +1588,7 @@ const App: React.FC = () => {
 
             {immersivePhotoId !== null && (
                 <ImmersiveView
-                    allPhotos={photosForViewer}
+                    allPhotos={activePhotosForViewer}
                     photoId={immersivePhotoId}
                     allPhotosInGroup={immersivePhotoGroupInfo?.photos || []}
                     onClose={handleCloseImmersive}

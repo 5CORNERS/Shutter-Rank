@@ -51,6 +51,11 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
     const [hoverRating, setHoverRating] = useState(0);
     const isTouchDevice = 'ontouchstart' in window;
 
+    // Completely hide controls for Out Of Competition photos
+    if (photo.isOutOfCompetition) {
+        return null;
+    }
+
     const handleRate = (rating: number) => {
         onRate(photo.id, rating);
     };
@@ -65,18 +70,18 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
         : '';
 
     // --- LOGIC FOR STAR COLORS ---
-
+    
     // 1. Calculate Mathematical Budget
-    // starsUsed is the TOTAL count (Valid + Credit) from App.tsx.
+    // starsUsed is the TOTAL count (Valid + Credit) from App.tsx. 
     // photo.userRating is the TOTAL rating of THIS photo (Valid + Credit).
     // Subtracting gives us the stars used by EVERYONE ELSE.
     const starsUsedByOthers = starsUsed - (photo.userRating || 0);
-
+    
     // The available budget for THIS photo is what's left after everyone else took their share.
     const mathematicalBudget = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
     // 2. Determine "Indigo Mode" (Slot Debt)
-    // If validRating > 0, it HAS a slot.
+    // If validRating > 0, it HAS a slot. 
     // If validRating == 0, it NEEDS a slot. Check if any are available.
     const hasValidSlot = (photo.validRating || 0) > 0;
     const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
@@ -96,7 +101,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
 
                 if (variant === 'default') {
                     // Check priority of states
-
+                    
                     // 1. Financial Check: Does this specific star exceed the global star limit?
                     // If YES, it is always Blue (Star Debt).
                     // We compare the star index (1-5) against the budget available for this photo.
