@@ -1271,7 +1271,7 @@ const App: React.FC = () => {
                     showHiddenPhotos={showHiddenPhotos}
                     isTouchDevice={isTouchDevice}
                     hidingPhotoId={hidingPhotoId}
-                    starsUsed={stats.valid.stars}
+                    starsUsed={stats.total.stars}
                     totalStarsLimit={config.totalStarsLimit}
                     ratedPhotosCount={stats.valid.count}
                     ratedPhotoLimit={config.ratedPhotoLimit}
@@ -1407,7 +1407,7 @@ const App: React.FC = () => {
                                                 gridAspectRatio={settings.gridAspectRatio}
                                                 isTouchDevice={isTouchDevice}
                                                 onShowToast={(msg) => setToastMessage(msg)}
-                                                starsUsed={stats.valid.stars}
+                                                starsUsed={stats.total.stars}
                                                 totalStarsLimit={config.totalStarsLimit}
                                                 ratedPhotosCount={stats.valid.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
@@ -1429,7 +1429,7 @@ const App: React.FC = () => {
                                                     groupSelections={groupSelections}
                                                     onSelectionChange={handleGroupSelectionChange}
                                                     isTouchDevice={isTouchDevice}
-                                                    starsUsed={stats.valid.stars}
+                                                    starsUsed={stats.total.stars}
                                                     totalStarsLimit={config.totalStarsLimit}
                                                     ratedPhotosCount={stats.valid.count}
                                                     ratedPhotoLimit={config.ratedPhotoLimit}
@@ -1449,7 +1449,7 @@ const App: React.FC = () => {
                                                 onToggleVisibility={handleToggleVisibility}
                                                 isHiding={hidingPhotoId === item.id}
                                                 isFilterActive={showHiddenPhotos}
-                                                starsUsed={stats.valid.stars}
+                                                starsUsed={stats.total.stars}
                                                 totalStarsLimit={config.totalStarsLimit}
                                                 ratedPhotosCount={stats.valid.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
@@ -1474,7 +1474,7 @@ const App: React.FC = () => {
                                             groupSelections={groupSelections}
                                             onSelectionChange={handleGroupSelectionChange}
                                             isTouchDevice={isTouchDevice}
-                                            starsUsed={stats.valid.stars}
+                                            starsUsed={stats.total.stars}
                                             totalStarsLimit={config.totalStarsLimit}
                                             ratedPhotosCount={stats.valid.count}
                                             ratedPhotoLimit={config.ratedPhotoLimit}
@@ -1547,7 +1547,7 @@ const App: React.FC = () => {
                     hasPrev={photosForViewer.length > 1}
                     config={config}
                     ratedPhotosCount={stats.valid.count}
-                    starsUsed={stats.valid.stars}
+                    starsUsed={stats.total.stars}
                     groupInfo={selectedPhotoGroupInfo}
                     groupSelections={groupSelections}
                     onGroupSelectionChange={handleGroupSelectionChange}
@@ -1570,7 +1570,7 @@ const App: React.FC = () => {
                     onToggleVisibility={handleToggleVisibility}
                     displayVotes={votingPhase === 'results'}
                     ratedPhotosCount={stats.valid.count}
-                    starsUsed={stats.valid.stars}
+                    starsUsed={stats.total.stars}
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     totalStarsLimit={config.totalStarsLimit}
                     groupInfo={immersivePhotoGroupInfo}

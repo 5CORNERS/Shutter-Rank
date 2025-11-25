@@ -67,9 +67,12 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
     // --- LOGIC FOR STAR COLORS ---
 
     // 1. Calculate Mathematical Budget
-    // starsUsed is the valid count from Firebase.
-    // validRating is the portion of THIS photo that is already counted in starsUsed.
-    const starsUsedByOthers = starsUsed - (photo.validRating || 0);
+    // starsUsed is the TOTAL count (Valid + Credit) from App.tsx.
+    // photo.userRating is the TOTAL rating of THIS photo (Valid + Credit).
+    // Subtracting gives us the stars used by EVERYONE ELSE.
+    const starsUsedByOthers = starsUsed - (photo.userRating || 0);
+
+    // The available budget for THIS photo is what's left after everyone else took their share.
     const mathematicalBudget = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
     // 2. Determine "Indigo Mode" (Slot Debt)
@@ -96,6 +99,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
 
                     // 1. Financial Check: Does this specific star exceed the global star limit?
                     // If YES, it is always Blue (Star Debt).
+                    // We compare the star index (1-5) against the budget available for this photo.
                     const isFinanciallyValid = star <= mathematicalBudget;
 
                     if (isFilled || isHighlighted) {

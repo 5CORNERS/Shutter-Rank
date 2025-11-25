@@ -465,8 +465,10 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const captionToShow = groupInfo?.caption ? groupInfo.caption : photo.caption;
 
     // --- STAR COLOR LOGIC (Synced with RatingControls.tsx) ---
-    // 1. Mathematical Budget
-    const starsUsedByOthers = starsUsed - (photo.validRating || 0);
+    // 1. Calculate Mathematical Budget
+    // starsUsed is TOTAL count from App.tsx (passed as prop).
+    // Subtract this photo's contribution to find what everyone else is using.
+    const starsUsedByOthers = starsUsed - (photo.userRating || 0);
     const mathematicalBudget = Math.max(0, totalStarsLimit - starsUsedByOthers);
 
     // 2. Indigo Mode
