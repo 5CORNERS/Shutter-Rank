@@ -64,7 +64,6 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
     const isVisible = photo.isVisible !== false;
     const isOutOfComp = !!photo.isOutOfCompetition;
     const hasUserRating = photo.userRating && photo.userRating > 0;
-    const isCredit = !!photo.isCredit;
 
     // --- Determine Limit States for styling (Ring & Shadow) ---
     let voteRingClass = '';
@@ -74,37 +73,33 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         const currentRating = photo.userRating || 0;
         const validRating = photo.validRating || 0;
 
-        // Calculate "Base" stats (Valid only)
-        // We subtract THIS photo's valid contribution from the total valid stats
-        const basePhotosCount = ratedPhotosCount - (validRating > 0 ? 1 : 0);
-        const baseStarsUsed = starsUsed - validRating;
-
-        // Check projected usage against limits
-        // Count Overflow: Does adding this photo exceed the slot limit?
-        // (If it has validRating > 0, it already has a slot, so it doesn't need a new one unless we are checking hypothetical addition)
-        // Logic: If I need a slot (validRating === 0) AND limits are full -> overflow.
-        const isCountOverflow = (validRating === 0) && (basePhotosCount + 1 > ratedPhotoLimit);
-
-        // Star Overflow: Does adding these stars exceed the star limit?
-        // Logic: If base + current > limit -> overflow.
-        const isStarOverflow = baseStarsUsed + currentRating > totalStarsLimit;
-
-        if (isCountOverflow && isStarOverflow) {
-            // Double Credit -> Rose
-            voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-rose-700';
-            shadowClass = 'hover:shadow-rose-600/60 hover:shadow-xl';
-        } else if (isCountOverflow) {
-            // Slot Credit Only -> Indigo
-            voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-indigo-500';
-            shadowClass = 'hover:shadow-indigo-500/60 hover:shadow-xl';
-        } else if (isStarOverflow) {
-            // Star Credit Only -> Orange
-            voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-orange-500';
-            shadowClass = 'hover:shadow-orange-500/60 hover:shadow-xl';
+        if (validRating > 0) {
+            if (currentRating === validRating) {
+                // 1. YELLOW: Fully Valid
+                voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-yellow-400/80';
+                shadowClass = 'hover:shadow-yellow-500/60 hover:shadow-xl';
+            } else {
+                // 2. ORANGE: Valid Slot, Credit Stars
+                voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-orange-500';
+                shadowClass = 'hover:shadow-orange-500/60 hover:shadow-xl';
+            }
         } else {
-            // Valid -> Yellow
-            voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-yellow-400/80';
-            shadowClass = 'hover:shadow-indigo-500/60 hover:shadow-xl';
+            // validRating == 0 (Pure Credit)
+            // Determine WHY it is credit.
+
+            // Since validRating is 0, this photo is NOT counted in ratedPhotosCount (which comes from App.tsx derived from firebasePhotos)
+            // So we just check if there is room for +1 photo.
+            const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
+
+            if (isSlotAvailable) {
+                // 3. CYAN: Slot Available, but Stars Failed (or just credit stars in free slot)
+                voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-cyan-500';
+                shadowClass = 'hover:shadow-cyan-500/60 hover:shadow-xl';
+            } else {
+                // 4. INDIGO: No Slot Available
+                voteRingClass = 'ring-2 ring-offset-2 ring-offset-gray-900 ring-indigo-500';
+                shadowClass = 'hover:shadow-indigo-500/60 hover:shadow-xl';
+            }
         }
     }
 

@@ -4,8 +4,8 @@ import { ChevronLeft, ChevronRight, X, Star, XCircle, Eye, EyeOff, Layers, Check
 
 const SelectionControl: React.FC<{isSelected: boolean; onSelect: (e: React.MouseEvent) => void;}> = ({isSelected, onSelect}) => {
     return (
-        <div 
-            className="absolute top-4 right-4 z-10 pointer-events-auto" 
+        <div
+            className="absolute top-4 right-4 z-10 pointer-events-auto"
             onClick={onSelect}
         >
             <div className={`selection-control-bg w-8 h-8 rounded-full flex items-center justify-center ring-1 ring-inset ring-white/20 transition-all duration-300 border-2 shadow-lg cursor-pointer ${isSelected ? 'bg-green-500 border-white selected' : 'bg-gray-800/60 backdrop-blur-sm border-white/80'}`}>
@@ -53,13 +53,13 @@ interface VendorFullscreenElement extends HTMLDivElement {
 }
 
 const getStarNounAccusative = (count: number): string => {
-  if (count === 1) {
-    return 'звезду';
-  }
-  if (count >= 2 && count <= 4) {
-    return 'звезды';
-  }
-  return 'звёзд';
+    if (count === 1) {
+        return 'звезду';
+    }
+    if (count >= 2 && count <= 4) {
+        return 'звезды';
+    }
+    return 'звёзд';
 };
 
 const getStarNounGenitive = (count: number): string => {
@@ -69,8 +69,8 @@ const getStarNounGenitive = (count: number): string => {
     return 'звёзд';
 }
 
-const ImageWrapper: React.FC<{ 
-    photo?: Photo; 
+const ImageWrapper: React.FC<{
+    photo?: Photo;
     isVisible: boolean;
     groupInfo: { id: string; name: string; photos: Photo[] } | null;
     groupSelections: Record<string, number | null>;
@@ -80,7 +80,7 @@ const ImageWrapper: React.FC<{
 }> = React.memo(({ photo, isVisible, groupInfo, groupSelections, allPhotosInGroup, onGroupSelectionChange, onToggleVisibility }) => {
     const imgRef = useRef<HTMLImageElement>(null);
     const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
-    
+
     const currentGroupSelection = photo && groupInfo ? groupSelections[groupInfo.id] : undefined;
     const isPhotoInGroupSelected = currentGroupSelection === photo?.id;
     // Fix: Check strictly if a selection exists (is a number) to avoid 'undefined !== null' evaluating to true
@@ -99,7 +99,7 @@ const ImageWrapper: React.FC<{
 
         const top = imgRect.top - parentRect.top;
         const left = imgRect.left - parentRect.left;
-        
+
         setControlsContainerStyle({
             position: 'absolute',
             top: `${top}px`,
@@ -166,11 +166,11 @@ const ImageWrapper: React.FC<{
                             )}
                             {groupInfo && (
                                 <>
-                                 <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />
-                                 <div className="absolute top-4 left-1/2 -translate-x-1/2 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white pointer-events-auto flex items-center gap-2">
-                                    <Layers size={20} />
-                                    <span className="font-bold text-sm pr-1">{photoIndexInGroup}/{groupInfo.photos.length}</span>
-                                 </div>
+                                    <SelectionControl isSelected={isPhotoInGroupSelected} onSelect={handleSelect} />
+                                    <div className="absolute top-4 left-1/2 -translate-x-1/2 p-2 rounded-full bg-gray-800/60 backdrop-blur-sm text-white pointer-events-auto flex items-center gap-2">
+                                        <Layers size={20} />
+                                        <span className="font-bold text-sm pr-1">{photoIndexInGroup}/{groupInfo.photos.length}</span>
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -182,10 +182,10 @@ const ImageWrapper: React.FC<{
 });
 
 export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
-    allPhotos, photoId, allPhotosInGroup, onClose, onNext, onPrev, onRate, onToggleVisibility, displayVotes, ratedPhotosCount,
-    starsUsed, ratedPhotoLimit, totalStarsLimit, groupInfo, groupSelections, onGroupSelectionChange,
-    onOpenGroup, hasCreditVotes = false
-}) => {
+                                                                allPhotos, photoId, allPhotosInGroup, onClose, onNext, onPrev, onRate, onToggleVisibility, displayVotes, ratedPhotosCount,
+                                                                starsUsed, ratedPhotoLimit, totalStarsLimit, groupInfo, groupSelections, onGroupSelectionChange,
+                                                                onOpenGroup, hasCreditVotes = false
+                                                            }) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
 
@@ -256,10 +256,10 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     useEffect(() => {
         const element = containerRef.current;
         if (!element) return;
-    
+
         const enterFullscreen = async () => {
             try {
-                 if (element.requestFullscreen) {
+                if (element.requestFullscreen) {
                     await element.requestFullscreen();
                 } else if (element.webkitRequestFullscreen) {
                     await element.webkitRequestFullscreen();
@@ -278,10 +278,10 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 onClose(currentPhotoIdRef.current);
             }
         };
-        
+
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
 
@@ -300,14 +300,14 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 e.preventDefault();
                 if (!photo.isOutOfCompetition) onToggleVisibility(photo.id);
             } else if (!e.ctrlKey && !e.metaKey && /^[0-5]$/.test(e.key)) {
-                 e.preventDefault();
+                e.preventDefault();
                 if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(e.key, 10));
             }
         }
         document.addEventListener('keydown', handleKeyDown);
         return () => {
-             document.removeEventListener('keydown', handleKeyDown);
-             if (activityTimer.current) clearTimeout(activityTimer.current);
+            document.removeEventListener('keydown', handleKeyDown);
+            if (activityTimer.current) clearTimeout(activityTimer.current);
         }
     }, [onNext, onPrev, isTouchDevice, photo, onRate, onToggleVisibility, groupInfo]);
 
@@ -385,7 +385,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
 
         if (dragState.isTap) {
             if (!touchOriginIsControl.current) {
-                 setUiMode(m => m === 'full' ? 'minimal' : 'full');
+                setUiMode(m => m === 'full' ? 'minimal' : 'full');
             }
             touchOriginIsControl.current = false;
             setAnimationState('idle');
@@ -410,7 +410,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
         const baseOffset = -screenWidth - PHOTO_GAP;
         let targetTransform = `translateX(${baseOffset}px)`;
         let onAnimationEndCallback: (() => void) | null = null;
-        
+
         if (dragState.axis === 'V' && Math.abs(deltaY) > SWIPE_THRESHOLD_Y) {
             onClose(currentPhotoIdRef.current);
             return;
@@ -426,7 +426,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 onAnimationEndCallback = onNext;
             }
         }
-        
+
         filmstrip.style.transform = targetTransform;
 
         const handleTransitionEnd = () => {
@@ -443,7 +443,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
 
     const handleBackgroundClick = (e: React.MouseEvent) => {
         if (!isTouchDevice) {
-             setUiMode(m => m === 'full' ? 'minimal' : 'full');
+            setUiMode(m => m === 'full' ? 'minimal' : 'full');
         }
     };
 
@@ -459,15 +459,17 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     const isOutOfComp = !!photo.isOutOfCompetition;
     const maxRating = photo.maxRating ?? 3;
     const hasMultiplePhotos = allPhotos.length > 1;
-    
+
     const showTopAndSideControls = uiMode === 'full' || transientControlsVisible;
     const showBottomControls = uiMode === 'full';
     const captionToShow = groupInfo?.caption ? groupInfo.caption : photo.caption;
-    
+
     // Calculate base metrics excluding current photo if it has a rating
     const currentPhotoRating = photo.userRating || 0;
-    const baseStarsUsed = starsUsed - currentPhotoRating;
-    const basePhotosCount = ratedPhotosCount - (currentPhotoRating > 0 ? 1 : 0);
+    const validRating = photo.validRating || 0;
+
+    const baseStarsUsed = starsUsed - validRating;
+    const basePhotosCount = ratedPhotosCount - (validRating > 0 ? 1 : 0);
 
     return (
         <div
@@ -491,7 +493,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 <ImageWrapper photo={photo} isVisible={true} groupInfo={groupInfo} allPhotosInGroup={allPhotosInGroup} groupSelections={groupSelections} onGroupSelectionChange={onGroupSelectionChange} onToggleVisibility={onToggleVisibility} />
                 <ImageWrapper photo={hasMultiplePhotos ? nextPhoto : undefined} isVisible={false} groupInfo={null} allPhotosInGroup={[]} groupSelections={{}} onGroupSelectionChange={()=>{}} onToggleVisibility={()=>{}} />
             </div>
-            
+
             <div className="absolute inset-0 pointer-events-none z-10">
                 {hasMultiplePhotos && !isTouchDevice && (
                     <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-20 transition-opacity duration-300 pointer-events-auto ${showTopAndSideControls ? 'opacity-100' : 'opacity-0'}`}>
@@ -539,19 +541,19 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 </div>
 
                 <div className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent pt-32 pointer-events-auto transition-opacity duration-300 ${showBottomControls ? 'opacity-100' : 'opacity-0'}`}
-                    onClick={handleControlInteraction}
-                    onTouchStart={handleControlTouchStart}
-                    onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
-                    onMouseEnter={() => !isTouchDevice && uiMode === 'minimal' && setUiMode('full')}
+                     onClick={handleControlInteraction}
+                     onTouchStart={handleControlTouchStart}
+                     onMouseLeave={() => !isTouchDevice && setHoverRating(0)}
+                     onMouseEnter={() => !isTouchDevice && uiMode === 'minimal' && setUiMode('full')}
                 >
                     <div className="px-4 pb-2 text-left text-white relative shadow-text">
                         <p>{captionToShow}</p>
                     </div>
 
-                     {groupInfo && (
+                    {groupInfo && (
                         <div className="pb-4 px-4">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onOpenGroup(groupInfo.id); }} 
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onOpenGroup(groupInfo.id); }}
                                 className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg bg-indigo-600/80 hover:bg-indigo-700/80 text-white transition-colors backdrop-blur-sm"
                                 onTouchStart={handleControlTouchStart}
                             >
@@ -560,7 +562,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                             </button>
                         </div>
                     )}
-                    
+
                     <div
                         className="p-4 pt-0 flex flex-nowrap justify-between items-center gap-4 relative"
                     >
@@ -574,30 +576,21 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                         const isLocked = star > maxRating;
 
                                         // --- Credit Voting Logic for Stars ---
-                                        // FORCE BLUE if credit queue exists (and not a valid vote)
-                                        const isCredit = !!photo.isCredit;
-                                        const forceBlue = hasCreditVotes && !isCredit && !isFilled;
-                                        
                                         let isCreditStar = false;
-                                        if (isFilled && isCredit) {
-                                            isCreditStar = true;
+
+                                        if (isFilled) {
+                                            if (star > validRating) isCreditStar = true;
                                         } else if (isHighlighted) {
-                                            if (forceBlue) {
-                                                isCreditStar = true;
+                                            // Check Limits
+                                            const projectedStars = baseStarsUsed + star;
+                                            const isStarFit = projectedStars <= totalStarsLimit;
+
+                                            if (validRating > 0) {
+                                                if (!isStarFit) isCreditStar = true;
                                             } else {
-                                                const wouldBeNewPhoto = currentPhotoRating === 0;
-                                                const countExceeded = wouldBeNewPhoto && (basePhotosCount >= ratedPhotoLimit);
-                                                const projectedTotal = baseStarsUsed + hoverRating;
-                                                const starsExceeded = projectedTotal > totalStarsLimit;
-                                                
-                                                if (countExceeded) {
-                                                    isCreditStar = true;
-                                                } else if (starsExceeded) {
-                                                     const valueOfThisStarGlobal = baseStarsUsed + star; 
-                                                     if (valueOfThisStarGlobal > totalStarsLimit) {
-                                                         isCreditStar = true;
-                                                     }
-                                                }
+                                                const projectedCount = basePhotosCount + 1;
+                                                const isCountFit = projectedCount <= ratedPhotoLimit;
+                                                if (!isCountFit || !isStarFit) isCreditStar = true;
                                             }
                                         }
                                         // -------------------------------------
@@ -606,13 +599,13 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                         if (isFilled) {
                                             starColor = isCreditStar ? 'text-cyan-400' : 'text-yellow-400';
                                         } else if (isHighlighted) {
-                                            starColor = isLocked 
-                                                ? 'text-red-500' 
+                                            starColor = isLocked
+                                                ? 'text-red-500'
                                                 : (isCreditStar ? 'text-cyan-400' : 'text-yellow-400');
                                         }
-                                        
-                                        const titleText = isLocked 
-                                            ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}` 
+
+                                        const titleText = isLocked
+                                            ? `Эта фотография еще не заслужила ${star} ${getStarNounGenitive(star)}`
                                             : `Оценить в ${star} ${getStarNounAccusative(star)}`;
 
                                         return (

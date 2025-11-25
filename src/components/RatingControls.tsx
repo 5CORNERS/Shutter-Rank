@@ -67,7 +67,7 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
     // Logic for Star Colors
     // Yellow: Covered by valid budget
     // Blue: Covered by credit (or queue blocked)
-    
+
     const currentRating = photo.userRating || 0;
     const validRating = photo.validRating || 0; // Valid portion from Firebase
 
@@ -95,19 +95,20 @@ export const RatingControls: React.FC<RatingControlsProps> = ({
                         }
                     } else if (isHighlighted) {
                         // Hover state: Check if potential new star fits
-                        
-                        // 1. Check Queue Blocking
-                        // If there is a queue, and I am adding stars BEYOND what is already valid -> Force Blue
-                        if (hasCreditVotes && star > validRating) {
-                            isBlue = true;
+
+                        // Check Limits
+                        const projectedStars = baseStarsUsed + star;
+                        const isStarFit = projectedStars <= totalStarsLimit;
+
+                        if (validRating > 0) {
+                            // I already have a slot. I only care about Star Limit.
+                            if (!isStarFit) {
+                                isBlue = true;
+                            }
                         } else {
-                            // 2. Check Limits
-                            const projectedStars = baseStarsUsed + star;
-                            // Count check only matters if it wasn't already valid
+                            // I need a slot AND stars.
                             const projectedCount = basePhotosCount + 1;
-                            
-                            const isCountFit = (validRating > 0) || (projectedCount <= ratedPhotoLimit);
-                            const isStarFit = projectedStars <= totalStarsLimit;
+                            const isCountFit = projectedCount <= ratedPhotoLimit;
 
                             if (!isCountFit || !isStarFit) {
                                 isBlue = true;
