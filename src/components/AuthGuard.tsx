@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { auth, signInWithGoogle, logOut } from '../firebase';
 // @ts-ignore
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { Loader, LogIn, ShieldAlert, LogOut, User as UserIcon } from 'lucide-react';
+import { Loader, LogIn, ShieldAlert, LogOut, User as UserIcon, AlertCircle } from 'lucide-react';
 
 // --- КОНФИГУРАЦИЯ ДОСТУПА ---
 // Добавьте сюда email-адреса, которым разрешен доступ к админке
@@ -18,6 +18,7 @@ interface AuthGuardProps {
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser: any) => {
@@ -28,16 +29,24 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     }, []);
 
     const handleLogin = async () => {
+        setError(null);
         try {
             await signInWithGoogle();
-        } catch (error) {
-            console.error("Login failed", error);
-            alert("Ошибка входа через Google");
+        } catch (err: any) {
+            console.error("Login failed", err);
+            if (err.code === 'auth/unauthorized-domain') {
+                setError(`Домен "${window.location.hostname}" не разрешен. Добавьте его в Firebase Console -> Authentication -> Settings -> Authorized domains.`);
+            } else if (err.code === 'auth/popup-closed-by-user') {
+                setError("Вход отменен пользователем.");
+            } else {
+                setError(`Ошибка входа: ${err.message}`);
+            }
         }
     };
 
     const handleLogout = async () => {
         await logOut();
+        setError(null);
     };
 
     if (loading) {
@@ -59,6 +68,14 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
                         <ShieldAlert className="w-10 h-10 text-indigo-400" />
                     </div>
                     <h1 className="text-2xl font-bold mb-2">Административный доступ</h1>
+
+                    {error && (
+                        <div className="mb-6 p-3 bg-red-900/40 border border-red-700/50 rounded-lg flex items-start gap-2 text-left text-sm text-red-200">
+                            <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
                     <p className="text-gray-400 mb-8">
                         {user
                             ? "Вы вошли как анонимный участник голосования. Для доступа к админке войдите через Google."
