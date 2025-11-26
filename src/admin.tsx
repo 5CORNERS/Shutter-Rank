@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
 import { ref, get, set, remove } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
+import { AuthGuard } from './components/AuthGuard';
 import { Spinner } from './components/Spinner';
 import { Eye, Edit, Trash2, PlusCircle, AlertTriangle, Save, X } from 'lucide-react';
 import './index.css';
@@ -16,15 +17,15 @@ const slugify = (text: string): string => {
     const a = 'àáâäæãåāăąçćčđďèéêëēėęěğǵḧîïíīįìłḿñńǹňôöòóœøōõőṕŕřßśšşșťțûüùúūǘůűųẃẍÿýžźż·/_,:;'
     const b = 'aaaaaaaaaacccddeeeeeeeegghiiiiiilmnnnnoooooooooprrsssssttuuuuuuuuuwxyyzzz------'
     const p = new RegExp(a.split('').join('|'), 'g')
-
+  
     return text.toString().toLowerCase()
-        .replace(/\s+/g, '-') // Replace spaces with -
-        .replace(p, c => b.charAt(a.indexOf(c))) // Replace special characters
-        .replace(/&/g, '-and-') // Replace & with 'and'
-        .replace(/[^\w\-]+/g, '') // Remove all non-word chars
-        .replace(/\-\-+/g, '-') // Replace multiple - with single -
-        .replace(/^-+/, '') // Trim - from start of text
-        .replace(/-+$/, '') // Trim - from end of text
+      .replace(/\s+/g, '-') // Replace spaces with -
+      .replace(p, c => b.charAt(a.indexOf(c))) // Replace special characters
+      .replace(/&/g, '-and-') // Replace & with 'and'
+      .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+      .replace(/\-\-+/g, '-') // Replace multiple - with single -
+      .replace(/^-+/, '') // Trim - from start of text
+      .replace(/-+$/, '') // Trim - from end of text
 }
 
 const AdminApp: React.FC = () => {
@@ -118,7 +119,7 @@ const AdminApp: React.FC = () => {
             }
         }
     };
-
+    
     const handleUpdateSession = async (originalId: string, updatedSession: SessionInfo) => {
         if (!updatedSession.id || !updatedSession.name) {
             alert("Имя и ID сессии не могут быть пустыми.");
@@ -136,7 +137,7 @@ const AdminApp: React.FC = () => {
 
             // If ID has changed, we need to move the data
             if (originalId !== updatedSession.id) {
-                if (sessions.some(s => s.id === updatedSession.id)) {
+                 if (sessions.some(s => s.id === updatedSession.id)) {
                     alert(`Сессия с ID "${updatedSession.id}" уже существует.`);
                     return;
                 }
@@ -147,11 +148,11 @@ const AdminApp: React.FC = () => {
                 // If ID is the same, just update the data
                 await set(originalSessionRef, sessionData);
             }
-
+            
             setEditingState(null);
             await fetchSessions();
         } catch (error) {
-            console.error(`Ошибка обновления сессии ${originalId}:`, error);
+             console.error(`Ошибка обновления сессии ${originalId}:`, error);
             alert('Не удалось обновить сессию. Подробности в консоли.');
         }
     };
@@ -217,13 +218,13 @@ const AdminApp: React.FC = () => {
                             placeholder="Название сессии (например, Paris 2024)"
                         />
                         <button onClick={handleCreateSession} className="inline-flex items-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors">
-                            <PlusCircle className="w-5 h-5"/> Создать
+                           <PlusCircle className="w-5 h-5"/> Создать
                         </button>
                     </div>
                 </div>
-                <div>
+                 <div>
                     <h2 className="text-xl font-semibold mb-3 text-gray-300">Инструменты</h2>
-                    <a href="/prepare.html" className="inline-block px-4 py-2 font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                     <a href="/prepare.html" className="inline-block px-4 py-2 font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
                         Перейти к подготовке сессии из URL
                     </a>
                 </div>
@@ -231,7 +232,11 @@ const AdminApp: React.FC = () => {
         );
     };
 
-    return <AdminLayout title="Панель администратора">{renderContent()}</AdminLayout>;
+    return (
+        <AuthGuard>
+            <AdminLayout title="Панель администратора">{renderContent()}</AdminLayout>
+        </AuthGuard>
+    );
 };
 
 const rootElement = document.getElementById('root');

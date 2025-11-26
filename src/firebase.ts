@@ -1,19 +1,20 @@
+// @ts-ignore
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
 // @ts-ignore
-import { getAuth, signInAnonymously as firebaseSignInAnonymously } from 'firebase/auth';
+import { getAuth, signInAnonymously as firebaseSignInAnonymously, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyCftktzmZr3d22oOcpCOtXDYxqRLLbiNmo",
-    authDomain: "photo-voting-930f3.firebaseapp.com",
-    databaseURL: "https://photo-voting-930f3-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "photo-voting-930f3",
-    storageBucket: "photo-voting-930f3.appspot.com",
-    messagingSenderId: "342161351813",
-    appId: "1:342161351813:web:44a52680e36c4bc17735ec",
-    measurementId: "G-Q9B9CYFJMR"
+  apiKey: "AIzaSyCftktzmZr3d22oOcpCOtXDYxqRLLbiNmo",
+  authDomain: "photo-voting-930f3.firebaseapp.com",
+  databaseURL: "https://photo-voting-930f3-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "photo-voting-930f3",
+  storageBucket: "photo-voting-930f3.appspot.com",
+  messagingSenderId: "342161351813",
+  appId: "1:342161351813:web:44a52680e36c4bc17735ec",
+  measurementId: "G-Q9B9CYFJMR"
 };
 
 // Initialize Firebase
@@ -30,3 +31,8 @@ export const storage = getStorage(app, "gs://shutter-rank-storage");
 // Export instance of Auth
 export const auth = getAuth(app);
 export const signInAnonymously = firebaseSignInAnonymously;
+
+// Google Auth
+export const googleProvider = new GoogleAuthProvider();
+export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
+export const logOut = () => signOut(auth);

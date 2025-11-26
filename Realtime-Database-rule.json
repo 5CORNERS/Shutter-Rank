@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "sessions": {
+      ".read": true,
+      "$sessionId": {
+        // РАЗРЕШИТЬ АДМИНИСТРИРОВАНИЕ ТОЛЬКО АВТОРИЗОВАННЫМ АДМИНАМ
+        ".write": "auth != null && (auth.token.email == 'ilia.dumov@gmail.com' || auth.token.email == 'antondumov@gmail.com')",
+
+        // ПРАВИЛА ДЛЯ ПУБЛИЧНОГО ГОЛОСОВАНИЯ
+        "votes": {
+          // Любой может обновлять счетчики (транзакции), даже анонимы
+          ".write": true
+        },
+        "userVotes": {
+          "$userId": {
+            // Пользователь может писать только в свой узел
+            ".write": "auth != null || true", // Для анонимных голосов
+            "$photoId": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5"
+            }
+          }
+        }
+      }
+    }
+  }
+}

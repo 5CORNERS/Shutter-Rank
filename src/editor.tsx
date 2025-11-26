@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import { db, auth, signInAnonymously } from './firebase';
+import { db } from './firebase';
 import { ref, get, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
+import { AuthGuard } from './components/AuthGuard';
 import { Spinner } from './components/Spinner';
 import { Save, Plus, Trash2, ArrowUp, ArrowDown, Wand2, Download, Loader, UploadCloud, AlertTriangle, X, Copy, CheckCircle2, HelpCircle } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
@@ -188,7 +189,6 @@ const EditorApp: React.FC = () => {
     const [generatingCaptionFor, setGeneratingCaptionFor] = useState<number | null>(null);
     const [geminiCustomPrompt, setGeminiCustomPrompt] = useState<string>(() => localStorage.getItem(GEMINI_CUSTOM_PROMPT_STORAGE_KEY) || DEFAULT_PROMPT);
     const [uploadProgress, setUploadProgress] = useState<{current: number, total: number} | null>(null);
-    const [authStatus, setAuthStatus] = useState<'pending' | 'signed_in' | 'failed'>('pending');
     const [showHelpModal, setShowHelpModal] = useState(false);
     const [helpModalMode, setHelpModalMode] = useState<'upload' | 'read'>('upload');
 
@@ -198,20 +198,6 @@ const EditorApp: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const draggedItemIndex = useRef<number | null>(null);
     const scrollInterval = useRef<number | null>(null);
-
-    useEffect(() => {
-        const initAuth = async () => {
-            try {
-                await signInAnonymously(auth);
-                console.log("Signed in anonymously to Firebase");
-                setAuthStatus('signed_in');
-            } catch (error: any) {
-                console.warn("Firebase Auth failed (Public mode).", error);
-                setAuthStatus('failed');
-            }
-        };
-        initAuth();
-    }, []);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -312,7 +298,7 @@ const EditorApp: React.FC = () => {
                 photos: photosWithOrder,
             },
         };
-
+        
         const sanitizedData = JSON.parse(JSON.stringify(finalSessionData));
 
         try {
@@ -389,7 +375,7 @@ const EditorApp: React.FC = () => {
 
     const handleGenerateCaption = useCallback(async (index: number) => {
         if (!sessionData) return;
-
+        
         // Retrieve API key from environment variable injected by build process
         const apiKey = process.env.API_KEY;
 
@@ -651,8 +637,8 @@ const EditorApp: React.FC = () => {
         e.preventDefault();
         e.stopPropagation();
         if (e.relatedTarget && (e.relatedTarget as HTMLElement).id !== 'drop-overlay') {
-            const overlay = document.getElementById('drop-overlay');
-            if (overlay) overlay.style.display = 'none';
+             const overlay = document.getElementById('drop-overlay');
+             if (overlay) overlay.style.display = 'none';
         }
     }
 
@@ -672,10 +658,10 @@ const EditorApp: React.FC = () => {
         const total = files.length;
         let current = 0;
         setUploadProgress({ current: 0, total });
-
+        
         let maxId = sessionData.photos.photos.length > 0 ? Math.max(...sessionData.photos.photos.map(p => p.id)) : 0;
         const bucketName = "shutter-rank-storage";
-
+        
         let hasVerificationError = false;
         let hasUploadError = false;
 
@@ -685,10 +671,10 @@ const EditorApp: React.FC = () => {
             try {
                 const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
                 const filePath = `sessions/${sessionId}/${filename}`;
-
+                
                 // Use direct upload to Google Cloud Storage JSON API to bypass Firebase SDK issues
                 const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o?uploadType=media&name=${encodeURIComponent(filePath)}`;
-
+                
                 const response = await fetch(uploadUrl, {
                     method: 'POST',
                     headers: {
@@ -703,7 +689,7 @@ const EditorApp: React.FC = () => {
 
                 // Construct the public URL manually
                 const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
-
+                
                 const isReadable = await verifyPublicAccess(publicUrl);
                 if (!isReadable) {
                     hasVerificationError = true;
@@ -725,7 +711,7 @@ const EditorApp: React.FC = () => {
                 setUploadProgress({ current, total });
             }
         }
-
+        
         if (newPhotos.length > 0) {
             setSessionData(prev => {
                 if(!prev) return null;
@@ -735,7 +721,7 @@ const EditorApp: React.FC = () => {
                 }
             });
         }
-
+        
         setUploadProgress(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
 
@@ -743,8 +729,8 @@ const EditorApp: React.FC = () => {
             setHelpModalMode('upload');
             setShowHelpModal(true);
         } else if (hasVerificationError) {
-            setHelpModalMode('read');
-            setShowHelpModal(true);
+             setHelpModalMode('read');
+             setShowHelpModal(true);
         }
     }
 
@@ -753,34 +739,34 @@ const EditorApp: React.FC = () => {
         e.stopPropagation();
         const overlay = document.getElementById('drop-overlay');
         if (overlay) overlay.style.display = 'none';
-
+        
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             handleUploadFiles(e.dataTransfer.files);
             return;
         }
-
+        
         if (draggedItemIndex.current === null || !sessionData) {
             handleDragEnd();
             return;
         }
-
+        
         const placeholder = placeholderRef.current;
         if (!placeholder || !placeholder.parentElement) {
             handleDragEnd();
             return;
         }
-
+        
         const children = Array.from(placeholder.parentElement.children);
         const newIndex = children.indexOf(placeholder) - 1;
-
+        
         const newPhotos = [...sessionData.photos.photos];
         const [draggedItem] = newPhotos.splice(draggedItemIndex.current, 1);
-
+        
         if (newIndex >= 0) {
             newPhotos.splice(newIndex, 0, draggedItem);
             setSessionData({ ...sessionData, photos: { ...sessionData.photos, photos: newPhotos } });
         }
-
+        
         handleDragEnd();
     }, [sessionData, handleDragEnd]);
 
@@ -795,13 +781,13 @@ const EditorApp: React.FC = () => {
             <div className="space-y-8" onDragEnter={handleDragEnter} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
                 {showHelpModal && <StorageHelpModal onClose={() => setShowHelpModal(false)} mode={helpModalMode} />}
                 <input type="file" ref={fileInputRef} onChange={(e) => handleUploadFiles(e.target.files)} className="hidden" multiple accept="image/*" />
-
+                
                 <div id="drop-overlay" className="hidden fixed inset-0 z-50 bg-black/80 flex-col items-center justify-center text-white backdrop-blur-sm transition-opacity pointer-events-none">
                     <UploadCloud className="w-24 h-24 text-indigo-500 mb-4 animate-bounce" />
                     <p className="text-2xl font-bold">Отпустите файлы для загрузки</p>
                     <p className="text-gray-400 mt-2">Они будут добавлены в конец списка</p>
                 </div>
-
+                
                 {uploadProgress && (
                     <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center backdrop-blur-sm">
                         <div className="bg-gray-800 p-8 rounded-xl shadow-2xl text-center border border-gray-700">
@@ -919,7 +905,7 @@ const EditorApp: React.FC = () => {
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <h2 className="text-xl font-semibold text-gray-300">Фотографии ({sessionData.photos.photos.length})</h2>
                         <div className="flex flex-wrap items-center gap-3">
-                            <button
+                             <button
                                 onClick={() => { setHelpModalMode('upload'); setShowHelpModal(true); }}
                                 className="inline-flex items-center gap-x-2 px-3 py-2 text-sm font-semibold rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
                             >
@@ -1013,7 +999,7 @@ const EditorApp: React.FC = () => {
                         <button onClick={() => fileInputRef.current?.click()} className="flex-1 inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-indigo-600/80 hover:bg-indigo-600 text-white transition-colors">
                             <UploadCloud className="w-5 h-5"/> Загрузить фото
                         </button>
-                        <button onClick={handleAddPhoto} className="flex-1 inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors">
+                         <button onClick={handleAddPhoto} className="flex-1 inline-flex items-center justify-center gap-x-2 px-4 py-2 font-semibold rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors">
                             <Plus className="w-5 h-5"/> Добавить карточку
                         </button>
                     </div>
@@ -1030,7 +1016,11 @@ const EditorApp: React.FC = () => {
 
     const pageTitle = `Редактор: ${sessionData?.config?.name || sessionId || '...'}`;
 
-    return <AdminLayout title={pageTitle}>{renderContent()}</AdminLayout>;
+    return (
+        <AuthGuard>
+            <AdminLayout title={pageTitle}>{renderContent()}</AdminLayout>
+        </AuthGuard>
+    );
 };
 
 const rootElement = document.getElementById('root');

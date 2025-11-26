@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
 import { ref, set, get } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
+import { AuthGuard } from './components/AuthGuard';
 import { Spinner } from './components/Spinner';
 import { Save, AlertTriangle } from 'lucide-react';
 import './index.css';
@@ -14,15 +15,15 @@ const slugify = (text: string): string => {
     const a = 'àáâäæãåāăąçćčđďèéêëēėęěğǵḧîïíīįìłḿñńǹňôöòóœøōõőṕŕřßśšşșťțûüùúūǘůűųẃẍÿýžźż·/_,:;'
     const b = 'aaaaaaaaaacccddeeeeeeeegghiiiiiilmnnnnoooooooooprrsssssttuuuuuuuuuwxyyzzz------'
     const p = new RegExp(a.split('').join('|'), 'g')
-
+  
     return text.toString().toLowerCase()
-        .replace(/\s+/g, '-') // Replace spaces with -
-        .replace(p, c => b.charAt(a.indexOf(c))) // Replace special characters
-        .replace(/&/g, '-and-') // Replace & with 'and'
-        .replace(/[^\w\-]+/g, '') // Remove all non-word chars
-        .replace(/\-\-+/g, '-') // Replace multiple - with single -
-        .replace(/^-+/, '') // Trim - from start of text
-        .replace(/-+$/, '') // Trim - from end of text
+      .replace(/\s+/g, '-') // Replace spaces with -
+      .replace(p, c => b.charAt(a.indexOf(c))) // Replace special characters
+      .replace(/&/g, '-and-') // Replace & with 'and'
+      .replace(/[^\w\-]+/g, '') // Remove all non-word chars
+      .replace(/\-\-+/g, '-') // Replace multiple - with single -
+      .replace(/^-+/, '') // Trim - from start of text
+      .replace(/-+$/, '') // Trim - from end of text
 }
 
 
@@ -91,7 +92,7 @@ const PrepareApp: React.FC = () => {
                     return;
                 }
             }
-
+            
             const photosWithOrder: FirebasePhoto[] = photos.map((photo, index) => ({
                 ...photo,
                 order: index,
@@ -101,7 +102,7 @@ const PrepareApp: React.FC = () => {
                 introArticleMarkdown: intro,
                 photos: photosWithOrder,
             };
-
+            
             const configData: Config = {
                 name: sessionName.trim(),
                 ratedPhotoLimit: 15,
@@ -117,7 +118,7 @@ const PrepareApp: React.FC = () => {
                 const existingData = snapshot.val();
                 await set(ref(db, `sessions/${generatedSessionId}/config`), existingData.config ? {...existingData.config, name: sessionName.trim()} : configData);
                 await set(ref(db, `sessions/${generatedSessionId}/photos`), photosData);
-
+                
                 const votesRef = ref(db, `sessions/${generatedSessionId}/votes`);
                 const votesSnapshot = await get(votesRef);
                 const currentVotes = votesSnapshot.val() || {};
@@ -141,7 +142,7 @@ const PrepareApp: React.FC = () => {
                     votes: initialVotes,
                     userVotes: {}
                 };
-
+                
                 await set(sessionRef, newSessionData);
             }
 
@@ -154,7 +155,7 @@ const PrepareApp: React.FC = () => {
             setStatus('error');
         }
     };
-
+    
     const renderContent = () => {
         if (status === 'saving') {
             return <Spinner text="Сохранение сессии в Firebase..." />;
@@ -162,7 +163,7 @@ const PrepareApp: React.FC = () => {
 
         if (status === 'error') {
             return (
-                <div className="text-center text-red-400">
+                 <div className="text-center text-red-400">
                     <AlertTriangle className="w-12 h-12 mx-auto mb-2" />
                     <p>{error}</p>
                     <button onClick={() => { setStatus(photos.length > 0 ? 'processed' : 'idle'); setError(''); }} className="mt-4 px-4 py-2 bg-indigo-600 rounded text-white">Попробовать снова</button>
@@ -171,7 +172,7 @@ const PrepareApp: React.FC = () => {
         }
 
         if (status === 'processed' || status === 'processing') {
-            return (
+             return (
                 <div className="space-y-6">
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Название сессии</label>
@@ -181,7 +182,7 @@ const PrepareApp: React.FC = () => {
                     {photos.map((photo, index) => (
                         <div key={index} className="flex flex-col md:flex-row items-start gap-3 p-3 bg-gray-700/50 rounded-lg">
                             <img src={photo.url} alt={`Фото ${photo.id}`} className="w-24 h-24 object-cover rounded-md flex-shrink-0" />
-                            <div className="flex-grow space-y-2">
+                             <div className="flex-grow space-y-2">
                                 <p className="text-sm text-gray-400 break-all">{photo.url}</p>
                                 <textarea
                                     value={photo.caption}
@@ -211,7 +212,7 @@ const PrepareApp: React.FC = () => {
                 </div>
             );
         }
-
+        
         return (
             <div className="space-y-4">
                 <div>
@@ -233,7 +234,11 @@ const PrepareApp: React.FC = () => {
         );
     };
 
-    return <AdminLayout title="Подготовка сессии">{renderContent()}</AdminLayout>;
+    return (
+        <AuthGuard>
+            <AdminLayout title="Подготовка сессии">{renderContent()}</AdminLayout>
+        </AuthGuard>
+    );
 };
 
 const rootElement = document.getElementById('root');
