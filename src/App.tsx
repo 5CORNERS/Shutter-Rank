@@ -17,14 +17,14 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { CreditWarningModal } from './components/CreditWarningModal';
 import { useDeviceType } from './hooks/useDeviceType';
 import { useColumnCount } from './hooks/useColumnCount';
-import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, Send, Lock } from 'lucide-react';
+import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, Send, Lock, Home, Eye } from 'lucide-react';
 import { StatsInfo } from './components/StatsInfo';
 import { ExpandedGroup } from './components/ExpandedGroup';
 import { useModalLifecycle } from './hooks/useModalLifecycle';
 
 type VotingPhase = 'voting' | 'results';
 type AppStatus = 'loading' | 'success' | 'error' | 'selecting_session';
-type SessionInfo = { id: string; name: string };
+type SessionInfo = { id: string; name: string; isVotingClosed?: boolean };
 type ConfirmationState = {
     isOpen: boolean;
     title: string;
@@ -39,18 +39,18 @@ const VotingClosedModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     useModalLifecycle(onClose);
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[300] p-4 animate-fade-in" onClick={onClose}>
-            <div className="relative max-w-md w-full bg-gray-900 rounded-lg shadow-2xl flex flex-col border border-red-900/50" onClick={(e) => e.stopPropagation()}>
+            <div className="relative max-w-md w-full bg-gray-900 rounded-lg shadow-2xl flex flex-col border border-indigo-500/30" onClick={(e) => e.stopPropagation()}>
                 <div className="p-6 space-y-4 text-center">
-                    <div className="mx-auto bg-red-900/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                        <Lock className="w-8 h-8 text-red-500" />
+                    <div className="mx-auto bg-indigo-900/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                        <Eye className="w-8 h-8 text-indigo-400" />
                     </div>
-                    <h2 className="text-2xl font-bold text-white">Голосование завершено</h2>
+                    <h2 className="text-2xl font-bold text-white">Голосование завершено, но!..</h2>
                     <p className="text-gray-300">
-                        Прием голосов в этой сессии остановлен. Вы можете просматривать фотографии и результаты, но ставить или изменять оценки больше нельзя.
+                        Но вы можете просматривать фотографии и результаты голосования. А вот ставить или изменять оценки больше нельзя.
                     </p>
                 </div>
                 <footer className="p-4 bg-gray-800/50 rounded-b-lg text-center">
-                    <button onClick={onClose} className="px-6 py-2 text-sm font-bold rounded-lg bg-red-700 hover:bg-red-600 text-white transition-colors">
+                    <button onClick={onClose} className="px-6 py-2 text-sm font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-lg shadow-indigo-900/20">
                         Понятно
                     </button>
                 </footer>
@@ -160,7 +160,8 @@ const App: React.FC = () => {
                         const data = snapshot.val();
                         const sessionList: SessionInfo[] = Object.keys(data).map(id => ({
                             id: id,
-                            name: data[id]?.config?.name || id
+                            name: data[id]?.config?.name || id,
+                            isVotingClosed: data[id]?.config?.isVotingClosed || false
                         }));
                         setAvailableSessions(sessionList);
                     }
@@ -331,12 +332,12 @@ const App: React.FC = () => {
             const validRating = p.userRating || 0;
 
             if (creditVote) {
-                return { 
-                    ...p, 
+                return {
+                    ...p,
                     userRating: creditVote.rating,
                     validRating: validRating, // Explicitly store the valid portion
-                    isCredit: true, 
-                    isVisible: true 
+                    isCredit: true,
+                    isVisible: true
                 };
             }
             return {
@@ -371,7 +372,7 @@ const App: React.FC = () => {
             if (targetRating > currentValidRating) {
                 creditStars += (targetRating - currentValidRating);
             }
-            
+
             // Surplus Slot (if it wasn't already valid)
             if (currentValidRating === 0 && targetRating > 0) {
                 creditCount++;
@@ -598,7 +599,7 @@ const App: React.FC = () => {
 
             const newCreditVotes = { ...creditVotes };
             let hasChanges = false;
-            
+
             // Dynamic trackers for the loop
             let loopRatedCount = currentRatedCount;
             let loopStarsUsed = currentStarsUsed;
@@ -607,7 +608,7 @@ const App: React.FC = () => {
                 const photoInFirebase = firebasePhotos.find(p => p.id === credit.id);
                 const currentValidRating = photoInFirebase?.userRating || 0;
                 const targetRating = credit.rating;
-                
+
                 const starsNeeded = targetRating - currentValidRating;
                 if (starsNeeded <= 0) {
                     // Already valid? Cleanup local storage.
@@ -640,7 +641,7 @@ const App: React.FC = () => {
 
                 if (canUpgrade && upgradeAmount > 0) {
                     const newValidRating = currentValidRating + upgradeAmount;
-                    
+
                     // Update Refs and Firebase
                     userFirebaseRatingsRef.current[credit.id] = newValidRating;
                     await writeVoteToFirebase(credit.id, newValidRating, currentValidRating);
@@ -654,7 +655,7 @@ const App: React.FC = () => {
                         delete newCreditVotes[credit.id];
                         hasChanges = true;
                         setToastMessage("Ваш голос из «кредита» был зачтен!");
-                    } 
+                    }
                     // Else: partial promotion happens, stays in credit with remainder
                 } else {
                     // If head of queue cannot be upgraded, we STOP.
@@ -674,7 +675,7 @@ const App: React.FC = () => {
 
     const handleRate = useCallback(async (photoId: number, rating: number) => {
         if (!config || !sessionId || !userId) return;
-        
+
         // Block if voting is closed
         if (config.isVotingClosed) return;
 
@@ -693,13 +694,13 @@ const App: React.FC = () => {
         }
 
         // "Iceberg" Logic: Calculate what fits in Valid, rest goes to Credit.
-        
+
         // 1. Determine Global Free Space (Source of Truth: Firebase Refs)
         // We calculate based on CURRENT VALID usage in Firebase.
         let usedValidSlots = 0;
         let usedValidStars = 0;
         const refRatings = userFirebaseRatingsRef.current;
-        
+
         // Re-calculate totals from ref to be safe
         Object.values(refRatings).forEach(r => {
             if (r > 0) {
@@ -748,7 +749,7 @@ const App: React.FC = () => {
         }
 
         // 6. Execute Changes
-        
+
         // A. Update Firebase (Valid Portion)
         if (newValidRating !== myCurrentValidRating) {
             userFirebaseRatingsRef.current[photoId] = newValidRating;
@@ -770,7 +771,7 @@ const App: React.FC = () => {
                 if (creditWarningTimeoutRef.current) {
                     clearTimeout(creditWarningTimeoutRef.current);
                 }
-                
+
                 // Determine limit type and if it's "exceeded" (> limit) or "reached" (== limit)
                 // Important: We look at the TOTAL stats (Valid + Credit).
                 // But since React state update is async, we use calculated values or refs if possible.
@@ -779,8 +780,8 @@ const App: React.FC = () => {
                 const totalStars = stats.total.stars + (newRating - currentRating);
 
                 const limitType = totalCount > config.ratedPhotoLimit ? 'count' : 'stars';
-                const isExceeded = limitType === 'count' 
-                    ? totalCount > config.ratedPhotoLimit 
+                const isExceeded = limitType === 'count'
+                    ? totalCount > config.ratedPhotoLimit
                     : totalStars > config.totalStarsLimit;
 
                 creditWarningTimeoutRef.current = window.setTimeout(() => {
@@ -891,7 +892,7 @@ const App: React.FC = () => {
             itemsCopy = itemsCopy.map(item => {
                 // If this is the active group (expanded OR closing), keep it visible even if partially hidden logic applies
                 const isActiveGroup = expandedGroupId === item.groupId || closingGroupId === item.groupId;
-                
+
                 if (item.type === 'stack' && !isActiveGroup) {
                     const visiblePhotosInStack = item.photos.filter(p => p.isVisible !== false || p.id === hidingPhotoId);
                     if (visiblePhotosInStack.length === 0) return null;
@@ -1247,9 +1248,12 @@ const App: React.FC = () => {
                             <a
                                 key={session.id}
                                 href={`#${session.id}`}
-                                className="block w-full text-center px-6 py-3 text-lg font-semibold rounded-lg bg-gray-700 hover:bg-indigo-600 focus:ring-indigo-500 text-white transition-colors"
+                                className="block w-full px-6 py-3 text-lg font-semibold rounded-lg bg-gray-700 hover:bg-indigo-600 focus:ring-indigo-500 text-white transition-colors flex items-center justify-between"
                             >
-                                {session.name}
+                                <span>{session.name}</span>
+                                {session.isVotingClosed && (
+                                    <Eye className="w-5 h-5 text-gray-400" title="Голосование завершено (только просмотр)" />
+                                )}
                             </a>
                         ))
                     ) : (
@@ -1278,7 +1282,7 @@ const App: React.FC = () => {
     const showStickyHeader = isScrolled || !!selectedPhoto;
     const hasVotes = stats.total.count > 0;
     const sessionDisplayName = config.name || sessionId;
-    
+
     // Calculate global credit flag
     const hasCreditVotes = stats.credit.count > 0;
     const isVotingClosed = config.isVotingClosed || false;
@@ -1359,12 +1363,20 @@ const App: React.FC = () => {
 
             <main className={`container mx-auto px-4 py-8`}>
                 <header ref={headerRef} className="text-center mb-8">
-                    <div className="flex justify-center items-center gap-4 mb-2">
+                    <div className="flex justify-center items-center gap-4 mb-2 relative">
+                        <a
+                            href="#"
+                            onClick={(e) => { e.preventDefault(); window.location.hash = ''; setSessionId(null); }}
+                            className="absolute left-0 sm:static p-2 rounded-full text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                            title="К списку сессий"
+                        >
+                            <Home className="w-6 h-6" />
+                        </a>
                         <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3 justify-center">
                             {sessionDisplayName}
-                            {isVotingClosed && <span className="text-sm font-normal text-red-400 border border-red-800 px-2 py-0.5 rounded bg-red-900/20">Завершено</span>}
+                            {isVotingClosed && <span className="text-sm font-normal text-indigo-300 border border-indigo-500/50 px-2 py-0.5 rounded bg-indigo-900/30 flex items-center gap-1"><Eye className="w-3 h-3"/>Архив</span>}
                         </h1>
-                        <div className="flex items-center gap-2">
+                        <div className="absolute right-0 sm:static flex items-center gap-2">
                             <button onClick={handleShare} className="text-gray-400 hover:text-white transition-colors" title="Копировать ссылку">
                                 <Share2 className="w-6 h-6" />
                             </button>
