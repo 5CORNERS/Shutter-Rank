@@ -10,6 +10,7 @@ on:
       - feature/editor-upload
       - role-based-access-model
       - credit-stars-photos
+      - xpired-sessions
 
 jobs:
   build_and_deploy:
@@ -33,7 +34,7 @@ jobs:
         run: npm run build
 
       - name: Deploy to Firebase (Dev Channel)
-        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/photo-groups-feature' || github.ref == 'refs/heads/feature/editor-upload' || github.ref == 'refs/heads/role-based-access-model' || github.ref == 'refs/heads/credit-stars-photos'
+        if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/photo-groups-feature' || github.ref == 'refs/heads/feature/editor-upload' || github.ref == 'refs/heads/role-based-access-model' || github.ref == 'refs/heads/credit-stars-photos' || github.ref == 'refs/heads/xpired-sessions'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'

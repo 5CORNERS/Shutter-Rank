@@ -60,6 +60,7 @@ export interface Config {
   defaultGridAspectRatio: GridAspectRatio;
   unlockFourStarsThresholdPercent?: number;
   unlockFiveStarsThresholdPercent?: number;
+  isVotingClosed?: boolean; // New flag for archived sessions
 }
 
 export type SortMode = 'id' | 'stars' | 'score' | 'count';

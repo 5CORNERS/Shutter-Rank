@@ -24,6 +24,7 @@ interface ExpandedGroupProps {
     ratedPhotosCount: number;
     ratedPhotoLimit: number;
     hasCreditVotes: boolean;
+    isVotingDisabled?: boolean;
 }
 
 export const ExpandedGroup: React.FC<ExpandedGroupProps> = ({
@@ -45,7 +46,8 @@ export const ExpandedGroup: React.FC<ExpandedGroupProps> = ({
                                     totalStarsLimit,
                                     ratedPhotosCount,
                                     ratedPhotoLimit,
-                                    hasCreditVotes
+                                    hasCreditVotes,
+                                    isVotingDisabled = false
                                 }) => {
     // Determine if this instance should be expanded. 
     // It is expanded if the ID matches OR if it's currently in the closing animation phase.
@@ -120,6 +122,7 @@ export const ExpandedGroup: React.FC<ExpandedGroupProps> = ({
                                                 ratedPhotosCount={ratedPhotosCount}
                                                 ratedPhotoLimit={ratedPhotoLimit}
                                                 hasCreditVotes={hasCreditVotes}
+                                                isVotingDisabled={isVotingDisabled}
                                             />
                                         </div>
                                     )

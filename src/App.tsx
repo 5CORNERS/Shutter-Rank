@@ -17,9 +17,10 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { CreditWarningModal } from './components/CreditWarningModal';
 import { useDeviceType } from './hooks/useDeviceType';
 import { useColumnCount } from './hooks/useColumnCount';
-import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, Send } from 'lucide-react';
+import { Loader, AlertTriangle, Trash2, Settings as SettingsIcon, List, BarChart2, Share2, Send, Lock } from 'lucide-react';
 import { StatsInfo } from './components/StatsInfo';
 import { ExpandedGroup } from './components/ExpandedGroup';
+import { useModalLifecycle } from './hooks/useModalLifecycle';
 
 type VotingPhase = 'voting' | 'results';
 type AppStatus = 'loading' | 'success' | 'error' | 'selecting_session';
@@ -32,6 +33,31 @@ type ConfirmationState = {
     onCancel?: () => void;
 }
 type LocalVote = { rating: number, timestamp: number };
+
+// Internal component for "Voting Closed" modal
+const VotingClosedModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+    useModalLifecycle(onClose);
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex justify-center items-center z-[300] p-4 animate-fade-in" onClick={onClose}>
+            <div className="relative max-w-md w-full bg-gray-900 rounded-lg shadow-2xl flex flex-col border border-red-900/50" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 space-y-4 text-center">
+                    <div className="mx-auto bg-red-900/20 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                        <Lock className="w-8 h-8 text-red-500" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white">Голосование завершено</h2>
+                    <p className="text-gray-300">
+                        Прием голосов в этой сессии остановлен. Вы можете просматривать фотографии и результаты, но ставить или изменять оценки больше нельзя.
+                    </p>
+                </div>
+                <footer className="p-4 bg-gray-800/50 rounded-b-lg text-center">
+                    <button onClick={onClose} className="px-6 py-2 text-sm font-bold rounded-lg bg-red-700 hover:bg-red-600 text-white transition-colors">
+                        Понятно
+                    </button>
+                </footer>
+            </div>
+        </div>
+    );
+};
 
 const getUserId = (): string => {
     let userId = localStorage.getItem('shutterRankUserId');
@@ -83,6 +109,7 @@ const App: React.FC = () => {
     const [showHiddenPhotos, setShowHiddenPhotos] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
     const [creditWarning, setCreditWarning] = useState<{ isOpen: boolean; limitType: 'count' | 'stars'; isExceeded: boolean }>({ isOpen: false, limitType: 'count', isExceeded: false });
+    const [showVotingClosedModal, setShowVotingClosedModal] = useState(false);
 
     const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
     const [closingGroupId, setClosingGroupId] = useState<string | null>(null);
@@ -159,6 +186,11 @@ const App: React.FC = () => {
 
                 const loadedConfig = data.config as Config;
                 setConfig(loadedConfig);
+
+                // Check if voting is closed and show modal
+                if (loadedConfig.isVotingClosed) {
+                    setShowVotingClosedModal(true);
+                }
 
                 const photosData = (data.photos || { photos: [], introArticleMarkdown: '' }) as FirebasePhotoData;
                 const groupsData = (data.groups || {}) as FirebaseDataGroups;
@@ -392,13 +424,13 @@ const App: React.FC = () => {
     }, [photos, status, sessionId]);
 
     useEffect(() => {
-        const isAnyModalOpen = isSettingsModalOpen || isArticleModalOpen || isRatingInfoModalOpen || !!expertViewGroupId || !!selectedPhotoId || immersivePhotoId !== null || confirmation.isOpen || creditWarning.isOpen;
+        const isAnyModalOpen = isSettingsModalOpen || isArticleModalOpen || isRatingInfoModalOpen || !!expertViewGroupId || !!selectedPhotoId || immersivePhotoId !== null || confirmation.isOpen || creditWarning.isOpen || showVotingClosedModal;
         if (isAnyModalOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
-    }, [isSettingsModalOpen, isArticleModalOpen, isRatingInfoModalOpen, expertViewGroupId, selectedPhotoId, immersivePhotoId, confirmation.isOpen, creditWarning.isOpen]);
+    }, [isSettingsModalOpen, isArticleModalOpen, isRatingInfoModalOpen, expertViewGroupId, selectedPhotoId, immersivePhotoId, confirmation.isOpen, creditWarning.isOpen, showVotingClosedModal]);
 
     const scrollToPhoto = useCallback((photoId: number | null) => {
         if (photoId !== null) {
@@ -642,6 +674,9 @@ const App: React.FC = () => {
 
     const handleRate = useCallback(async (photoId: number, rating: number) => {
         if (!config || !sessionId || !userId) return;
+        
+        // Block if voting is closed
+        if (config.isVotingClosed) return;
 
         const photoToUpdate = photosWithMaxRating.find(p => p.id === photoId);
         if (!photoToUpdate || photoToUpdate.isOutOfCompetition) return;
@@ -789,6 +824,7 @@ const App: React.FC = () => {
 
     const handleResetVotes = useCallback(() => {
         if (!sessionId || !userId) return;
+        if (config?.isVotingClosed) return; // Block reset if closed
 
         openConfirmation(
             'Сбросить все оценки?',
@@ -817,7 +853,7 @@ const App: React.FC = () => {
             },
             closeConfirmation
         );
-    }, [sessionId, userId]);
+    }, [sessionId, userId, config]);
 
     // Helper for nested sorting logic
     const comparePhotos = useCallback((a: Photo, b: Photo, mode: SortMode) => {
@@ -1245,6 +1281,7 @@ const App: React.FC = () => {
     
     // Calculate global credit flag
     const hasCreditVotes = stats.credit.count > 0;
+    const isVotingClosed = config.isVotingClosed || false;
 
     return (
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
@@ -1257,6 +1294,10 @@ const App: React.FC = () => {
                 onConfirm={confirmation.onConfirm}
                 onCancel={confirmation.onCancel || closeConfirmation}
             />
+
+            {showVotingClosedModal && (
+                <VotingClosedModal onClose={() => setShowVotingClosedModal(false)} />
+            )}
 
             {creditWarning.isOpen && (
                 <CreditWarningModal
@@ -1304,6 +1345,7 @@ const App: React.FC = () => {
                     ratedPhotosCount={stats.valid.count}
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     hasCreditVotes={hasCreditVotes}
+                    isVotingDisabled={isVotingClosed}
                 />
             )}
 
@@ -1318,7 +1360,10 @@ const App: React.FC = () => {
             <main className={`container mx-auto px-4 py-8`}>
                 <header ref={headerRef} className="text-center mb-8">
                     <div className="flex justify-center items-center gap-4 mb-2">
-                        <h1 className="text-4xl font-bold tracking-tight">{sessionDisplayName}</h1>
+                        <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3 justify-center">
+                            {sessionDisplayName}
+                            {isVotingClosed && <span className="text-sm font-normal text-red-400 border border-red-800 px-2 py-0.5 rounded bg-red-900/20">Завершено</span>}
+                        </h1>
                         <div className="flex items-center gap-2">
                             <button onClick={handleShare} className="text-gray-400 hover:text-white transition-colors" title="Копировать ссылку">
                                 <Share2 className="w-6 h-6" />
@@ -1346,14 +1391,16 @@ const App: React.FC = () => {
                                         <BarChart2 className="w-4 h-4" />
                                         <span>{votingPhase === 'voting' ? 'Показать общие' : 'Скрыть общие'}</span>
                                     </button>
-                                    <button
-                                        onClick={handleResetVotes}
-                                        disabled={!hasVotes}
-                                        className="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-800 hover:bg-red-700 focus:ring-red-600 text-white transition-colors disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                        <span>Сбросить оценки</span>
-                                    </button>
+                                    {!isVotingClosed && (
+                                        <button
+                                            onClick={handleResetVotes}
+                                            disabled={!hasVotes}
+                                            className="inline-flex items-center gap-x-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-800 hover:bg-red-700 focus:ring-red-600 text-white transition-colors disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                            <span>Сбросить оценки</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -1440,6 +1487,7 @@ const App: React.FC = () => {
                                                 ratedPhotosCount={stats.valid.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
                                                 hasCreditVotes={hasCreditVotes}
+                                                isVotingDisabled={isVotingClosed}
                                             />
                                             {settings.layout === 'original' && (expandedGroupId === item.groupId || closingGroupId === item.groupId) && (
                                                 <ExpandedGroup
@@ -1462,6 +1510,7 @@ const App: React.FC = () => {
                                                     ratedPhotosCount={stats.valid.count}
                                                     ratedPhotoLimit={config.ratedPhotoLimit}
                                                     hasCreditVotes={hasCreditVotes}
+                                                    isVotingDisabled={isVotingClosed}
                                                 />
                                             )}
                                         </div>
@@ -1482,6 +1531,7 @@ const App: React.FC = () => {
                                                 ratedPhotosCount={stats.valid.count}
                                                 ratedPhotoLimit={config.ratedPhotoLimit}
                                                 hasCreditVotes={hasCreditVotes}
+                                                isVotingDisabled={isVotingClosed}
                                             />
                                         </div>
                                     )}
@@ -1507,6 +1557,7 @@ const App: React.FC = () => {
                                             ratedPhotosCount={stats.valid.count}
                                             ratedPhotoLimit={config.ratedPhotoLimit}
                                             hasCreditVotes={hasCreditVotes}
+                                            isVotingDisabled={isVotingClosed}
                                         />
                                     )}
                                 </React.Fragment>
@@ -1583,6 +1634,7 @@ const App: React.FC = () => {
                     totalStarsLimit={config.totalStarsLimit}
                     ratedPhotoLimit={config.ratedPhotoLimit}
                     hasCreditVotes={hasCreditVotes}
+                    isVotingDisabled={isVotingClosed}
                 />
             )}
 
@@ -1606,6 +1658,7 @@ const App: React.FC = () => {
                     onGroupSelectionChange={handleGroupSelectionChange}
                     onOpenGroup={handleOpenGroupFromViewer}
                     hasCreditVotes={hasCreditVotes}
+                    isVotingDisabled={isVotingClosed}
                 />
             )}
         </div>

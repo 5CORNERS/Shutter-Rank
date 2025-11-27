@@ -21,11 +21,12 @@ interface PhotoStackProps {
     ratedPhotosCount: number;
     ratedPhotoLimit: number;
     hasCreditVotes: boolean;
+    isVotingDisabled?: boolean;
 }
 
 export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                                                                    stack, groupName, onRate, onImageClick, onExpand, onToggleVisibility, displayVotes, layoutMode, gridAspectRatio, onShowToast,
-                                                                   starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit, hasCreditVotes
+                                                                   starsUsed, totalStarsLimit, ratedPhotosCount, ratedPhotoLimit, hasCreditVotes, isVotingDisabled = false
                                                                }) => {
 
     // Determine which photos to show in the stack layers
@@ -53,6 +54,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
     const isExpanded = stack.isExpanded;
 
     const handleRateCover = (photoId: number, rating: number) => {
+        if (isVotingDisabled) return;
         // If no photo is selected, clicking stars on the "gray" cover should prompt to select
         if (stack.selectedPhotoId === null) {
             if (onShowToast) {
@@ -145,6 +147,7 @@ export const PhotoStackComponent: React.FC<PhotoStackProps> = ({
                         ratedPhotosCount={ratedPhotosCount}
                         ratedPhotoLimit={ratedPhotoLimit}
                         hasCreditVotes={hasCreditVotes}
+                        isVotingDisabled={isVotingDisabled}
                     />
 
                     {/* Expanded Overlay with Floating Chevron */}

@@ -339,7 +339,14 @@ const EditorApp: React.FC = () => {
 
     const handleConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
-        const parsedValue = type === 'number' ? parseFloat(value) || 0 : value;
+        
+        let parsedValue: any = value;
+        if (type === 'number') {
+            parsedValue = parseFloat(value) || 0;
+        } else if (type === 'checkbox') {
+            parsedValue = (e.target as HTMLInputElement).checked;
+        }
+
         if (sessionData) {
             setSessionData({
                 ...sessionData,
@@ -372,6 +379,8 @@ const EditorApp: React.FC = () => {
             };
         });
     }, []);
+
+    // ... (Rest of the component same as previous, only config block changed)
 
     const handleGenerateCaption = useCallback(async (index: number) => {
         if (!sessionData) return;
@@ -422,6 +431,7 @@ const EditorApp: React.FC = () => {
         }
     }, [sessionData, handlePhotoChange, geminiCustomPrompt]);
 
+    // ... (Helpers for prompt change, move, add, delete etc. remain same)
     const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newPrompt = e.target.value;
         setGeminiCustomPrompt(newPrompt);
@@ -672,7 +682,6 @@ const EditorApp: React.FC = () => {
                 const filename = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
                 const filePath = `sessions/${sessionId}/${filename}`;
                 
-                // Use direct upload to Google Cloud Storage JSON API to bypass Firebase SDK issues
                 const uploadUrl = `https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o?uploadType=media&name=${encodeURIComponent(filePath)}`;
                 
                 const response = await fetch(uploadUrl, {
@@ -687,7 +696,6 @@ const EditorApp: React.FC = () => {
                     throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
                 }
 
-                // Construct the public URL manually
                 const publicUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
                 
                 const isReadable = await verifyPublicAccess(publicUrl);
@@ -849,6 +857,13 @@ const EditorApp: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-400 mb-1">Unlock Four Stars Threshold Percent</label>
                             <input type="number" name="unlockFourStarsThresholdPercent" value={sessionData.config.unlockFourStarsThresholdPercent ?? 20} onChange={handleConfigChange} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
                         </div>
+                        <div className="flex items-center">
+                            <input type="checkbox" name="isVotingClosed" id="isVotingClosed" checked={!!sessionData.config.isVotingClosed} onChange={handleConfigChange} className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600" />
+                            <label htmlFor="isVotingClosed" className="ml-2 block text-sm text-gray-300">
+                                <span className="block font-medium text-white">Голосование закрыто</span>
+                                <span className="block text-xs">Пользователи могут смотреть, но не могут голосовать.</span>
+                            </label>
+                        </div>
                         <div className="md:col-span-2 lg:col-span-3">
                             <label className="block text-sm font-medium text-gray-400 mb-1">Стиль описаний от ИИ (промпт)</label>
                             <textarea id="geminiCustomPrompt" value={geminiCustomPrompt} onChange={handlePromptChange} rows={3} className="w-full p-2 border border-gray-600 rounded-md bg-gray-900 text-white focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-sm" />
@@ -857,6 +872,7 @@ const EditorApp: React.FC = () => {
                     </div>
                 </details>
 
+                {/* ... Rest of render content ... */}
                 <details className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-6 shadow-sm">
                     <summary className="text-xl font-semibold mb-2 text-gray-200 cursor-pointer">
                         Вступительная статья (Markdown)

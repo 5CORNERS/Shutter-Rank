@@ -35,13 +35,14 @@ interface ModalProps {
   totalStarsLimit?: number;
   ratedPhotoLimit?: number;
   hasCreditVotes?: boolean;
+  isVotingDisabled?: boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
     photo, allPhotosInGroup, onClose, displayVotes, onNext, onPrev, onEnterImmersive,
     onRate, onToggleVisibility, hasNext, hasPrev, config, ratedPhotosCount,
     starsUsed, groupInfo, groupSelections, onGroupSelectionChange, onOpenGroup,
-    totalStarsLimit = 1000, ratedPhotoLimit = 1000, hasCreditVotes = false
+    totalStarsLimit = 1000, ratedPhotoLimit = 1000, hasCreditVotes = false, isVotingDisabled = false
 }) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const [controlsContainerStyle, setControlsContainerStyle] = useState<React.CSSProperties>({});
@@ -93,7 +94,7 @@ export const Modal: React.FC<ModalProps> = ({
           if (!photo.isOutOfCompetition) onToggleVisibility(photo.id);
       } else if (!event.ctrlKey && !event.metaKey && /^[0-5]$/.test(event.key)) {
           event.preventDefault();
-          if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(event.key, 10));
+          if (!photo.isOutOfCompetition && !isVotingDisabled) onRate(photo.id, parseInt(event.key, 10));
       }
     };
     
@@ -101,7 +102,7 @@ export const Modal: React.FC<ModalProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose, onNext, onPrev, photo, onRate, onToggleVisibility]);
+  }, [onClose, onNext, onPrev, photo, onRate, onToggleVisibility, isVotingDisabled]);
 
   const handleSelect = () => {
       if (groupInfo) {
@@ -191,7 +192,7 @@ export const Modal: React.FC<ModalProps> = ({
                         photo={photo} 
                         onRate={onRate} 
                         size="large" 
-                        disabled={!!photo.isOutOfCompetition} 
+                        disabled={!!photo.isOutOfCompetition || isVotingDisabled} 
                         resetButtonMode="always"
                         starsUsed={starsUsed}
                         totalStarsLimit={totalStarsLimit}

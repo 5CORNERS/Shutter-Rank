@@ -37,6 +37,7 @@ interface PhotoCardProps {
     ratedPhotosCount?: number;
     ratedPhotoLimit?: number;
     hasCreditVotes?: boolean;
+    isVotingDisabled?: boolean;
 }
 
 export const PhotoCard: React.FC<PhotoCardProps> = ({
@@ -45,7 +46,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
                                                         showVisibilityToggle = true, showSelectionControl = false, isSelected = false, onSelect = () => {},
                                                         isFilterActive = false, isGrayscale = false,
                                                         starsUsed = 0, totalStarsLimit = 1000, ratedPhotosCount = 0, ratedPhotoLimit = 1000,
-                                                        hasCreditVotes = false
+                                                        hasCreditVotes = false, isVotingDisabled = false
                                                     }) => {
     const [isCaptionVisible, setIsCaptionVisible] = useState(false);
 
@@ -86,7 +87,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
         } else {
             // validRating == 0 (Pure Credit)
             // Determine WHY it is credit.
-
+            
             // Since validRating is 0, this photo is NOT counted in ratedPhotosCount (which comes from App.tsx derived from firebasePhotos)
             // So we just check if there is room for +1 photo.
             const isSlotAvailable = ratedPhotosCount < ratedPhotoLimit;
@@ -171,7 +172,7 @@ export const PhotoCard: React.FC<PhotoCardProps> = ({
                                 photo={photo}
                                 onRate={onRate}
                                 size="small"
-                                disabled={isOutOfComp}
+                                disabled={isOutOfComp || isVotingDisabled}
                                 variant={isGrayscale ? 'gray' : 'default'}
                                 starsUsed={starsUsed}
                                 totalStarsLimit={totalStarsLimit}

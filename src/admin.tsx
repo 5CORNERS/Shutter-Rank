@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import { db } from './firebase';
-import { ref, get, set, remove } from 'firebase/database';
+import { ref, get, set, remove, update } from 'firebase/database';
 import { AdminLayout } from './components/AdminLayout';
 import { AuthGuard } from './components/AuthGuard';
 import { Spinner } from './components/Spinner';
-import { Eye, Edit, Trash2, PlusCircle, AlertTriangle, Save, X } from 'lucide-react';
+import { Eye, Edit, Trash2, PlusCircle, AlertTriangle, Save, X, Lock, Unlock } from 'lucide-react';
 import './index.css';
 import { Config, FirebasePhotoData } from './types';
 
 type Status = 'loading' | 'success' | 'error';
-type SessionInfo = { id: string; name: string };
+type SessionInfo = { id: string; name: string; isVotingClosed?: boolean };
 type EditingState = { originalId: string; id: string; name: string };
 
 const slugify = (text: string): string => {
@@ -44,7 +44,8 @@ const AdminApp: React.FC = () => {
                 if (typeof data === 'object' && data !== null) {
                     const sessionList: SessionInfo[] = Object.keys(data).map(id => ({
                         id: id,
-                        name: data[id]?.config?.name || id
+                        name: data[id]?.config?.name || id,
+                        isVotingClosed: data[id]?.config?.isVotingClosed || false
                     }));
                     setSessions(sessionList);
                 } else {
@@ -85,6 +86,7 @@ const AdminApp: React.FC = () => {
             defaultGridAspectRatio: '4/3',
             unlockFourStarsThresholdPercent: 20,
             unlockFiveStarsThresholdPercent: 50,
+            isVotingClosed: false
         };
         const defaultPhotos: FirebasePhotoData = {
             introArticleMarkdown: `# Новая сессия: ${trimmedName}\n\nДобро пожаловать!`,
@@ -157,6 +159,19 @@ const AdminApp: React.FC = () => {
         }
     };
 
+    const handleToggleVotingClosed = async (sessionId: string, currentStatus: boolean) => {
+        try {
+            const updates: any = {};
+            updates[`sessions/${sessionId}/config/isVotingClosed`] = !currentStatus;
+            await update(ref(db), updates);
+            // Optimistic update
+            setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, isVotingClosed: !currentStatus } : s));
+        } catch (error) {
+            console.error("Error toggling status:", error);
+            alert("Не удалось изменить статус сессии.");
+        }
+    };
+
     const renderContent = () => {
         if (status === 'loading') {
             return <Spinner text="Загрузка сессий..." />;
@@ -176,7 +191,7 @@ const AdminApp: React.FC = () => {
                     {sessions.length > 0 ? (
                         <ul className="space-y-2">
                             {sessions.map(session => (
-                                <li key={session.id} className="p-3 bg-gray-700/50 rounded-lg">
+                                <li key={session.id} className={`p-3 rounded-lg border transition-colors ${session.isVotingClosed ? 'bg-gray-800 border-red-900/50' : 'bg-gray-700/50 border-transparent'}`}>
                                     {editingState?.originalId === session.id ? (
                                         <div className="flex flex-col gap-2">
                                             <input type="text" value={editingState.name} onChange={e => setEditingState(s => s ? { ...s, name: e.target.value } : null)} className="p-2 border border-gray-600 rounded-md bg-gray-800 text-white" placeholder="Название"/>
@@ -188,9 +203,21 @@ const AdminApp: React.FC = () => {
                                         </div>
                                     ) : (
                                         <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <div>
-                                                <div className="font-bold text-lg text-white">{session.name}</div>
-                                                <div className="font-mono text-xs text-gray-400">{session.id}</div>
+                                            <div className="flex items-center gap-3">
+                                                <button 
+                                                    onClick={() => handleToggleVotingClosed(session.id, !!session.isVotingClosed)}
+                                                    className={`p-2 rounded-full transition-colors ${session.isVotingClosed ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50' : 'bg-green-900/30 text-green-400 hover:bg-green-900/50'}`}
+                                                    title={session.isVotingClosed ? "Голосование закрыто (Нажмите, чтобы открыть)" : "Голосование активно (Нажмите, чтобы закрыть)"}
+                                                >
+                                                    {session.isVotingClosed ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+                                                </button>
+                                                <div>
+                                                    <div className={`font-bold text-lg ${session.isVotingClosed ? 'text-gray-400' : 'text-white'}`}>
+                                                        {session.name}
+                                                        {session.isVotingClosed && <span className="ml-2 text-xs font-normal text-red-400 border border-red-800 px-2 py-0.5 rounded bg-red-900/20">Завершено</span>}
+                                                    </div>
+                                                    <div className="font-mono text-xs text-gray-500">{session.id}</div>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-3">
                                                 <a href={`/#${session.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-cyan-400 hover:text-cyan-300" title="Открыть"><Eye className="w-4 h-4"/><span>Смотреть</span></a>

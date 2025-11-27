@@ -34,6 +34,7 @@ interface ImmersiveViewProps {
     onGroupSelectionChange: (groupId: string, photoId: number | null) => void;
     onOpenGroup: (groupId: string) => void;
     hasCreditVotes?: boolean;
+    isVotingDisabled?: boolean;
 }
 
 type UIMode = 'full' | 'minimal';
@@ -184,7 +185,7 @@ const ImageWrapper: React.FC<{
 export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     allPhotos, photoId, allPhotosInGroup, onClose, onNext, onPrev, onRate, onToggleVisibility, displayVotes, ratedPhotosCount,
     starsUsed, ratedPhotoLimit, totalStarsLimit, groupInfo, groupSelections, onGroupSelectionChange,
-    onOpenGroup, hasCreditVotes = false
+    onOpenGroup, hasCreditVotes = false, isVotingDisabled = false
 }) => {
     const currentIndex = useMemo(() => allPhotos.findIndex(p => p.id === photoId), [allPhotos, photoId]);
     const photo = allPhotos[currentIndex];
@@ -301,7 +302,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                 if (!photo.isOutOfCompetition) onToggleVisibility(photo.id);
             } else if (!e.ctrlKey && !e.metaKey && /^[0-5]$/.test(e.key)) {
                  e.preventDefault();
-                if (!photo.isOutOfCompetition) onRate(photo.id, parseInt(e.key, 10));
+                if (!photo.isOutOfCompetition && !isVotingDisabled) onRate(photo.id, parseInt(e.key, 10));
             }
         }
         document.addEventListener('keydown', handleKeyDown);
@@ -309,7 +310,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
              document.removeEventListener('keydown', handleKeyDown);
              if (activityTimer.current) clearTimeout(activityTimer.current);
         }
-    }, [onNext, onPrev, isTouchDevice, photo, onRate, onToggleVisibility, groupInfo]);
+    }, [onNext, onPrev, isTouchDevice, photo, onRate, onToggleVisibility, groupInfo, isVotingDisabled]);
 
     useEffect(() => {
         if (showHint) {
@@ -326,7 +327,9 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
     }, [showHint]);
 
     const handleRate = (rating: number) => {
-        onRate(photo.id, rating);
+        if (!isVotingDisabled) {
+            onRate(photo.id, rating);
+        }
     };
 
     const handleTouchStart = (e: React.TouchEvent) => {
@@ -604,7 +607,8 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                                 key={star}
                                                 onClick={() => handleRate(star)}
                                                 onMouseEnter={() => !isTouchDevice && setHoverRating(star)}
-                                                className={`p-2 rounded-full transition-all transform hover:scale-125`}
+                                                disabled={isVotingDisabled}
+                                                className={`p-2 rounded-full transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-50`}
                                                 aria-label={titleText}
                                                 title={titleText}
                                             >
@@ -613,7 +617,7 @@ export const ImmersiveView: React.FC<ImmersiveViewProps> = ({
                                         )
                                     })}
                                     <div className='w-[44px] h-[44px] flex items-center justify-center transition-opacity' style={{opacity: photo.userRating && photo.userRating > 0 ? 1 : 0}}>
-                                        <button onClick={() => handleRate(0)} className={`p-2 rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125`} aria-label="Сбросить оценку">
+                                        <button onClick={() => handleRate(0)} disabled={isVotingDisabled} className={`p-2 rounded-full text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all transform hover:scale-125 disabled:cursor-not-allowed disabled:transform-none disabled:opacity-50`} aria-label="Сбросить оценку">
                                             <XCircle className="w-6 h-6" />
                                         </button>
                                     </div>
